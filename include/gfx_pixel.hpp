@@ -4,6 +4,38 @@
 #include <math.h>
 #define GFX_CHANNEL_NAME(x) struct x { static inline constexpr const char* value() { return #x; } };
 namespace gfx {
+    namespace helpers {
+        // adjusts byte order if necessary
+        constexpr static inline uint16_t order_guard(uint16_t value) {
+            if(bits::endianness()==bits::endian_mode::little_endian) {
+                return bits::swap(value);
+            }
+            return value;
+        }
+        // adjusts byte order if necessary
+        constexpr static inline uint32_t order_guard(uint32_t value) {
+            if(bits::endianness()==bits::endian_mode::little_endian) {
+                return bits::swap(value);
+            }
+            return value;
+        }
+        // adjusts byte order if necessary
+        constexpr static inline uint64_t order_guard(uint64_t value) {
+            if(bits::endianness()==bits::endian_mode::little_endian) {
+                return bits::swap(value);
+            }
+            return value;
+        }
+        // adjusts byte order if necessary (disambiguation)
+        constexpr static inline uint8_t order_guard(uint8_t value) {
+            return value;
+        }
+        template<typename IntType>
+        constexpr static inline IntType clamp(IntType value,IntType min,IntType max) {
+            return value<min?min:value>max?max:value;
+        }
+        
+    }
     // predefined channel names
     struct channel_name {
         // red
@@ -41,7 +73,7 @@ namespace gfx {
         // the minimum value
         bits::uintx<bits::get_word_size(BitDepth)> Min=0, 
         // the maximum value
-        bits::uintx<bits::get_word_size(BitDepth)>Max=BitDepth==64?0xFFFFFFFFFFFFFFFF:((1<<BitDepth)-1), 
+        bits::uintx<bits::get_word_size(BitDepth)>Max=((BitDepth==64)?0xFFFFFFFFFFFFFFFF:((1<<BitDepth)-1)), 
         // the scale denominator
         bits::uintx<bits::get_word_size(BitDepth)> Scale = Max> 
     struct channel_traits {
@@ -62,15 +94,16 @@ namespace gfx {
         // the scale denominator
         constexpr static const int_type scale = Scale;
         // the reciprocal of the scale denominator
-        constexpr static const float scalef = 1/(float)Scale; 
+        constexpr static const real_type scalef = 1/(real_type)Scale; 
         // a mask of the channel value
-        constexpr static const int_type value_mask = int_type(BitDepth==64?0xFFFFFFFFFFFFFFFF:((1<<BitDepth)-1));
+        constexpr static const int_type value_mask = (~int_type(0))>>BitDepth;
+                //int_type((BitDepth==64)?0xFFFFFFFFFFFFFFFF:((1<<BitDepth)-1)); //(~(~int_type(0)>>BitDepth));
         
         // constraints
         static_assert(BitDepth>0,"Bit depth must be greater than 0");
         static_assert(BitDepth<=64,"Bit depth must be less than or equal to 64");
         static_assert(Min<=Max,"Min must be less than or equal to Max");
-        static_assert(Max<=BitDepth==64?0xFFFFFFFFFFFFFFFF:((1<<BitDepth)-1),"Max is greater than the maximum allowable value");
+        static_assert(Max<=((BitDepth==64)?0xFFFFFFFFFFFFFFFF:((1<<BitDepth)-1)),"Max is greater than the maximum allowable value");
         static_assert(Scale>0,"Scale must not be zero");
     };
     // specialization for empty channel
@@ -87,6 +120,7 @@ namespace gfx {
         constexpr static const float scalef = 0.0; 
         constexpr static const int_type value_mask = 0;
     };
+    
     // represents a channel's metadata
     template<typename PixelType,typename ChannelTraits,
             size_t Index,
@@ -117,7 +151,7 @@ namespace gfx {
         // the mask of the channel's value
         constexpr static const int_type value_mask = ChannelTraits::value_mask;
         // the mask of the channel's value within the entire pixel's value
-        constexpr static const pixel_int_type channel_mask = (value_mask>0)?pixel_int_type(value_mask<<total_bits_to_right):0;
+        constexpr static const pixel_int_type channel_mask = (value_mask>0)?pixel_int_type(pixel_int_type(value_mask)<<total_bits_to_right):pixel_int_type(0);
         // the minimum value for the channel
         constexpr static const int_type min = ChannelTraits::min;
         // the maximum value for the channel
@@ -129,31 +163,7 @@ namespace gfx {
     };
     // various utility templates and methods
     namespace helpers {
-        // adjusts byte order if necessary
-        constexpr static inline uint16_t order_guard(uint16_t value) {
-            if(bits::endianness()==bits::endian_mode::little_endian) {
-                return bits::swap(value);
-            }
-            return value;
-        }
-        // adjusts byte order if necessary
-        constexpr static inline uint32_t order_guard(uint32_t value) {
-            if(bits::endianness()==bits::endian_mode::little_endian) {
-                return bits::swap(value);
-            }
-            return value;
-        }
-        // adjusts byte order if necessary
-        constexpr static inline uint64_t order_guard(uint64_t value) {
-            if(bits::endianness()==bits::endian_mode::little_endian) {
-                return bits::swap(value);
-            }
-            return value;
-        }
-        // adjusts byte order if necessary (disambiguation)
-        constexpr static inline uint32_t order_guard(uint8_t value) {
-            return value;
-        }
+        
         template <typename... ChannelTraits> struct bit_depth;
         template <typename T, typename... ChannelTraits>
         struct bit_depth<T, ChannelTraits...> {
@@ -255,11 +265,12 @@ namespace gfx {
         template <typename PixelType,
                 typename ChannelTrait,
                 typename... ChannelTraits>
-        class is_subset_pixel_impl<
+        struct is_subset_pixel_impl<
             PixelType,
             ChannelTrait,
             ChannelTraits...>
         {
+        private:
             using result = typename PixelType::template channel_index_by_name<typename ChannelTrait::name_type>;
             using next = typename helpers::is_subset_pixel_impl<PixelType, ChannelTraits...>;
 
@@ -297,12 +308,13 @@ namespace gfx {
                 size_t Index,
                 typename ChannelTrait,
                 typename... ChannelTraits>
-        class is_equal_pixel_impl<
+        struct is_equal_pixel_impl<
             PixelType,
             Index,
             ChannelTrait,
             ChannelTraits...>   
         {
+        private:
             using result = typename PixelType::template channel_index_by_name<typename ChannelTrait::name_type>;
             using next = typename helpers::is_equal_pixel_impl<PixelType, Index + 1, ChannelTraits...>;
 
@@ -340,13 +352,10 @@ namespace gfx {
             if(ChannelLhs::bit_depth==0 || ChannelRhs::bit_depth==0) return 0;
             const int srf = (int)ChannelLhs::bit_depth-(int)ChannelRhs::bit_depth;
             if(0<srf) {
-                    rv = (typename ChannelRhs::int_type)(v>>srf);
+                   rv = (typename ChannelRhs::int_type)(v>>srf);
             } else if(0>srf) {
-                float vs = v*ChannelLhs::scalef;
-                if(vs>1.0)
-                    vs=1.0;
-                vs*=ChannelRhs::scale;
-                rv = (typename ChannelRhs::int_type)(vs+.5);
+                float vs = v*ChannelRhs::scale;
+                rv = clamp((typename ChannelRhs::int_type)(vs+.5),ChannelRhs::min,ChannelRhs::max);
             } else
                 rv = (typename ChannelRhs::int_type)(v);
             return rv;
@@ -356,14 +365,19 @@ namespace gfx {
         constexpr inline typename PixelType::template channel_by_index_unchecked<Index>::int_type get_channel_direct_unchecked(const typename PixelType::int_type& pixel_value) {
             using ch = typename PixelType::template channel_by_index_unchecked<Index>;
             if(0>Index || Index>=PixelType::channels) return 0;
-            return helpers::order_guard(typename ch::int_type(typename PixelType::int_type(typename PixelType::int_type(pixel_value & ch::channel_mask)>>(ch::total_bits_to_right))));    
+            const typename PixelType::int_type p = helpers::order_guard(pixel_value)>>ch::total_bits_to_right;
+            return /*helpers::order_guard(*/typename ch::int_type(p & ch::value_mask)/*)*/;    
+            
         }
         // sets the native_value of a channel without doing compile time checking on the index
         template<typename PixelType,size_t Index>
-        constexpr inline void set_channel_direct_unchecked(typename PixelType::int_type& pixel_value,typename PixelType::template channel_by_index_unchecked<Index>::int_type value) {
+        constexpr inline void 
+        
+        set_channel_direct_unchecked(typename PixelType::int_type& pixel_value,typename PixelType::template channel_by_index_unchecked<Index>::int_type value) {
             if(0>Index || Index>=PixelType::channels) return;
             using ch = typename PixelType::template channel_by_index_unchecked<Index>;
-            const typename ch::pixel_type::int_type shval = typename ch::pixel_type::int_type(typename PixelType::int_type(helpers::order_guard((value<ch::min)?ch::min:(value>ch::max)?ch::max:value))<<(ch::total_bits_to_right));
+            
+            const typename ch::pixel_type::int_type shval = typename ch::pixel_type::int_type(typename PixelType::int_type(/*helpers::order_guard(*/clamp(value,ch::min,ch::max)))<<(ch::total_bits_to_right/*)*/);
             pixel_value=(pixel_value&~ch::channel_mask)|shval;
         }
 
@@ -373,14 +387,14 @@ namespace gfx {
     struct pixel {
         // this type
         using type = pixel<ChannelTraits...>;
+        // the type used for doing intermediary conversions to different formats when no explicit conversion is implemented
+        using rgb_conversion_type = pixel<channel_traits<channel_name::R,8>,channel_traits<channel_name::G,8>,channel_traits<channel_name::B,8>,channel_traits<channel_name::A,8>>;
         // the integer type of the pixel
         using int_type = bits::uintx<bits::get_word_size(helpers::bit_depth<ChannelTraits...>::value)>;
         // the number of channels
         constexpr static const size_t channels = sizeof...(ChannelTraits);
         // the total bit depth of the pixel
         constexpr static const size_t bit_depth = helpers::bit_depth<ChannelTraits...>::value;
-        // the mask of the pixel's value
-        constexpr static const int_type mask = int_type(bit_depth==64?0xFFFFFFFFFFFFFFFF:((1<<bit_depth)-1));
         // the minimum number of bytes needed to store the pixel
         constexpr static const size_t packed_size = bit_depth / 8.0 + .99999;
         // true if the pixel is a whole number of bytes
@@ -391,6 +405,8 @@ namespace gfx {
         constexpr static const size_t packed_size_bits = packed_size*8;
         // the count of bits to the right that are unused
         constexpr static const size_t pad_right_bits = total_size_bits-bit_depth;
+        // the mask of the pixel's value
+        constexpr static const int_type mask = int_type(int_type(~int_type(0))<<(pad_right_bits));//int_type(bit_depth==64?0xFFFFFFFFFFFFFFFF:(((1<<bit_depth)-1)<<pad_right_bits));
         
         // the pixel value, in platform native format
         int_type native_value;
@@ -410,7 +426,7 @@ namespace gfx {
             return helpers::order_guard(native_value);
         }
         // sets the pixel value in big endian form
-        constexpr inline void value(int_type value) const {
+        constexpr inline void value(int_type value) {
             native_value=helpers::order_guard(value);
         }
         // retrieves a channel's metadata by index
@@ -434,25 +450,27 @@ namespace gfx {
         // retrieves the integer channel value without performing compile time checking on Index
         template<size_t Index>
         constexpr inline typename channel_by_index_unchecked<Index>::int_type channel_unchecked() const {
-            return helpers::get_channel_direct_unchecked<type,Index>(native_value);
+            return helpers::get_channel_direct_unchecked<type,Index>(value());
         }
         // sets the integer channel value without performing compile time checking on Index
         template<size_t Index>
         constexpr inline void channel_unchecked(typename channel_by_index_unchecked<Index>::int_type value) {
-            helpers::set_channel_direct_unchecked<type,Index>(native_value,value);
+            int_type v = value();
+            helpers::set_channel_direct_unchecked<type,Index>(v,value);
+            value(v);
         }
         // retrieves the integer channel value by index
         template<size_t Index>
         constexpr inline typename channel_by_index<Index>::int_type channel() const {
             using ch = channel_by_index<Index>;
-            return helpers::order_guard(typename ch::int_type(typename ch::pixel_type::int_type(native_value & ch::channel_mask)>>(ch::total_bits_to_right)));
+            return /*helpers::order_guard(*/typename ch::int_type(typename ch::pixel_type::int_type(native_value & ch::channel_mask)>>(ch::total_bits_to_right))/*)*/;
             
         }
         // sets the integer channel value by index
         template<size_t Index>
         constexpr inline void channel(typename channel_by_index<Index>::int_type value) {
             using ch = channel_by_index<Index>;
-            const typename ch::pixel_type::int_type shval = typename ch::pixel_type::int_type(helpers::order_guard((value<ch::min)?ch::min:(value>ch::max)?ch::max:value))<<(ch::total_bits_to_right);
+            const typename ch::pixel_type::int_type shval = /*typename ch::pixel_type::int_type(helpers::order_guard(*/typename ch::pixel_type::int_type(typename ch::pixel_type::int_type(helpers::clamp(value,ch::min,ch::max))<<ch::total_bits_to_right)/*))*/;
             native_value=(native_value&~ch::channel_mask)|shval;
         }
         // retrieves the floating point channel value by index
@@ -482,7 +500,6 @@ namespace gfx {
         // gets the floating point channel value by name
         template<typename Name>
         constexpr inline auto channelf() const {
-            const size_t index = channel_by_name<Name>::value;
             return channelf<value>();
         }
         // sets the floating point channel value by name
@@ -493,13 +510,14 @@ namespace gfx {
         }
         // converts a pixel to the destination pixel type
         template<typename PixelTypeRhs>
-        constexpr inline bool convert(PixelTypeRhs* result) {
+        constexpr inline bool convert(PixelTypeRhs* result) const {
             if(nullptr==result) return false;
             bool good = false;
             typename PixelTypeRhs::int_type native_value = 0;
 
             // here's where we gather color model information
             using is_rgb = has_channel_names<channel_name::R,channel_name::G,channel_name::B>;
+            using is_yuv = has_channel_names<channel_name::Y,channel_name::U,channel_name::V>;
             using trhas_alpha = typename PixelTypeRhs::template has_channel_names<channel_name::A>;
             const bool has_alpha = has_channel_names<channel_name::A>::value;
             const bool is_bw_candidate = 1==channels || (2==channels && has_alpha);
@@ -510,10 +528,12 @@ namespace gfx {
             using tris_bw_candidate = typename PixelTypeRhs::template has_channel_names<channel_name::L>;
             const bool ris_bw_candidate2 = tris_bw_candidate::value;
             using is_rhs_rgb = typename PixelTypeRhs::template has_channel_names<channel_name::R,channel_name::G,channel_name::B>;
+            using is_rhs_yuv = typename PixelTypeRhs::template has_channel_names<channel_name::Y,channel_name::U,channel_name::V>;
+
             // TODO: Add code for determining other additional color models here
 
             // check the source color model
-            if(is_rgb::value) {
+            if(is_rgb::value && channels<5) {
                 // source color model is RGB
                 using tindexR = channel_index_by_name<channel_name::R>;
                 using tchR = channel_by_index_unchecked<tindexR::value>;
@@ -527,7 +547,7 @@ namespace gfx {
                 using tchB = channel_by_index_unchecked<tindexB::value>;
                 const size_t chiB = tindexB::value;
                 
-                if(is_rhs_rgb::value) {      
+                if(is_rhs_rgb::value && PixelTypeRhs::channels<5) {      
                     // destination color model is RGB
                     using trindexR = typename PixelTypeRhs::template channel_index_by_name<channel_name::R>;
                     using trchR = typename PixelTypeRhs::template channel_by_index_unchecked<trindexR::value>;
@@ -548,16 +568,46 @@ namespace gfx {
                     helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexB::value>(native_value,chB);
 
                     good = true;
+                } else if(is_rhs_yuv::value && PixelTypeRhs::channels<5)  {
+                    // destination is Y'UV color model
+                    using trindexY = typename PixelTypeRhs::template channel_index_by_name<channel_name::Y>;
+                    using trchY = typename PixelTypeRhs::template channel_by_index_unchecked<trindexY::value>;
+                    
+                    using trindexU = typename PixelTypeRhs::template channel_index_by_name<channel_name::U>;
+                    using trchU = typename PixelTypeRhs::template channel_by_index_unchecked<trindexU::value>;
+                
+                    using trindexV = typename PixelTypeRhs::template channel_index_by_name<channel_name::V>;
+                    using trchV = typename PixelTypeRhs::template channel_by_index_unchecked<trindexV::value>;
+                    
+                    const auto cR = (channel_unchecked<chiR>()*tchR::scalef)*255.0;
+                    const auto cG = (channel_unchecked<chiG>()*tchG::scalef)*255.0;
+                    const auto cB = (channel_unchecked<chiB>()*tchB::scalef)*255.0;
+                    const auto chY =  (0.257 * cR + 0.504 * cG + 0.098 * cB +  16)/255.0;
+                    const auto chU = (-0.148 * cR - 0.291 * cG + 0.439 * cB + 128)/255.0;
+                    const auto chV = (0.439 * cR - 0.368 * cG - 0.071 * cB + 128)/255.0;
+                    const typename trchY::int_type cY =chY*trchY::scale+.5;
+                    const typename trchU::int_type cU = chU*trchU::scale+.5;
+                    const typename trchV::int_type cV = chV*trchV::scale+.5;
+                    
+                    helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexY::value>(native_value,cY);
+                    helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexU::value>(native_value,cU);
+                    helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexV::value>(native_value,cV);
+                    
+                    good = true;
                 } else if(ris_bw_candidate && ris_bw_candidate2) {
                     // destination is grayscale or monochrome
                     using trindexL = typename PixelTypeRhs::template channel_index_by_name<channel_name::L>;
                     using trchL = typename PixelTypeRhs::template channel_by_index_unchecked<trindexL::value>;
-                    
-                    float f = (channel_unchecked<chiR>()*tchR::scalef*.299) +
-                            (channel_unchecked<chiG>()*tchG::scalef*.587) +
-                            (channel_unchecked<chiB>()*tchB::scalef*.114);
-                    helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexL::value>(native_value,(f*(float)trchL::scale)+.5);
-
+                    auto cR = channel_unchecked<chiR>();
+                    auto cG = channel_unchecked<chiG>();
+                    auto cB = channel_unchecked<chiB>();
+                    double f = (cR*tchR::scalef*.299) +
+                            (cG*tchG::scalef*.587) +
+                            (cB*tchB::scalef*.114);
+                    const size_t scale = trchL::scale;
+                    f=(f*(double)scale)+.5;
+                    helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexL::value>(native_value,f);
+                
                     good = true;
                 } // TODO: add destination color models other than RGB and grayscale/mono
             } else if(is_bw_candidate && is_bw_candidate2) {
@@ -575,7 +625,7 @@ namespace gfx {
                     helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexL::value>(native_value,chL);
 
                     good = true;
-                } else if(is_rhs_rgb::value) {
+                } else if(is_rhs_rgb::value && PixelTypeRhs::channels<5) {
                     // destination color model is RGB
                     using trindexR = typename PixelTypeRhs::template channel_index_by_name<channel_name::R>;
                     using trchR = typename PixelTypeRhs::template channel_by_index_unchecked<trindexR::value>;
@@ -597,6 +647,91 @@ namespace gfx {
                     auto chB = helpers::convert_channel_depth<tchL,trchB>(chL);
                     helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexB::value>(native_value,chB);
 
+                    good = true;
+                } else if(is_rhs_yuv::value && PixelTypeRhs::channels<5) {
+                    using trindexY = typename PixelTypeRhs::template channel_index_by_name<channel_name::Y>;
+                    using trchY = typename PixelTypeRhs::template channel_by_index_unchecked<trindexY::value>;
+                    using trindexU = typename PixelTypeRhs::template channel_index_by_name<channel_name::U>;
+                    using trindexV = typename PixelTypeRhs::template channel_index_by_name<channel_name::V>;
+                    const auto chY=channel_unchecked<tindexL::value>();
+                    auto cY = helpers::convert_channel_depth<tchL,trchY>(chY);
+                    helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexY::value>(native_value,cY);
+                    helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexU::value>(native_value,0);
+                    helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexV::value>(native_value,0);
+
+                    good = true;
+                }
+            } else if(is_yuv::value && channels<5) {
+                // source color model is Y'UV
+                using tindexY = channel_index_by_name<channel_name::Y>;
+                using tchY = channel_by_index_unchecked<tindexY::value>;
+                const size_t chiY = tindexY::value;
+                    
+                using tindexU = channel_index_by_name<channel_name::U>;
+                using tchU = channel_by_index_unchecked<tindexU::value>;
+                const size_t chiU = tindexU::value;
+
+                using tindexV = channel_index_by_name<channel_name::V>;
+                using tchV = channel_by_index_unchecked<tindexV::value>;
+                const size_t chiV = tindexV::value;
+
+                if(is_rhs_yuv::value && PixelTypeRhs::channels<5) {
+                    // destination color model is YUV
+                    using trindexY = typename PixelTypeRhs::template channel_index_by_name<channel_name::Y>;
+                    using trchY = typename PixelTypeRhs::template channel_by_index_unchecked<trindexY::value>;
+                    
+                    using trindexU = typename PixelTypeRhs::template channel_index_by_name<channel_name::U>;
+                    using trchU = typename PixelTypeRhs::template channel_by_index_unchecked<trindexU::value>;
+                
+                    using trindexV = typename PixelTypeRhs::template channel_index_by_name<channel_name::V>;
+                    using trchV = typename PixelTypeRhs::template channel_by_index_unchecked<trindexV::value>;
+                
+                    auto chY = helpers::convert_channel_depth<tchY,trchY>(channel_unchecked<chiY>());
+                    helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexY::value>(native_value,chY);
+
+                    auto chU = helpers::convert_channel_depth<tchU,trchU>(channel_unchecked<chiU>());
+                    helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexU::value>(native_value,chU);
+
+                    auto chV = helpers::convert_channel_depth<tchV,trchV>(channel_unchecked<chiV>());
+                    helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexV::value>(native_value,chV);
+
+                    good = true;
+                } else if(is_rhs_rgb::value && PixelTypeRhs::channels<5)  {
+                    // destination color model is RGB
+                    using trindexR = typename PixelTypeRhs::template channel_index_by_name<channel_name::R>;
+                    using trchR = typename PixelTypeRhs::template channel_by_index_unchecked<trindexR::value>;
+                    
+                    using trindexG = typename PixelTypeRhs::template channel_index_by_name<channel_name::G>;
+                    using trchG = typename PixelTypeRhs::template channel_by_index_unchecked<trindexG::value>;
+                
+                    using trindexB = typename PixelTypeRhs::template channel_index_by_name<channel_name::B>;
+                    using trchB = typename PixelTypeRhs::template channel_by_index_unchecked<trindexB::value>;
+                    
+                    double chY = (channel_unchecked<chiY>()*tchY::scalef)*256.0-16;
+                    double chU = (channel_unchecked<chiU>()*tchU::scalef)*256.0-128;
+                    double chV = (channel_unchecked<chiV>()*tchV::scalef)*256.0-128;
+                   
+                    auto cR = (1.164 * chY + 1.596 * chV)/255.0; 
+                    auto cG = (1.164 * chY - 0.392 * chU - 0.813 * chV)/255.0;
+                    auto cB = (1.164 * chY + 2.017 * chU)/255.0;
+                   
+                    auto r = typename trchR::int_type(cR*trchR::scale+.5);
+                    helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexR::value>(native_value,r);
+                    auto g = typename trchG::int_type(cG*trchG::scale+.5);
+                    helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexG::value>(native_value,g);
+                    auto b = typename trchB::int_type(cB*trchB::scale+.5);
+                    helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexB::value>(native_value,b);
+
+                    good = true;
+                } else if(ris_bw_candidate && ris_bw_candidate2) {
+                    // destination is monochrome or grayscale
+                    using trindexL = typename PixelTypeRhs::template channel_index_by_name<channel_name::L>;
+                    using trchL = typename PixelTypeRhs::template channel_by_index_unchecked<trindexL::value>;
+                    
+                    auto cY = channel_unchecked<chiY>();
+                    auto chL = helpers::convert_channel_depth<tchY,trchL>(cY);
+                    helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexL::value>(native_value,chL);
+                
                     good = true;
                 }
             } // TODO: add more source color models other than RGB and grayscale/mono
@@ -623,13 +758,26 @@ namespace gfx {
                 // finally, set the result
                 result->native_value = native_value;
                 return true;
-            } 
+            }  else {
+                // if we couldn't convert directly
+                // do a chain conversion
+                rgb_conversion_type tmp1;
+                PixelTypeRhs tmp2;
+                good = convert(&tmp1);
+                if(good) {
+                    good = tmp1.template convert(&tmp2);
+                    if(good) {
+                        *result=tmp2;
+                        return true;
+                    }
+                }
+            }
             // TODO: Add any additional metachannel processing (like alpha above) here
             return false;
-        }
+        } 
         // converts a pixel to the destination pixel type
         template<typename PixelTypeRhs>
-        constexpr inline PixelTypeRhs convert() {
+        constexpr inline PixelTypeRhs convert() const {
             PixelTypeRhs result;
             if(!convert(&result)) {
                 result.native_value = 0;
@@ -639,11 +787,12 @@ namespace gfx {
     
         static_assert(sizeof...(ChannelTraits)>0,"A pixel must have at least one channel trait");
         static_assert(bit_depth<=64,"Bit depth must be less than or equal to 64");
+        static_assert(bit_depth<=32,"Bit depth must be less than or equal to 32 (temporary limitation)");
     };
     // predefined color values
     template<typename PixelType>
     class color final {
-        using source_type = pixel<channel_traits<channel_name::R,8>,channel_traits<channel_name::G,8>,channel_traits<channel_name::B,8>>;
+        using source_type = pixel<channel_traits<channel_name::R,10>,channel_traits<channel_name::G,12>,channel_traits<channel_name::B,10>>;
     public:
         constexpr static const PixelType alice_blue = source_type(true,0.941176470588235,0.972549019607843,1).convert<PixelType>();
         constexpr static const PixelType antique_white = source_type(true,0.980392156862745,0.92156862745098,0.843137254901961).convert<PixelType>();

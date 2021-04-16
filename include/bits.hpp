@@ -120,6 +120,13 @@ namespace bits {
         }
         return 0;
     }
+    template <size_t BitWidth> class int_helper {};
+    template <> struct int_helper<8> { using type = int8_t; };
+    template <> struct int_helper<16> { using type = int16_t; };
+    template <> struct int_helper<32> { using type = int32_t; };
+    template <> struct int_helper<64> { using type = int64_t; };
+    template<size_t Width> using intx = typename int_helper<Width>::type;
+    
     template <size_t BitWidth> class uint_helper {};
     template <> struct uint_helper<8> { using type = uint8_t; };
     template <> struct uint_helper<16> { using type = uint16_t; };
@@ -131,6 +138,32 @@ namespace bits {
     template <> struct real_helper<32> { using type = float; };
     template <> struct real_helper<64> { using type = double; };
     template<size_t Width> using realx = typename real_helper<Width>::type;
+    
+    template <typename T> struct signed_helper {};
+    template <> struct signed_helper<float> { using type = float; };
+    template <> struct signed_helper<double> { using type = double; };
+    template <> struct signed_helper<int8_t> { using type = int8_t; };
+    template <> struct signed_helper<uint8_t> { using type = int8_t; };
+    template <> struct signed_helper<int16_t> { using type = int16_t; };
+    template <> struct signed_helper<uint16_t> { using type = int16_t; };
+    template <> struct signed_helper<int32_t> { using type = int32_t; };
+    template <> struct signed_helper<uint32_t> { using type = int32_t; };
+    template <> struct signed_helper<int64_t> { using type = int64_t; };
+    template <> struct signed_helper<uint64_t> { using type = int64_t; };
+    template<typename T> using signedx = typename signed_helper<T>::type;
+
+    template <typename T> struct unsigned_helper {};
+    template <> struct unsigned_helper<float> { using type = float; };
+    template <> struct unsigned_helper<double> { using type = double; };
+    template <> struct unsigned_helper<int8_t> { using type = uint8_t; };
+    template <> struct unsigned_helper<uint8_t> { using type = uint8_t; };
+    template <> struct unsigned_helper<int16_t> { using type = uint16_t; };
+    template <> struct unsigned_helper<uint16_t> { using type = uint16_t; };
+    template <> struct unsigned_helper<int32_t> { using type = uint32_t; };
+    template <> struct unsigned_helper<uint32_t> { using type = uint32_t; };
+    template <> struct unsigned_helper<int64_t> { using type = uint64_t; };
+    template <> struct unsigned_helper<uint64_t> { using type = uint64_t; };
+    template<typename T> using unsignedx = typename unsigned_helper<T>::type;
     
     constexpr inline static void set_bits(void* bits,size_t offset_bits,size_t size_bits,bool value) {
         const size_t offset_bytes = offset_bits / 8;
@@ -225,40 +258,40 @@ namespace bits {
         
         }
     }
-    constexpr inline static void set_bits(size_t offset_bits,size_t size_bits,void* dst,const void* src) {
-        const size_t offset_bytes = offset_bits / 8;
-        const size_t offset = offset_bits % 8;
-        const size_t total_size_bytes = (offset_bits+size_bits)/8.0+.999999999;
-        const size_t overhang = (offset_bits+size_bits) % 8;
-        uint8_t* pbegin = ((uint8_t*)dst)+offset_bytes;
-        uint8_t* psbegin = ((uint8_t*)src)+offset_bytes;
-        uint8_t* pend = ((uint8_t*)dst)+total_size_bytes;
-        uint8_t* plast = pend-(pbegin!=pend);
+constexpr inline static void set_bits(size_t offset_bits,size_t size_bits,void* dst,const void* src) {
+    const size_t offset_bytes = offset_bits / 8;
+    const size_t offset = offset_bits % 8;
+    const size_t total_size_bytes = (offset_bits+size_bits)/8.0+.999999999;
+    const size_t overhang = (offset_bits+size_bits) % 8;
+    uint8_t* pbegin = ((uint8_t*)dst)+offset_bytes;
+    uint8_t* psbegin = ((uint8_t*)src)+offset_bytes;
+    uint8_t* pend = ((uint8_t*)dst)+total_size_bytes;
+    uint8_t* plast = pend-(pbegin!=pend);
 
-        const uint8_t maskL = 0!=offset?
-                                    (uint8_t)((uint8_t(0xFF>>offset))):
-                                    uint8_t(0xff);
-        const uint8_t maskR = 0!=overhang?
-                                (uint8_t)~((uint8_t(0xFF>>overhang))):
-                                uint8_t(0xFF);
-        if(pbegin==plast) {
-            uint8_t v = *psbegin;
-            const uint8_t mask = maskL & maskR;
-            v&=mask;
-            *pbegin&=mask;
-            *pbegin|=v;
-            return;
-        }
-        *pbegin&=~maskL;
-        *pbegin|=((*psbegin)&maskL);
-        *plast&=~maskR;
-        *plast|=((*(psbegin+total_size_bytes-1))&maskR);
-        if(pbegin+1<plast) {
-            const size_t len = plast-(pbegin+1);
-            if(0!=len&&len<=total_size_bytes) 
-                memcpy(pbegin+1,psbegin+1,len);
-        }
+    const uint8_t maskL = 0!=offset?
+                                (uint8_t)((uint8_t(0xFF>>offset))):
+                                uint8_t(0xff);
+    const uint8_t maskR = 0!=overhang?
+                            (uint8_t)~((uint8_t(0xFF>>overhang))):
+                            uint8_t(0xFF);
+    if(pbegin==plast) {
+        uint8_t v = *psbegin;
+        const uint8_t mask = maskL & maskR;
+        v&=mask;
+        *pbegin&=~mask;
+        *pbegin|=v;
+        return;
     }
+    *pbegin&=~maskL;
+    *pbegin|=((*psbegin)&maskL);
+    *plast&=~maskR;
+    *plast|=((*(psbegin+total_size_bytes-1))&maskR);
+    if(pbegin+1<plast) {
+        const size_t len = plast-(pbegin+1);
+        if(0!=len&&len<=total_size_bytes) 
+            memcpy(pbegin+1,psbegin+1,len);
+    }
+}
     template<size_t OffsetBits,size_t SizeBits> constexpr inline static void set_bits(void* dst,const void* src) {
         const size_t offset_bytes = OffsetBits / 8;
         const size_t offset = OffsetBits % 8;
@@ -340,53 +373,53 @@ namespace bits {
         *plast=uint8_t(right&right_mask)|uint8_t(*plast&uint8_t(~right_mask));
     };
 
-    constexpr static void shift_left(void* bits,size_t offset_bits,size_t size_bits, size_t shift) {
-        if(nullptr==bits || 0==size_bits || 0==shift) {
-            return;
-        }
-        // special case if we shift all the bits out
-        if(shift>=size_bits) {
-            set_bits(bits,offset_bits,size_bits,false);
-            return;
-        }
-        uint8_t* pbegin = ((uint8_t*)bits)+(offset_bits/8);
-        const size_t offset = offset_bits % 8;
-        const size_t shift_bytes = shift / 8;
-        const size_t shift_bits = shift % 8;
-        const size_t overhang = (size_bits+offset_bits) % 8;
-        // preserves left prior to offset
-        const uint8_t left_mask = ((uint8_t)uint8_t(0xFF<<(8-offset)));
-        // preserves right after overhang
-        const uint8_t right_mask = 0!=overhang?uint8_t(0xFF>>overhang):0;
-        uint8_t* pend = pbegin+(size_t)((offset_bits+size_bits)/8.0+.999999);
-        uint8_t* plast = pend-1;
-        uint8_t* psrc = pbegin+shift_bytes;
-        uint8_t* pdst = pbegin;
-        if(pbegin+1==pend) {
-            // special case for a shift all within one byte
-            uint8_t save_mask = left_mask|right_mask;
-            uint8_t tmp = *pbegin;
-            *pbegin = uint8_t(uint8_t(tmp<<shift_bits)&~save_mask)|
-                    uint8_t(tmp&save_mask);
-            return;
-        }
-        // preserve the ends so we can
-        // fix them up later
-        uint8_t left = *pbegin;
-        uint8_t right = *(pend-1);
-        
-        while(pdst!=pend) {
-            uint8_t src = psrc<pend?*psrc:0;
-            uint8_t src2 = (psrc+1)<pend?*(psrc+1):0;
-            *pdst = (src<<shift_bits)|(src2>>(8-shift_bits));
-            ++psrc;
-            ++pdst;
-        }
-        
-        *pbegin=(left&left_mask)|uint8_t(*pbegin&~left_mask);
-        --pend;
-        *plast=uint8_t(right&right_mask)|uint8_t(*plast&uint8_t(~right_mask));
-    };
+constexpr static void shift_left(void* bits,size_t offset_bits,size_t size_bits, size_t shift) {
+    if(nullptr==bits || 0==size_bits || 0==shift) {
+        return;
+    }
+    // special case if we shift all the bits out
+    if(shift>=size_bits) {
+        set_bits(bits,offset_bits,size_bits,false);
+        return;
+    }
+    uint8_t* pbegin = ((uint8_t*)bits)+(offset_bits/8);
+    const size_t offset = offset_bits % 8;
+    const size_t shift_bytes = shift / 8;
+    const size_t shift_bits = shift % 8;
+    const size_t overhang = (size_bits+offset_bits) % 8;
+    // preserves left prior to offset
+    const uint8_t left_mask = ((uint8_t)uint8_t(0xFF<<(8-offset)));
+    // preserves right after overhang
+    const uint8_t right_mask = 0!=overhang?uint8_t(0xFF>>overhang):0;
+    uint8_t* pend = pbegin+(size_t)((offset_bits+size_bits)/8.0+.999999);
+    uint8_t* plast = pend-1;
+    uint8_t* psrc = pbegin+shift_bytes;
+    uint8_t* pdst = pbegin;
+    if(pbegin+1==pend) {
+        // special case for a shift all within one byte
+        uint8_t save_mask = left_mask|right_mask;
+        uint8_t tmp = *pbegin;
+        *pbegin = uint8_t(uint8_t(tmp<<shift_bits)&~save_mask)|
+                uint8_t(tmp&save_mask);
+        return;
+    }
+    // preserve the ends so we can
+    // fix them up later
+    uint8_t left = *pbegin;
+    uint8_t right = *(pend-1);
+    
+    while(pdst!=pend) {
+        uint8_t src = psrc<pend?*psrc:0;
+        uint8_t src2 = (psrc+1)<pend?*(psrc+1):0;
+        *pdst = (src<<shift_bits)|(src2>>(8-shift_bits));
+        ++psrc;
+        ++pdst;
+    }
+    
+    *pbegin=(left&left_mask)|uint8_t(*pbegin&~left_mask);
+    --pend;
+    *plast=uint8_t(right&right_mask)|uint8_t(*plast&uint8_t(~right_mask));
+};
 
     template<size_t OffsetBits,size_t SizeBits, size_t Shift> constexpr inline static void shift_right(void* bits) {
         if(nullptr==bits || 0==SizeBits || 0==Shift) {

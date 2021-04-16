@@ -36,6 +36,9 @@ void dump_bitmap(const BitmapType& bmp) {
 }
 int main() {
 
+    // predefine many different pixel types you can try
+    // Note that this generates compile warnings for
+    // unused instantiations
     using bgr888 = pixel<
         channel_traits<channel_name::B,8>,
         channel_traits<channel_name::G,8>,
@@ -102,14 +105,20 @@ int main() {
 
     // set your pixel type to any one of the above
     // or make your own pixel format     
-    using bmp_type = bitmap<gsc2>;
+    using bmp_type = bitmap<rgb888>;
+
+    // we declare this to make it easier to change 
     const size16 bmp_size(15,15);
 
+    // declare our buffer
     uint8_t buf[bmp_type::sizeof_buffer(bmp_size)];
 
+    // declare our bitmap, using the bmp_size and the buffer
     bmp_type bmp(bmp_size,buf);
 
-    bmp.clear(bmp.bounds());
+    // for each pixel in the bitmap, working from top to bottom,
+    // left to right, if the pixel falls on an edge, make it white
+    // otherwise, alternate the colors between dark_blue and purple
     bool col = false;
     for(int y=0;y<bmp.dimensions().height;++y) {
         for(int x=0;x<bmp.dimensions().width;++x) {
@@ -124,27 +133,37 @@ int main() {
         }    
     }
     
+    // display our initial bitmap
     dump_bitmap(bmp);
+    printf("\r\n");
+    
+    // create rect for our inner square
     rect16 r = bmp.bounds().inflate(-3,-3);
+    // clear it
     bmp.clear(r);
+    // now fill a rect inside that
     bmp.fill(r.inflate(-1,-1),color<bmp_type::pixel_type>::medium_aquamarine);
     
-    printf("\r\n\r\n");
+    // display the bitmap
     dump_bitmap(bmp);
-    printf("\r\n\r\n");
+    printf("\r\n");
+
+    // create a second bitmap 4 times the size
     const size16 bmp2_size(bmp_size.width*2,bmp_size.height*2);
     uint8_t buf2[bmp_type::sizeof_buffer(bmp2_size)];
     bmp_type bmp2(bmp2_size,buf2);
+    // clear it
     bmp2.clear(bmp2.bounds());
-    
+
+    // now blt portions of the first bitmap to it to create a tile
+    // effect
     bmp.blt(rect16(point16(8,8),size16(7,7)),bmp2,point16(0,0));
     bmp.blt(rect16(point16(0,8),size16(7,7)),bmp2,point16(22,0));
     bmp.blt(bmp.bounds(),bmp2,point16(7,7));
     bmp.blt(rect16(point16(8,0),size16(7,7)),bmp2,point16(0,22));
     bmp.blt(rect16(point16(0,0),size16(7,7)),bmp2,point16(22,22));
-    printf("bmp2:\r\n");
+    // display the bitmap
     dump_bitmap(bmp2);
         
     return 0;
-
 }

@@ -82,12 +82,12 @@ namespace gfx {
         }
         // indicates the location
         constexpr inline pointx<T> location() const {
-            return pointx(left(),top());
+            return pointx<T>(left(),top());
         }
         // indicates the size
-        constexpr inline sizex<T> size() const
+        constexpr inline sizex<T> dimensions() const
         {
-            return sizex(width(),height());
+            return sizex<T>(width(),height());
         }
         // indicates whether or not the specified pointx intersects with the rectangle
         constexpr inline bool intersects(pointx<T> pointx) const {
@@ -103,7 +103,7 @@ namespace gfx {
                 intersects(rect.location()) || 
                 intersects(pointx(rect.right(),rect.bottom()));
         }
-        // inflates a copy of the rectangle
+        // increases or decreases the x and y bounds by the specified amounts. The rectangle is anchored on the center, and the effective width and height increases or decreases by twice the value of x or y.
         constexpr rectx<T> inflate(typename bits::signedx<T> x,typename bits::signedx<T> y) const {
             pointx<T> pt = location();
             pt=pointx<T>((int)pt.x-x<0?0:pt.x-x,pt.y-y<0?1:pt.y-y);
@@ -115,7 +115,7 @@ namespace gfx {
         }
         // normalizes a rectangle, such that x1<=x2 and y1<=y2
         constexpr inline rectx<T> normalize() const {
-            return rectx<T>(location(),size());
+            return rectx<T>(location(),dimensions());
         }
         // crops a copy of the rectangle by bounds
         constexpr rectx<T> crop(const rectx<T>& bounds) const {

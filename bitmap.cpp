@@ -90,12 +90,12 @@ int main() {
             channel_traits<channel_name::G,12>,
             channel_traits<channel_name::B,10>
     >;
-    // Currently not working (bug)
+    /* Currently not working (bug)
     using rgb212221 = pixel<
             channel_traits<channel_name::R,21>,
             channel_traits<channel_name::G,22>,
             channel_traits<channel_name::B,21>
-    >;
+    >;*/
 
     using yuv888 = pixel<
             channel_traits<channel_name::Y,8>,
@@ -105,11 +105,8 @@ int main() {
 
     // set your pixel type to any one of the above
     // or make your own pixel format     
-    using bmp_type = bitmap<rgb212221>;
+    using bmp_type = bitmap<rgb565>;
 
-    typename bmp_type::pixel_type p(true,0,0,0);
-    p=color<bmp_type::pixel_type>::white;
-   
     // we declare this to make it easier to change 
     const size16 bmp_size(15,15);
 

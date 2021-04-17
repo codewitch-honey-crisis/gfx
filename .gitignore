@@ -3,3 +3,4 @@
 include/gfx_bitmap
 include/gfx_pixel
 include/gfx_positioning
+include/bits

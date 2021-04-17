@@ -185,8 +185,8 @@ namespace gfx {
         void blt(const rect16& src,type& dst,point16 location) {
             if(!src.intersects(bounds())) return;
             rect16 srcr = src.crop(bounds());
-            rect16 dstr= rect16(location,srcr.size()).crop(dst.bounds());
-            srcr=rect16(srcr.location(),dstr.size());
+            rect16 dstr= rect16(location,srcr.dimensions()).crop(dst.bounds());
+            srcr=rect16(srcr.location(),dstr.dimensions());
             size_t dy=0,dye=dstr.height();
             size_t dxe = dstr.width();
             if(pixel_type::byte_aligned) {

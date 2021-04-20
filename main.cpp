@@ -1,16 +1,17 @@
 #define HTCW_LITTLE_ENDIAN
 #include <stdio.h>
 #include "include/gfx_bitmap.hpp"
+#include "include/gfx_drawing.hpp"
 using namespace gfx;
 template <typename PixelType>
 void dump_channel_values(const PixelType& p) {
-    printf("channels = { 0x%X",(int)p.template channel<0>());
+    printf("channels = { %d (0x%X)",(int)p.template channel<0>(),(int)p.template channel<0>());
     if(p.channels>1) {
-        printf(", 0x%X",(int)p.template channel_unchecked<1>());
+        printf(", %d (0x%X)",(int)p.template channel_unchecked<1>(),(int)p.template channel_unchecked<1>());
         if(p.channels>2) {
-            printf(", 0x%X",(int)p.template channel_unchecked<2>());
+            printf(", %d (0x%X)",(int)p.template channel_unchecked<2>(),(int)p.template channel_unchecked<2>());
             if(p.channels>3) {
-                printf(", 0x%X",(int)p.template channel_unchecked<3>());
+                printf(", %d (0x%X)",(int)p.template channel_unchecked<3>(),(int)p.template channel_unchecked<3>());
             }
         }
     }
@@ -35,138 +36,62 @@ void dump_bitmap(const BitmapType& bmp) {
     }
 }
 int main() {
+    static const size_t bit_depth = 64;
+    const auto mask_left = bits::mask<bit_depth>::left;
+    const auto mask_right = bits::mask<bit_depth>::right;
+    const auto max = helpers::order_guard(mask_left);
 
-    // predefine many different pixel types you can try
-    // Note that this generates compile warnings for
-    // unused instantiations
-    using bgr888 = pixel<
-        channel_traits<channel_name::B,8>,
-        channel_traits<channel_name::G,8>,
-        channel_traits<channel_name::R,8>
-    >;    
 
-    using rgb565 = pixel<
-        channel_traits< channel_name::R,5>,
-        channel_traits<channel_name::G,6>,
-        channel_traits<channel_name::B,5>
-    >;
-
-    using gsc8 = pixel<
-        channel_traits<channel_name::L,8>
-    >;
-
-    using mono1 = pixel<
-        channel_traits<channel_name::L,1>
-    >;
-    using gsc2 = pixel<
-        channel_traits<channel_name::L,2>
-    >;
-    using gsc4 = pixel<
-        channel_traits<channel_name::L,4>
-    >;
-    using rgb888 = pixel<
-            channel_traits<channel_name::R,8>,
-            channel_traits<channel_name::G,8>,
-            channel_traits<channel_name::B,8>
-    >;
-    using rgb666 = pixel<
-            channel_traits<channel_name::R,6>,
-            channel_traits<channel_name::G,6>,
-            channel_traits<channel_name::B,6>
-    >;
-    using rgb232 = pixel<
-            channel_traits<channel_name::R,2>,
-            channel_traits<channel_name::G,3>,
-            channel_traits<channel_name::B,2>
-    >;
-    using rgb333 = pixel<
-            channel_traits<channel_name::R,3>,
-            channel_traits<channel_name::G,3>,
-            channel_traits<channel_name::B,3>
-    >;
-
-    using rgb101210 = pixel<
-            channel_traits<channel_name::R,10>,
-            channel_traits<channel_name::G,12>,
-            channel_traits<channel_name::B,10>
-    >;
-    // Currently not working (bug)
-    using rgb212221 = pixel<
-            channel_traits<channel_name::R,21>,
-            channel_traits<channel_name::G,22>,
-            channel_traits<channel_name::B,21>
-    >;
-
-    using yuv888 = pixel<
-            channel_traits<channel_name::Y,8>,
-            channel_traits<channel_name::U,8>,
-            channel_traits<channel_name::V,8>
-    >;
-
-    // set your pixel type to any one of the above
-    // or make your own pixel format     
-    using bmp_type = bitmap<rgb212221>;
-
-    typename bmp_type::pixel_type p(true,0,0,0);
-    p=color<bmp_type::pixel_type>::white;
-   
-    // we declare this to make it easier to change 
-    const size16 bmp_size(15,15);
-
-    // declare our buffer
-    uint8_t buf[bmp_type::sizeof_buffer(bmp_size)];
-
-    // declare our bitmap, using the bmp_size and the buffer
-    bmp_type bmp(bmp_size,buf);
-
-    // for each pixel in the bitmap, working from top to bottom,
-    // left to right, if the pixel falls on an edge, make it white
-    // otherwise, alternate the colors between dark_blue and purple
-    bool col = false;
-    for(int y=0;y<bmp.dimensions().height;++y) {
-        for(int x=0;x<bmp.dimensions().width;++x) {
-            if(x==0||y==0||x==bmp.bounds().right()||y==bmp.bounds().bottom()) {
-                bmp[point16(x,y)]=color<typename bmp_type::pixel_type>::white;
-            } else {
-                bmp[point16(x,y)]=col?
-                    color<typename bmp_type::pixel_type>::dark_blue:
-                    color<typename bmp_type::pixel_type>::purple;
-            }
-            col = !col;
-        }    
+    // our type definitions
+    using bmp_type = bitmap<rgb_pixel<bit_depth>>;
+    using color = color<typename bmp_type::pixel_type>;
+    const auto chmask = bmp_type::pixel_type::channel_by_index<0>::channel_mask;
+    const auto chmax = bmp_type::pixel_type::channel_by_index<0>::max;
+    const auto vmask = bmp_type::pixel_type::channel_by_index<0>::value_mask;
+    auto px = color::white;//bmp_type::pixel_type(true,1,1,1);
+    dump_channel_values(px);
+    for(size_t i = 0;i<sizeof(px.native_value);++i) {
+        printf("%02X",(int)((uint8_t*)&px.native_value)[i]);
     }
-    
-    // display our initial bitmap
-    dump_bitmap(bmp);
     printf("\r\n");
+    //return 0;
+    // declare the bitmap
+    size16 bmp_size(128,128);
+    uint8_t bmp_buf[bmp_type::sizeof_buffer(bmp_size)];
+    bmp_type bmp(bmp_size,bmp_buf);
+
+    // draw stuff
+    bmp.clear(bmp.bounds()); // comment this out and check out the uninitialized RAM. It looks neat.
+    srect16 b =srect16(spoint16(0,0),ssize16(bmp.dimensions().width,bmp.dimensions().height));
+    srect16 cr = b.inflate(-20,-20);
+    draw::filled_ellipse(bmp,cr,color::lawn_green);
+    draw::ellipse(bmp,cr,color::lavender_blush);
+    srect16 r = b.inflate(-4,0);
+    srect16 r2=r.inflate(-r.width()*.30,-r.height()*.30);
+    srect16 fr2 = r2.inflate(15,5);
+    draw::filled_rectangle(bmp,fr2,color::purple);
+    draw::rectangle(bmp,fr2,color::hot_pink);
+    draw::line(bmp,r,color::white,&r2);
+    draw::line(bmp,r.flip_horizontal(),color::white);
+    srect16 ar(spoint16(15,15),ssize16(7,5));
+    ar=ar.flip_horizontal();
+    //ar=ar.flip_vertical();
+    draw::filled_rectangle(bmp,ar,color::dark_blue);
+    draw::filled_arc(bmp,ar,color::sky_blue);
+    draw::arc(bmp,ar,color::white);
+    r2=r2.inflate(-10,-17);
+    draw::filled_rectangle(bmp,r2,color::dark_blue);
     
-    // create rect for our inner square
-    rect16 r = bmp.bounds().inflate(-3,-3);
-    // clear it
-    bmp.clear(r);
-    // now fill a rect inside that
-    bmp.fill(r.inflate(-1,-1),color<bmp_type::pixel_type>::medium_aquamarine);
-    
-    // display the bitmap
+    //draw::filled_rounded_rectangle(bmp,r2,pointf(.2,.2),color::tan);
+    draw::rounded_rectangle(bmp,r2,pointf(.2,.2),color::white);
+    auto src = rect16(point16(15,15),size16(10,10));
+    auto dst = srect16(10,0,20,10);
+    draw::bitmap( bmp,dst,bmp,src,bitmap_flags::crop);
+    bmp[point16(0,0)]=color::white;
+    typename bmp_type::pixel_type px2=bmp[point16(0,0)];
+    dump_channel_values(px2);
     dump_bitmap(bmp);
-    printf("\r\n");
-
-    // create a second bitmap 4 times the size
-    const size16 bmp2_size(bmp_size.width*2,bmp_size.height*2);
-    uint8_t buf2[bmp_type::sizeof_buffer(bmp2_size)];
-    bmp_type bmp2(bmp2_size,buf2);
-    // clear it
-    bmp2.clear(bmp2.bounds());
-
-    // now blt portions of the first bitmap to it to create a tile
-    // effect
-    bmp.blt(rect16(point16(8,8),size16(7,7)),bmp2,point16(0,0));
-    bmp.blt(rect16(point16(0,8),size16(7,7)),bmp2,point16(22,0));
-    bmp.blt(bmp.bounds(),bmp2,point16(7,7));
-    bmp.blt(rect16(point16(8,0),size16(7,7)),bmp2,point16(0,22));
-    bmp.blt(rect16(point16(0,0),size16(7,7)),bmp2,point16(22,22));
-    // display the bitmap
-    dump_bitmap(bmp2);
-        
+    
+    
     return 0;
 }

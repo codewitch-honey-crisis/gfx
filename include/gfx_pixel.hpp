@@ -795,11 +795,35 @@ namespace gfx {
         static_assert(bit_depth<=64,"Bit depth must be less than or equal to 64");
         //static_assert(bit_depth<=32,"Bit depth must be less than or equal to 32 (temporary limitation)");
     };
+        // creates an RGB pixel by making each channel 
+    // one third of the whole. Any remainder bits
+    // are added to the green channel
+    template<size_t BitDepth>
+    using rgb_pixel = pixel<
+        channel_traits<channel_name::R,(BitDepth/3)>,
+        channel_traits<channel_name::G,((BitDepth/3)+(BitDepth%3))>,
+        channel_traits<channel_name::B,(BitDepth/3)>
+    >;
+    // creates an RGBA pixel by making each channel 
+    // one quarter of the whole. Any remainder bits
+    // are added to the green channel
+    template<size_t BitDepth>
+    using rgba_pixel = pixel<
+        channel_traits<channel_name::R,(BitDepth/4)>,
+        channel_traits<channel_name::G,((BitDepth/4)+(BitDepth%4))>,
+        channel_traits<channel_name::B,(BitDepth/4)>,
+        channel_traits<channel_name::A,(BitDepth/4)>
+    >;
+    // creates a grayscale or monochome pixel
+    template<size_t BitDepth>
+    using gsc_pixel = pixel<
+        channel_traits<channel_name::L,BitDepth>
+    >;
     // predefined color values
     template<typename PixelType>
     class color final {
         // we use a super precise 64-bit RGB pixel for this
-        using source_type = pixel<channel_traits<channel_name::R,21>,channel_traits<channel_name::G,22>,channel_traits<channel_name::B,21>>;
+        using source_type = rgb_pixel<64>;
     public:
         constexpr static const PixelType alice_blue = source_type(true,0.941176470588235,0.972549019607843,1).convert<PixelType>();
         constexpr static const PixelType antique_white = source_type(true,0.980392156862745,0.92156862745098,0.843137254901961).convert<PixelType>();

@@ -6,8 +6,8 @@ namespace gfx {
     // represents an in-memory bitmap
     template<typename PixelType>
     class bitmap final {
-        size16 m_dimensions;
-        uint8_t* m_begin;
+        const size16 m_dimensions;
+        uint8_t* const m_begin;
     public:
         // the type of the bitmap, itself
         using type = bitmap<PixelType>;

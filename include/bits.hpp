@@ -120,6 +120,7 @@ namespace bits {
         }
         return 0;
     }
+    
     template <size_t BitWidth> class int_helper {};
     template <> struct int_helper<8> { using type = int8_t; };
     template <> struct int_helper<16> { using type = int16_t; };
@@ -165,6 +166,18 @@ namespace bits {
     template <> struct unsigned_helper<uint64_t> { using type = uint64_t; };
     template<typename T> using unsignedx = typename unsigned_helper<T>::type;
     
+    template<size_t Width>
+    struct mask {
+        using int_type = uintx<get_word_size(Width)>;
+    private:
+        constexpr static const int_type int_mask = ~int_type(0);
+    public:
+        constexpr static const int_type left = int_mask<<((sizeof(int_type)*8-Width)&int_mask);
+        constexpr static const int_type right = int_mask>>(sizeof(int_type)*8-Width);
+        constexpr static const int_type not_left = ~left;
+        constexpr static const int_type not_right = ~right;
+    };
+
     constexpr inline static void set_bits(void* bits,size_t offset_bits,size_t size_bits,bool value) {
         const size_t offset_bytes = offset_bits / 8;
         const size_t offset = offset_bits % 8;

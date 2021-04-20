@@ -84,18 +84,13 @@ int main() {
             channel_traits<channel_name::G,3>,
             channel_traits<channel_name::B,3>
     >;
-
-    using rgb101210 = pixel<
-            channel_traits<channel_name::R,10>,
-            channel_traits<channel_name::G,12>,
-            channel_traits<channel_name::B,10>
-    >;
-    /* Currently not working (bug)
-    using rgb212221 = pixel<
-            channel_traits<channel_name::R,21>,
-            channel_traits<channel_name::G,22>,
-            channel_traits<channel_name::B,21>
-    >;*/
+    // you can use rgb_pixel<> and rgba_pixel<>
+    // helpers to create an rgb/rgba pixel
+    // of any bit depth (up to the max)
+    using rgb101210 = rgb_pixel<32>;
+    
+    using rgb212221 = rgb_pixel<64>;
+    
 
     using yuv888 = pixel<
             channel_traits<channel_name::Y,8>,
@@ -105,7 +100,7 @@ int main() {
 
     // set your pixel type to any one of the above
     // or make your own pixel format     
-    using bmp_type = bitmap<rgb565>;
+    using bmp_type = bitmap<rgb_pixel<16>::type>;
 
     // we declare this to make it easier to change 
     const size16 bmp_size(15,15);

@@ -55,6 +55,14 @@ namespace gfx {
         // constructs a new instance with the specified location and size
         constexpr inline rectx(pointx<T> location, sizex<T> size) : x1(location.x), y1(location.y), x2(location.x + size.width - 1), y2(location.y + size.height - 1) {
         }
+        // constructs a new instance with the specified center and distance from the center to a side. This is useful for constructing circles out of bounding rectangles.
+        constexpr inline rectx(pointx<T> center, typename sizex<T>::value_type distance) : 
+            x1(center.x - distance ), 
+            y1(center.y - distance ), 
+            x2(center.x + distance - 1), 
+            y2(center.y + distance - 1) {
+        }
+        
         // indicates the leftmost position
         constexpr inline T left() const {
             return (x1 <= x2) ? x1 : x2;
@@ -76,13 +84,32 @@ namespace gfx {
             return x2>=x1?x2-x1+1:x1-x2+1;
             
         }
+        constexpr inline pointx<T> point1() const {
+            return pointx<T>(x1,y1);
+        }
+        constexpr inline pointx<T> point2() const {
+            return pointx<T>(x2,y2);
+        }
         // indicates the height
         constexpr inline T height() const {
             return y2>=y1?y2-y1+1:y1-y2+1;
         }
+        
+        constexpr inline pointx<T> top_left() const {
+            return pointx<T>(left(),top());
+        }
+        constexpr inline pointx<T> top_right() const {
+            return pointx<T>(right(),top());
+        }
+        constexpr inline pointx<T> bottom_left() const {
+            return pointx<T>(left(),bottom());
+        }
+        constexpr inline pointx<T> bottom_right() const {
+            return pointx<T>(right(),bottom());
+        }
         // indicates the location
         constexpr inline pointx<T> location() const {
-            return pointx<T>(left(),top());
+            return top_left();
         }
         // indicates the size
         constexpr inline sizex<T> dimensions() const
@@ -98,18 +125,19 @@ namespace gfx {
         }
         // indicates whether or not the specified rectangle intersects with this rectangle
         constexpr bool intersects(const rectx<T>& rect) const {
-            return rect.intersects(location()) || 
-                rect.intersects(pointx(right(),bottom())) ||
-                intersects(rect.location()) || 
-                intersects(pointx(rect.right(),rect.bottom()));
+            return rect.intersects(top_left()) || 
+                rect.intersects(bottom_right()) ||
+                intersects(rect.top_left()) || 
+                intersects(rect.bottom_right());
         }
         // increases or decreases the x and y bounds by the specified amounts. The rectangle is anchored on the center, and the effective width and height increases or decreases by twice the value of x or y.
         constexpr rectx<T> inflate(typename bits::signedx<T> x,typename bits::signedx<T> y) const {
-            pointx<T> pt = location();
-            pt=pointx<T>((int)pt.x-x<0?0:pt.x-x,pt.y-y<0?1:pt.y-y);
+            // TODO: fix this so it doesn't normalize the rectangle
+            pointx<T> pt = top_left();
+            pt=pointx<T>((int)pt.x-x,pt.y-y);
             
-            pointx<T> pt2 = pointx<T>(right(),bottom());
-            pt2=pointx<T>((int)pt2.x+x<0?0:pt2.x+x,pt2.y+y<0?1:pt2.y+y);
+            pointx<T> pt2 = bottom_right();
+            pt2=pointx<T>((int)pt2.x+x,pt2.y+y);
             
             return rectx<T>(pt.x,pt.y,pt2.x,pt2.y);
         }
@@ -119,13 +147,53 @@ namespace gfx {
         }
         // crops a copy of the rectangle by bounds
         constexpr rectx<T> crop(const rectx<T>& bounds) const {
-            return rectx<T>(
-                    left()<bounds.left()?bounds.left():left(),
-                    top()<bounds.top()?bounds.top():top(),
-                    right()>bounds.right()?bounds.right():right(),
-                    bottom()>bounds.bottom()?bounds.bottom():bottom()
-                );
-                
+            if(x1<=x2) {
+                if(y1<=y2) {
+                    return rectx<T>(
+                            x1<bounds.left()?bounds.left():x1,
+                            y1<bounds.top()?bounds.top():y1,
+                            x2>bounds.right()?bounds.right():x2,
+                            y2>bounds.bottom()?bounds.bottom():y2
+                        );            
+                } else {
+                    return rectx<T>(
+                            x1<bounds.left()?bounds.left():x1,
+                            y2<bounds.top()?bounds.top():y2,
+                            x2>bounds.right()?bounds.right():x2,
+                            y1>bounds.bottom()?bounds.bottom():y1
+                        );            
+                }
+            } else {
+                if(y1<=y2) {
+                    return rectx<T>(
+                            x2<bounds.left()?bounds.left():x2,
+                            y1<bounds.top()?bounds.top():y1,
+                            x1>bounds.right()?bounds.right():x1,
+                            y2>bounds.bottom()?bounds.bottom():y2
+                        );            
+                } else {
+                    return rectx<T>(
+                            x2<bounds.left()?bounds.left():x2,
+                            y2<bounds.top()?bounds.top():y2,
+                            x1>bounds.right()?bounds.right():x1,
+                            y1>bounds.bottom()?bounds.bottom():y1
+                        );            
+                }
+            }
+        }
+        // indicates if this rectangle entirely contains the other rectangle
+        constexpr bool contains(const rectx<T>& other) const {
+            return intersects(other.point1()) &&
+                intersects(other.point2());
+        }
+        constexpr inline rectx<T> flip_horizontal() const {
+            return rectx<T>(x2,y1,x1,y2);
+        }
+        constexpr inline rectx<T> flip_vertical() const {
+            return rectx<T>(x1,y2,x2,y1);
+        }
+        constexpr inline rectx<T> flip_all() const {
+            return rectx<T>(x2,y2,x1,y1);
         }
         // splits a rectangle by another rectangle, returning between 0 and 4 rectangles as a result
         constexpr size_t split(rectx<T>& split_rect,size_t out_count, rectx<T>* out_rects) const {
@@ -152,6 +220,7 @@ namespace gfx {
             }
             return result;
         }
+        
     };
     RESTORE_PACK
     

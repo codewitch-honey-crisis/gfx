@@ -33,6 +33,12 @@ namespace gfx {
         constexpr inline sizex(T width, T height) : width(width), height(height) {
         }
     };
+    enum struct rect_orientation {
+        normalized = 0,
+        denormalized = 1,
+        flipped_horizontal = 2 | denormalized,
+        flipped_vertical = 4 | denormalized
+    };
     // represents a rectangle with 16-bit integer coordinates
     template <typename T>
     struct PACKED rectx
@@ -116,6 +122,14 @@ namespace gfx {
         {
             return sizex<T>(width(),height());
         }
+        // indicates the delta used to move from x1 to x2 by 1 step
+        constexpr inline value_type delta_x() {
+            return x2>x1?-1:1;
+        }
+        // indicates the delta used to move from y1 to y2 by 1 step
+        constexpr inline value_type delta_y() {
+            return y2>y1?-1:1;
+        }
         // indicates whether or not the specified pointx intersects with the rectangle
         constexpr inline bool intersects(pointx<T> pointx) const {
             return pointx.x>=left() && 
@@ -132,18 +146,33 @@ namespace gfx {
         }
         // increases or decreases the x and y bounds by the specified amounts. The rectangle is anchored on the center, and the effective width and height increases or decreases by twice the value of x or y.
         constexpr rectx<T> inflate(typename bits::signedx<T> x,typename bits::signedx<T> y) const {
-            // TODO: fix this so it doesn't normalize the rectangle
-            pointx<T> pt = top_left();
-            pt=pointx<T>((int)pt.x-x,pt.y-y);
-            
-            pointx<T> pt2 = bottom_right();
-            pt2=pointx<T>((int)pt2.x+x,pt2.y+y);
-            
-            return rectx<T>(pt.x,pt.y,pt2.x,pt2.y);
+            switch((int)orientation()) {
+                case (int)rect_orientation::flipped_horizontal:
+                    return rectx<T>(x1-x,y1-y,x2+x,y2+y);
+                case (int)rect_orientation::flipped_vertical:
+                    return rectx<T>(x1-x,y1+y,x2+x,y2-y);
+                case (int)((int)rect_orientation::flipped_vertical|(int)rect_orientation::flipped_horizontal):
+                    return rectx<T>(x1+x,y1+y,x2-x,y2-y);
+                
+            }
+            return rectx<T>(x1-x,y1-y,x2+x,y2+y);
+        }
+        // offsets the rectangle by the specified amounts.
+        constexpr inline rectx<T> offset(typename bits::signedx<T> x,typename bits::signedx<T> y) const {
+            return rectx<T>(x1+x,y1+y,x2+x,y2+y);
         }
         // normalizes a rectangle, such that x1<=x2 and y1<=y2
         constexpr inline rectx<T> normalize() const {
             return rectx<T>(location(),dimensions());
+        }
+        // indicates whether or not the rectangle is flipped along the horizontal or vertical axes.
+        constexpr rect_orientation orientation() const {
+            int result = (int)rect_orientation::normalized;
+            if(x1>x2)
+                result |= (int)rect_orientation::flipped_horizontal;
+            if(y1>y2)
+                result |= (int)rect_orientation::flipped_vertical;
+            return (rect_orientation)result;
         }
         // crops a copy of the rectangle by bounds
         constexpr rectx<T> crop(const rectx<T>& bounds) const {

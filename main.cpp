@@ -290,8 +290,8 @@ int main(int argc, char** argv) {
     // we can load fonts from a file, but that requires heap
     // while PROGMEM arrays do not (at least on devices
     // that use flash memory)
-    io::file_stream dynfs("./fonts/Bm437_ToshibaSat_8x8.FON");
-    font dynf(&dynfs);
+    // io::file_stream dynfs("./fonts/Bm437_ToshibaSat_8x8.FON");
+    // font dynf(&dynfs);
     // store the rightmost extent
     // so we have something to 
     // center by
@@ -299,8 +299,8 @@ int main(int argc, char** argv) {
     // now let's draw some text
     // choose the font you want to use below:
     const font& f =
-        //terminal_fon // use embedded font
-        dynf // use dynamic font
+        terminal_fon // use embedded font
+        // dynf // use dynamic font
     ;
 
     const char* str = "Have a nice day!";

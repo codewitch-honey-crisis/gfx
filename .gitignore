@@ -7,3 +7,4 @@ include/bits
 include/gfx_drawing
 pixel_old.txt
 bitmap
+core

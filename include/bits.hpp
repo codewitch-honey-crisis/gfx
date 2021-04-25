@@ -3,7 +3,9 @@
 #define PACKED __attribute__((__packed__))
 #define PACK // TODO: Add Microsoft pack pragmas here
 #define RESTORE_PACK
-
+#ifndef HTCW_MAX_WORD
+#define HTCW_MAX_WORD 64
+#endif
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
@@ -40,6 +42,7 @@ namespace bits {
         uint32_t tmp = ((value << 8) & 0xFF00FF00) | ((value >> 8) & 0xFF00FF);
         return (tmp << 16) | (tmp >> 16);
     }
+#if HTCW_MAX_WORD >= 64
     // swaps byte order
     constexpr static inline uint64_t swap(uint64_t value) {
         value = (value & 0x00000000FFFFFFFF) << 32 | (value & 0xFFFFFFFF00000000) >> 32;
@@ -47,6 +50,8 @@ namespace bits {
         value = (value & 0x00FF00FF00FF00FF) << 8  | (value & 0xFF00FF00FF00FF00) >> 8;
         return value;
     }
+#endif
+
     // swaps byte order (no-op to resolve ambiguous overload)
     constexpr static inline uint8_t swap(uint8_t value) {
         return value;
@@ -63,9 +68,11 @@ namespace bits {
             case 4:
                 *((uint32_t*)data)=swap(*(uint32_t*)data);
                 return;
+#if HTCW_MAX_WORD >=64            
             case 8:
                 *((uint64_t*)data)=swap(*(uint64_t*)data);
                 return;
+#endif
         }
         for (size_t low = 0, high = SizeBytes - 1; low < high; low++, high--) {
             size_t tmp = ((uint8_t*)data)[low];
@@ -73,9 +80,55 @@ namespace bits {
             ((uint8_t*)data)[high] = tmp;
         }
     }
+    constexpr static inline uint16_t from_le(uint16_t value) {
+        if(endianness()==endian_mode::big_endian)
+            return swap(value);
+        return value;
+    }
+    constexpr static inline uint32_t from_le(uint32_t value) {
+        if(endianness()==endian_mode::big_endian)
+            return swap(value);
+        return value;
+    }
+#if HTCW_MAX_WORD >=64
+    constexpr static inline uint64_t from_le(uint64_t value) {
+        if(endianness()==endian_mode::big_endian)
+            return swap(value);
+        return value;
+    }
+#endif
+    constexpr static inline uint8_t from_le(uint8_t value) {
+        return value;
+    }
+
+    constexpr static inline uint16_t from_be(uint16_t value) {
+        if(endianness()==endian_mode::little_endian)
+            return swap(value);
+        return value;
+    }
+    constexpr static inline uint32_t from_be(uint32_t value) {
+        if(endianness()==endian_mode::little_endian)
+            return swap(value);
+        return value;
+    }
+#if HTCW_MAX_WORD >=64
+    constexpr static inline uint64_t from_be(uint64_t value) {
+        if(endianness()==endian_mode::little_endian)
+            return swap(value);
+        return value;
+    }
+#endif
+    constexpr static inline uint8_t from_be(uint8_t value) {
+        return value;
+    }
     constexpr size_t get_word_size(size_t size) {
+#if HTCW_MAX_WORD >= 64
         if(size>64) return 0; 
         if(size>32) return 64;
+#else 
+        if(size>32) return 0;
+#endif
+        
         if(size>16) return 32;
         if(size>8) return 16;
         return 8;
@@ -120,26 +173,31 @@ namespace bits {
         }
         return 0;
     }
-    
     template <size_t BitWidth> class int_helper {};
     template <> struct int_helper<8> { using type = int8_t; };
     template <> struct int_helper<16> { using type = int16_t; };
     template <> struct int_helper<32> { using type = int32_t; };
+#if HTCW_MAX_WORD >=64
     template <> struct int_helper<64> { using type = int64_t; };
     template<size_t Width> using intx = typename int_helper<Width>::type;
-    
+    using int_max = typename int_helper<HTCW_MAX_WORD>::type;
+#endif
     template <size_t BitWidth> class uint_helper {};
     template <> struct uint_helper<8> { using type = uint8_t; };
     template <> struct uint_helper<16> { using type = uint16_t; };
     template <> struct uint_helper<32> { using type = uint32_t; };
+#if HTCW_MAX_WORD >=64
     template <> struct uint_helper<64> { using type = uint64_t; };
+#endif
     template<size_t Width> using uintx = typename uint_helper<Width>::type;
-    
+    using uint_max = uint_helper<HTCW_MAX_WORD>::type;
     template <size_t BitWidth> class real_helper {};
     template <> struct real_helper<32> { using type = float; };
+#if HTCW_MAX_WORD >=64
     template <> struct real_helper<64> { using type = double; };
+#endif
     template<size_t Width> using realx = typename real_helper<Width>::type;
-    
+    using real_max = typename real_helper<HTCW_MAX_WORD>::type;
     template <typename T> struct signed_helper {};
     template <> struct signed_helper<float> { using type = float; };
     template <> struct signed_helper<double> { using type = double; };
@@ -149,8 +207,10 @@ namespace bits {
     template <> struct signed_helper<uint16_t> { using type = int16_t; };
     template <> struct signed_helper<int32_t> { using type = int32_t; };
     template <> struct signed_helper<uint32_t> { using type = int32_t; };
+#if HTCW_MAX_WORD >=64
     template <> struct signed_helper<int64_t> { using type = int64_t; };
     template <> struct signed_helper<uint64_t> { using type = int64_t; };
+#endif
     template<typename T> using signedx = typename signed_helper<T>::type;
 
     template <typename T> struct unsigned_helper {};
@@ -162,8 +222,10 @@ namespace bits {
     template <> struct unsigned_helper<uint16_t> { using type = uint16_t; };
     template <> struct unsigned_helper<int32_t> { using type = uint32_t; };
     template <> struct unsigned_helper<uint32_t> { using type = uint32_t; };
+#if HTCW_MAX_WORD >=64
     template <> struct unsigned_helper<int64_t> { using type = uint64_t; };
     template <> struct unsigned_helper<uint64_t> { using type = uint64_t; };
+#endif
     template<typename T> using unsignedx = typename unsigned_helper<T>::type;
     
     template<size_t Width>
@@ -181,7 +243,7 @@ namespace bits {
     constexpr inline static void set_bits(void* bits,size_t offset_bits,size_t size_bits,bool value) {
         const size_t offset_bytes = offset_bits / 8;
         const size_t offset = offset_bits % 8;
-        const size_t total_size_bytes = (offset_bits+size_bits)/8.0+.999999999;
+        const size_t total_size_bytes = (offset_bits+size_bits+7)/8;
         const size_t overhang = (offset_bits+size_bits) % 8;
         uint8_t* pbegin = ((uint8_t*)bits)+offset_bytes;
         uint8_t* pend = ((uint8_t*)bits)+total_size_bytes;
@@ -229,7 +291,7 @@ namespace bits {
             return;
         const size_t offset_bytes = OffsetBits / 8;
         const size_t offset = OffsetBits % 8;
-        const size_t total_size_bytes = (OffsetBits+SizeBits)/8.0+.999999999;
+        const size_t total_size_bytes = (OffsetBits+SizeBits+7)/8;
         const size_t overhang = (OffsetBits+SizeBits) % 8;
         uint8_t* pbegin = ((uint8_t*)bits)+offset_bytes;
         uint8_t* pend = ((uint8_t*)bits)+total_size_bytes;
@@ -274,7 +336,7 @@ namespace bits {
 constexpr inline static void set_bits(size_t offset_bits,size_t size_bits,void* dst,const void* src) {
     const size_t offset_bytes = offset_bits / 8;
     const size_t offset = offset_bits % 8;
-    const size_t total_size_bytes = (offset_bits+size_bits)/8.0+.999999999;
+    const size_t total_size_bytes = (offset_bits+size_bits+7)/8;
     const size_t overhang = (offset_bits+size_bits) % 8;
     uint8_t* pbegin = ((uint8_t*)dst)+offset_bytes;
     uint8_t* psbegin = ((uint8_t*)src)+offset_bytes;
@@ -308,7 +370,7 @@ constexpr inline static void set_bits(size_t offset_bits,size_t size_bits,void* 
     template<size_t OffsetBits,size_t SizeBits> constexpr inline static void set_bits(void* dst,const void* src) {
         const size_t offset_bytes = OffsetBits / 8;
         const size_t offset = OffsetBits % 8;
-        const size_t total_size_bytes = (OffsetBits+SizeBits)/8.0+.999999999;
+        const size_t total_size_bytes = (OffsetBits+SizeBits+7)/8;
         const size_t overhang = (OffsetBits+SizeBits) % 8;
         uint8_t* pbegin = ((uint8_t*)dst)+offset_bytes;
         uint8_t* psbegin = ((uint8_t*)src)+offset_bytes;
@@ -356,7 +418,7 @@ constexpr inline static void set_bits(size_t offset_bits,size_t size_bits,void* 
         const uint8_t left_mask = ((uint8_t)uint8_t(0xFF<<(8-offset)));
         // preserves right after overhang
         const uint8_t right_mask = 0!=overhang?uint8_t(0xFF>>overhang):0;
-        uint8_t* pend = pbegin+(size_t)((OffsetBits+SizeBits)/8.0+.999999);
+        uint8_t* pend = pbegin+(size_t)((OffsetBits+SizeBits+7)/8);
         uint8_t* plast = pend-1;
         uint8_t* psrc = pbegin+shift_bytes;
         uint8_t* pdst = pbegin;
@@ -404,7 +466,7 @@ constexpr static void shift_left(void* bits,size_t offset_bits,size_t size_bits,
     const uint8_t left_mask = ((uint8_t)uint8_t(0xFF<<(8-offset)));
     // preserves right after overhang
     const uint8_t right_mask = 0!=overhang?uint8_t(0xFF>>overhang):0;
-    uint8_t* pend = pbegin+(size_t)((offset_bits+size_bits)/8.0+.999999);
+    uint8_t* pend = pbegin+(size_t)((offset_bits+size_bits+7)/8);
     uint8_t* plast = pend-1;
     uint8_t* psrc = pbegin+shift_bytes;
     uint8_t* pdst = pbegin;
@@ -452,7 +514,7 @@ constexpr static void shift_left(void* bits,size_t offset_bits,size_t size_bits,
         const uint8_t left_mask = ((uint8_t)uint8_t(0xFF<<(8-offset)));
         // preserves right after overhang
         const uint8_t right_mask = 0!=overhang?uint8_t(0xFF>>overhang):0;
-        uint8_t* pend = pbegin+(size_t)((OffsetBits+SizeBits)/8.0+.999999)-(OffsetBits/8);
+        uint8_t* pend = pbegin+(size_t)((OffsetBits+SizeBits+7)/8)-(OffsetBits/8);
         uint8_t* plast = pend-1;
         uint8_t* psrc = (pend-1)-shift_bytes;
         uint8_t* pdst = pend-1;
@@ -498,7 +560,7 @@ constexpr static void shift_left(void* bits,size_t offset_bits,size_t size_bits,
         const uint8_t left_mask = ((uint8_t)uint8_t(0xFF<<(8-offset)));
         // preserves right after overhang
         const uint8_t right_mask = 0!=overhang?uint8_t(0xFF>>overhang):0;
-        uint8_t* pend = pbegin+(size_t)((offset_bits+size_bits)/8.0+.999999)-(offset_bits/8);
+        uint8_t* pend = pbegin+(size_t)((offset_bits+size_bits+7)/8)-(offset_bits/8);
         uint8_t* plast = pend-1;
         uint8_t* psrc = (pend-1)-shift_bytes;
         uint8_t* pdst = pend-1;

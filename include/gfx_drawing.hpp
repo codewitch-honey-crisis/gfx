@@ -1,7 +1,9 @@
 #ifndef HTCW_GFX_DRAWING_HPP
 #define HTCW_GFX_DRAWING_HPP
+#include "bits.hpp"
 #include "gfx_pixel.hpp"
 #include "gfx_positioning.hpp"
+#include "gfx_font.hpp"
 namespace gfx {
     enum struct bitmap_flags {
         crop = 0,
@@ -9,35 +11,130 @@ namespace gfx {
     };
     // provides drawing primitives over a bitmap or compatible type 
     class draw {
-         
-        template<typename Destination,typename Bitmap>
-        static void draw_bitmap_impl(Destination& destination, const srect16& dest_rect, Bitmap source, const rect16& source_rect,bitmap_flags options,srect16* clip) {
-            point16 p;
-            rect16 r = source_rect.normalize();
+        template<typename Destination,typename Source>
+        static void draw_bitmap_impl(Destination& destination, const srect16& dest_rect, Source& source, const rect16& source_rect,bitmap_flags options,srect16* clip) {
             rect16 dr;
             if(!translate_adjust(dest_rect,&dr))
-                return;
+                return; // whole thing is offscreen
+            // get the scale
+            float sx = dest_rect.width()/(float)source_rect.width();
+            float sy = dest_rect.height()/(float)source_rect.height();
+            int o = (int)dest_rect.orientation();
+            point16 loc(0,0);
+            rect16 ccr;
+            if(nullptr!=clip) {
+                if(!translate_adjust(*clip,&ccr))
+                    return; // clip rect is off screen
+                dr = dr.crop(ccr);
+            }
+            dr = dr.normalize();
+            size16 dim(dr.width(),dr.height());
+            if(dim.width>source_rect.width())
+                dim.width = source_rect.width();
+            if(dim.height>source_rect.height())
+                dim.height = source_rect.height();
+            auto x2=dest_rect.left();
+            auto y2=dest_rect.top();
+            if(0>x2) {
+                loc.x = -x2;
+                if(nullptr==clip)
+                    dim.width+=dest_rect.x1;
+            }
+            if(0>y2) {
+                loc.y = -y2;
+                if(nullptr==clip)
+                    dim.height+=y2;
+            }
+            loc.x+=source_rect.top();
+            loc.y+=source_rect.left();
+            rect16 srcr = rect16(loc,dim);
+            rect16 dstr(dr.x1,dr.y1,srcr.width()*sx+.5+dr.x1,srcr.height()*sy+.5+dr.y1);
+            if(dstr.x2>dr.x2) dstr.x2=dr.x2;
+            if(dstr.y2>dr.y2) dstr.y2=dr.y2;
+            typename srect16::value_type ix,iy;
+            if((int)rect_orientation::flipped_horizontal==(o&(int)rect_orientation::flipped_horizontal)) {
+                dstr=dstr.flip_horizontal();
+                ix=-1;
+            } else
+                ix=1;
+            if((int)rect_orientation::flipped_vertical==(o&(int)rect_orientation::flipped_vertical)) {
+                iy=-1;
+                dstr=dstr.flip_vertical();
+            } else
+                iy=1;
+            
             if((int)bitmap_flags::resize!=((int)options&(int)bitmap_flags::resize)) {
-                // do cropping
-                for(p.x=r.x1;p.x<=r.x2;++p.x) {
-                    for(p.y=r.y1;p.y<=r.y2;++p.y) {
-                        
-                    }    
-                }
+               // do cropping
+
+               x2=srcr.x1;
+               y2=srcr.y1;
+               for(typename rect16::value_type y=dstr.y1;y!=dstr.y2+iy;y+=iy) {
+                for(typename rect16::value_type x=dstr.x1;x!=dstr.x2+ix;x+=ix) {
+                    typename Source::pixel_type px = source[point16(x2,y2)];
+                    typename Destination::pixel_type px2=px.template convert<typename Destination::pixel_type>();
+                    destination[point16(x,y)]=px2;
+                    ++x2;
+                    if(x2>srcr.x2)
+                        break;
+                }    
+                x2=srcr.x1;
+                ++y2;
+                if(y2>srcr.y2)
+                    break;
+               }
+               
             } else {
                 // do resizing
+                int o = (int)dest_rect.orientation();
+                uint32_t x_ratio = (uint32_t)((dest_rect.width()<<16)/source_rect.width()) +1;
+                uint32_t y_ratio = (uint32_t)((dest_rect.height()<<16)/source_rect.height()) +1;
+                bool growX = dest_rect.width()>source_rect.width(),
+                    growY = dest_rect.height()>source_rect.height();
+                point16 p(-1,-1);
+                point16 ps;
+                srcr = source_rect.normalize();
+                for(ps.y=srcr.y1;ps.y<srcr.y2;++ps.y) {
+                    for(ps.x=srcr.x1;ps.x<srcr.x2;++ps.x) {
+                        uint16_t px = ps.x;
+                        uint16_t py = ps.y;
+                        if((int)rect_orientation::flipped_horizontal==((int)rect_orientation::flipped_horizontal&o)) {
+                            px=source_rect.width()-px-1;
+                        }
+                        if((int)rect_orientation::flipped_vertical==((int)rect_orientation::flipped_vertical&o)) {
+                            py=source_rect.height()-py-1;
+                        }
+                        uint16_t ux(((px*x_ratio)>>16));
+                        
+                        uint16_t uy(((py*y_ratio)>>16));
+                        ux+=dstr.left();
+                        uy+=dstr.top();
+                        if(ux!=p.x || uy!=p.y) {
+                            typename Source::pixel_type px = source[ps];
+                            p=point16(ux,uy);
+                            typename Destination::pixel_type px2=px.template convert<typename Destination::pixel_type>();
+                            if(!(growX || growY)) {
+                                destination[p]= px2;
+                            } else {
+                                uint16_t w = x_ratio>>16,h=y_ratio>>16;
+                                destination.fill(rect16(p,size16(w,h)),px2);
+                            }
+                        }
+                        
+                    }    
+                    
+                }
             }
         }
-        template<typename Destination,typename Bitmap>
+        template<typename Destination,typename Source>
         struct bmp_helper {
-            inline static void draw_bitmap(Destination& destination, const srect16& dest_rect, Bitmap source, const rect16& source_rect,bitmap_flags options,srect16* clip) {
+            inline static void draw_bitmap(Destination& destination, const srect16& dest_rect, Source& source, const rect16& source_rect,bitmap_flags options,srect16* clip) {
                 draw_bitmap_impl(destination,dest_rect,source,source_rect,options,clip);
             }
         };
         
         template<typename Destination>
         struct bmp_helper<Destination,Destination> {
-            static void draw_bitmap(Destination& destination, const srect16& dest_rect, Destination source, const rect16& source_rect,bitmap_flags options,srect16* clip) {
+            static void draw_bitmap(Destination& destination, const srect16& dest_rect, Destination& source, const rect16& source_rect,bitmap_flags options,srect16* clip) {
                 // disqualify fast blting
                 if(dest_rect.x1>dest_rect.x2 || 
                     dest_rect.y1>dest_rect.y2 || 
@@ -49,16 +146,40 @@ namespace gfx {
                     draw_bitmap_impl(destination,dest_rect,source,source_rect,options,clip);
                     return;
                 }
-                srect16 cr = dest_rect;
-                if(nullptr!=clip) {
-                    cr.crop(*clip);
-                }
+               
                 rect16 dr;
-                if(!translate_adjust(cr,&dr))
-                    return;
+                if(!translate_adjust(dest_rect,&dr))
+                    return; // whole thing is offscreen
+                point16 loc(0,0);
+                rect16 ccr;
+                if(nullptr!=clip) {
+                    if(!translate_adjust(*clip,&ccr))
+                        return; // clip rect is off screen
+                    dr = dr.crop(ccr);
+                }
+
+                size16 dim(dr.width(),dr.height());
+                if(dim.width>source_rect.width())
+                    dim.width = source_rect.width();
+                if(dim.height>source_rect.height())
+                    dim.height = source_rect.height();
+                if(0>dest_rect.x1) {
+                    loc.x = -dest_rect.x1;
+                    if(nullptr==clip)
+                        dim.width+=dest_rect.x1;
+                }
+                if(0>dest_rect.y1) {
+                    loc.y = -dest_rect.y1;
+                    if(nullptr==clip)
+                        dim.height+=dest_rect.y1;
+                }
+                loc.x+=source_rect.top();
+                loc.y+=source_rect.left();
+                rect16 r = rect16(loc,dim);
                 
-                // do fast blt
-                source.blt(rect16(source_rect.top_left(),dr.dimensions()),destination,dr.top_left());
+                // fast blt  
+                source.blt(r,destination,dr.top_left());
+                
             }
         };
         // Defining region codes
@@ -211,6 +332,10 @@ namespace gfx {
             int_type y_adj =(1-(rect.height()&1));
             int_type rx = rect.width()/2-x_adj;
             int_type ry = rect.height()/2-y_adj;
+            if(0==rx)
+                rx=1;
+            if(0==ry)
+                ry=1;
             int_type xc = rect.width()/2+rect.left()-x_adj;
             int_type yc = rect.height()/2+rect.top()-y_adj;
             float dx, dy, d1, d2, x, y;
@@ -310,7 +435,10 @@ namespace gfx {
             int_type ry = rect.height()-1;
             int_type xc = rect.width()+rect.left()-x_adj-1;
             int_type yc = rect.height()+rect.top()-1;
-             
+            if(0==rx)
+                rx=1;
+            if(0==ry)
+                ry=1;
             float dx, dy, d1, d2, x, y;
             x = 0;
             y = ry;
@@ -618,6 +746,103 @@ namespace gfx {
         static inline void bitmap(Destination& destination,const srect16& dest_rect,Source& source,const rect16& source_rect,bitmap_flags options=bitmap_flags::crop,srect16* clip=nullptr) {
             bmp_helper<Destination,Source>
                 ::draw_bitmap(destination,dest_rect,source,source_rect,options,clip);
+        }
+        // draws text to the specified destination rectangle with the specified font and colors and optional clipping rectangle
+        template<typename Destination>
+        static void text(
+            Destination& destination,
+            srect16& dest_rect,
+            const char* text,
+            const font& font,
+            typename Destination::pixel_type color,
+            typename Destination::pixel_type backcolor=::gfx::color<typename Destination::pixel_type>::black,
+            bool transparent_background = true,
+            unsigned int tab_width=4,
+            srect16* clip=nullptr) {
+            const char*sz=text;
+            int cw;
+            uint16_t rw;
+            srect16 chr(dest_rect.top_left(),ssize16(font.width(*sz),font.height()));
+            if(0==*sz) return;
+            font_char fc = font[*sz];
+            while(*sz) {
+                switch(*sz) {
+                    case '\r':
+                        chr.x1=dest_rect.x1;
+                        ++sz;
+                        if(*sz) {
+                            font_char nfc = font[*sz];
+                            chr.x2=chr.x1+nfc.width()-1;
+                            fc=nfc;
+                        }  
+                        break;
+                    case '\n':
+                        chr.x1=dest_rect.x1;
+                        ++sz;
+                        if(*sz) {
+                            font_char nfc = font[*sz];
+                            chr.x2=chr.x1+nfc.width()-1;
+                            fc=nfc;
+                        }
+                        chr=chr.offset(0,font.height());
+                        if(chr.y2>dest_rect.bottom())
+                            return;
+                        break;
+                    case '\t':
+                        ++sz;
+                        if(*sz) {
+                            font_char nfc = font[*sz];
+                            rw=chr.x1+nfc.width()-1;
+                            fc=nfc;
+                        } else
+                            rw=chr.width();
+                        cw = font.average_width()*4;
+                        chr.x1=((chr.x1/cw)+1)*cw;
+                        chr.x2=chr.x1+rw-1;
+                        if(chr.right()>dest_rect.right()) {
+                            chr.x1=dest_rect.x1;
+                            chr=chr.offset(0,font.height());
+                        } 
+                        if(chr.y2>dest_rect.bottom())
+                            return;
+                        
+                        break;
+                    default:
+                        // draw the character
+                        size_t wb = (fc.width()+7)/8;
+                        const uint8_t* p = fc.data();
+                        for(size_t j=0;j<font.height();++j) {
+                            bits::int_max m = 1 << (fc.width()-1);
+                            bits::int_max accum=0;
+                            memcpy(&accum,p,wb);
+                            p+=wb;
+                            for(size_t n=0;n<fc.width();++n) {
+                                if(accum&m) {
+                                    point(destination,spoint16(chr.left()+n,chr.top()+j),color,clip);
+                                } else if(!transparent_background) {
+                                    point(destination,spoint16(chr.left()+n,chr.top()+j),backcolor,clip);
+                                }
+
+                                accum<<=1;
+                            }
+                        }
+                        chr=chr.offset(fc.width(),0);
+                        ++sz;
+                        if(*sz) {
+                            font_char nfc = font[*sz];
+                            chr.x2=chr.x1+nfc.width()-1;
+                            if(chr.right()>dest_rect.right()) {
+                                
+                                chr.x1=dest_rect.x1;
+                                chr=chr.offset(0,font.height());
+                            }
+                            if(chr.y2>dest_rect.bottom())
+                                return;
+                            fc=nfc;
+                        }
+                        break;
+                }
+            }
         }
     };
 }

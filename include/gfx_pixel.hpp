@@ -19,6 +19,7 @@ namespace gfx {
             }
             return value;
         }
+#if HTCW_MAX_WORD>=64
         // adjusts byte order if necessary
         constexpr static inline uint64_t order_guard(uint64_t value) {
             if(bits::endianness()==bits::endian_mode::little_endian) {
@@ -26,6 +27,7 @@ namespace gfx {
             }
             return value;
         }
+#endif
         // adjusts byte order if necessary (disambiguation)
         constexpr static inline uint8_t order_guard(uint8_t value) {
             return value;
@@ -73,7 +75,11 @@ namespace gfx {
         // the minimum value
         bits::uintx<bits::get_word_size(BitDepth)> Min=0, 
         // the maximum value
-        bits::uintx<bits::get_word_size(BitDepth)>Max=((BitDepth==64)?0xFFFFFFFFFFFFFFFF:((1<<BitDepth)-1)), 
+#if HTCW_MAX_WORD >= 64
+        bits::uintx<bits::get_word_size(BitDepth)> Max= ((BitDepth==64)?0xFFFFFFFFFFFFFFFF:((1<<BitDepth)-1)), 
+#else
+        bits::uintx<bits::get_word_size(BitDepth)> Max= ((BitDepth==32)?0xFFFFFFFF:((1<<BitDepth)-1)), 
+#endif
         // the scale denominator
         bits::uintx<bits::get_word_size(BitDepth)> Scale = Max> 
     struct channel_traits {
@@ -84,7 +90,7 @@ namespace gfx {
         // the integer type of this channel
         using int_type = bits::uintx<bits::get_word_size(BitDepth)>;
         // the floating point type of this channel
-        using real_type = bits::realx<16<=BitDepth?64:32>;
+        using real_type = bits::realx<16<=BitDepth?HTCW_MAX_WORD:32>;
         // the bit depth of this channel
         constexpr static const size_t bit_depth = BitDepth;
         // the minimum value
@@ -98,12 +104,16 @@ namespace gfx {
         // a mask of the int value
         constexpr static const int_type int_mask = ~int_type(0);
         // a mask of the channel value
-        constexpr static const int_type mask =int_type(int_mask>>((sizeof(int_type)*8)-BitDepth));
+        constexpr static const int_type mask = bits::mask<BitDepth>::right;//=int_type(int_mask>>((sizeof(int_type)*8)-BitDepth));
         // constraints
         static_assert(BitDepth>0,"Bit depth must be greater than 0");
         static_assert(BitDepth<=64,"Bit depth must be less than or equal to 64");
         static_assert(Min<=Max,"Min must be less than or equal to Max");
+#if HTCW_MAX_WORD >= 64        
         static_assert(Max<=((BitDepth==64)?0xFFFFFFFFFFFFFFFF:((1<<BitDepth)-1)),"Max is greater than the maximum allowable value");
+#else
+        static_assert(Max<=((BitDepth==32)?0xFFFFFFFF:((1<<BitDepth)-1)),"Max is greater than the maximum allowable value");
+#endif
         static_assert(Scale>0,"Scale must not be zero");
     };
     // specialization for empty channel
@@ -355,12 +365,15 @@ namespace gfx {
             if(ChannelLhs::bit_depth==0 || ChannelRhs::bit_depth==0) return 0;
             const int srf = (int)ChannelLhs::bit_depth-(int)ChannelRhs::bit_depth;
             if(0<srf) {
-                rv = (typename ChannelRhs::int_type)(v>>srf);
+                rv = (typename ChannelRhs::int_type)(v>>(0>srf?0:srf));
+                rv = clamp(rv,ChannelRhs::min,ChannelRhs::max);
                 //float vs = v*ChannelLhs::scalef;
                 //rv = clamp((typename ChannelRhs::int_type)(vs*ChannelRhs::scale+.5),ChannelRhs::min,ChannelRhs::max);
             } else if(0>srf) {
-                float vs = v*ChannelLhs::scalef;
-                rv = clamp((typename ChannelRhs::int_type)(vs*ChannelRhs::scale+.5),ChannelRhs::min,ChannelRhs::max);
+                rv = (typename ChannelRhs::int_type)(v<<(0<srf?0:-srf));
+                rv = clamp(rv,ChannelRhs::min,ChannelRhs::max);
+                //float vs = v*ChannelLhs::scalef;
+                //rv = clamp((typename ChannelRhs::int_type)(vs*ChannelRhs::scale+.5),ChannelRhs::min,ChannelRhs::max);
             } else
                 rv = (typename ChannelRhs::int_type)(v);
             return rv;
@@ -401,7 +414,7 @@ namespace gfx {
         // the total bit depth of the pixel
         constexpr static const size_t bit_depth = helpers::bit_depth<ChannelTraits...>::value;
         // the minimum number of bytes needed to store the pixel
-        constexpr static const size_t packed_size = bit_depth / 8.0 + .99999;
+        constexpr static const size_t packed_size = (bit_depth+7) / 8;
         // true if the pixel is a whole number of bytes
         constexpr static const bool byte_aligned = 0==bit_depth/8.0 - (size_t)(bit_depth/8);
         // the total size in bits, including padding
@@ -411,7 +424,7 @@ namespace gfx {
         // the count of bits to the right that are unused
         constexpr static const size_t pad_right_bits = total_size_bits-bit_depth;
         // the mask of the pixel's value
-        constexpr static const int_type mask = int_type(int_type(~int_type(0))<<(pad_right_bits));//int_type(bit_depth==64?0xFFFFFFFFFFFFFFFF:(((1<<bit_depth)-1)<<pad_right_bits));
+        constexpr static const int_type mask = int_type(int_type(~int_type(0))<<(pad_right_bits));
         
         // the pixel value, in platform native format
         int_type native_value;
@@ -795,7 +808,7 @@ namespace gfx {
         static_assert(bit_depth<=64,"Bit depth must be less than or equal to 64");
         //static_assert(bit_depth<=32,"Bit depth must be less than or equal to 32 (temporary limitation)");
     };
-        // creates an RGB pixel by making each channel 
+    // creates an RGB pixel by making each channel 
     // one third of the whole. Any remainder bits
     // are added to the green channel
     template<size_t BitDepth>
@@ -822,8 +835,8 @@ namespace gfx {
     // predefined color values
     template<typename PixelType>
     class color final {
-        // we use a super precise 64-bit RGB pixel for this
-        using source_type = rgb_pixel<64>;
+        // we use a super precise max-bit RGB pixel for this
+        using source_type = rgb_pixel<HTCW_MAX_WORD>;
     public:
         constexpr static const PixelType alice_blue = source_type(true,0.941176470588235,0.972549019607843,1).convert<PixelType>();
         constexpr static const PixelType antique_white = source_type(true,0.980392156862745,0.92156862745098,0.843137254901961).convert<PixelType>();

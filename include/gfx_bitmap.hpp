@@ -41,7 +41,7 @@ namespace gfx {
                 memcpy(tmp,begin,sizeof(tmp));
                 
                 if(0<offs_bits)
-                    bits::shift_left(&tmp,0,sizeof(tmp)*8,offs_bits);
+                    bits::shift_left(tmp,0,sizeof(tmp)*8,offs_bits);
                 pixel_type result;
                 typename pixel_type::int_type r = 0;
                 memcpy(&r,tmp,pixel_type::packed_size);

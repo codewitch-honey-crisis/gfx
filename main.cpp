@@ -194,12 +194,9 @@ void dump_bitmap(const BitmapType& bmp) {
     for(int y = 0;y<bmp.dimensions().height;++y) {
         for(int x = 0;x<bmp.dimensions().width;++x) {
             const typename BitmapType::pixel_type px = bmp[point16(x,y)];
-            char sz[2];
-            sz[1]=0;
             const auto px2 = px.template convert<gsc4>();
             size_t i =px2.template channel<0>();
-            sz[0] = col_table[i];
-            printf("%s",sz);
+            printf("%c",col_table[i]);
             
         }
         printf("\r\n");
@@ -227,7 +224,7 @@ int main(int argc, char** argv) {
     using bmp_type = bitmap<rgb_pixel<bit_depth>>;
     using color = color<typename bmp_type::pixel_type>;
 
-    size16 bmp_size(32,32);
+    static const size16 bmp_size(32,32);
     
     // declare the bitmap
     uint8_t bmp_buf[bmp_type::sizeof_buffer(bmp_size)];
@@ -268,7 +265,7 @@ int main(int argc, char** argv) {
     // but doing so can cause garbage if the regions
     // overlap. This way is safer but takes more RAM
     using bmp2_type = bitmap<typename bmp_type::pixel_type>;
-    size16 bmp2_size(128,64);
+    static const size16 bmp2_size(128,64);
     uint8_t buf2[bmp2_type::sizeof_buffer(bmp2_size)];
     bmp2_type bmp2(bmp2_size,buf2);
 

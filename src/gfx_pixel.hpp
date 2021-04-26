@@ -351,7 +351,7 @@ namespace gfx {
             using chidx = typename PixelType::template channel_index_by_name<ChannelName>;
         public:
             constexpr static const bool value = (-1!= chidx::value) &&
-                (-1!= has_channel_names_impl<PixelType,ChannelNames...>::value);
+                has_channel_names_impl<PixelType,ChannelNames...>::value;
         };
         template<typename PixelType> 
         class has_channel_names_impl<PixelType> {

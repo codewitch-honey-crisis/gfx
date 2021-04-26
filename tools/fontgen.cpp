@@ -78,6 +78,7 @@ void generate(const font& f,const char* filename) {
     make_ident(get_fname(filename),ident);
     printf("#ifndef %s_HPP\r\n",ident);
     printf("#define %s_HPP\r\n",ident);
+    printf("#include <stdint.h>\r\n");
     printf("#include <gfx_font.hpp>\r\n\r\n");
     printf("#ifndef PROGMEM\r\n\t#define PROGMEM\r\n#endif\r\n\r\n");
     printf("static const uint8_t %s_char_data[] PROGMEM = {\r\n\t",ident);

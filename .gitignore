@@ -1,11 +1,9 @@
 /.vscode
-/main
-include/gfx_bitmap
-include/gfx_pixel
-include/gfx_positioning
-include/bits
-include/gfx_drawing
-pixel_old.txt
+src/gfx_bitmap
+src/gfx_pixel
+src/gfx_positioning
+src/bits
+src/gfx_drawing
 bitmap
 core
 fontgen

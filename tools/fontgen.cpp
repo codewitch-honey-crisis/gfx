@@ -1,7 +1,7 @@
 #define HTCW_LITTLE_ENDIAN
 #include <stdio.h>
 #include <string.h>
-#include "include/gfx_font.hpp"
+#include "../src/gfx_font.hpp"
 using namespace gfx;
 
 #define PATH_CHAR '/'

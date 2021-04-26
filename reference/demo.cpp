@@ -1,8 +1,9 @@
 #define HTCW_LITTLE_ENDIAN
 #include <stdio.h>
 #include <string.h>
-#include "gfx_bitmap.hpp"
-#include "gfx_drawing.hpp"
+#include "../src/gfx_bitmap.hpp"
+#include "../src/gfx_drawing.hpp"
+#include "../src/gfx_color_cpp14.hpp"
 using namespace gfx;
 
 #define PATH_CHAR '/'

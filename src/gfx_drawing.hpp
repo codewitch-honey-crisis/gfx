@@ -755,7 +755,7 @@ namespace gfx {
             const char* text,
             const font& font,
             typename Destination::pixel_type color,
-            typename Destination::pixel_type backcolor=::gfx::color<typename Destination::pixel_type>::black,
+            typename Destination::pixel_type backcolor=::gfx::rgb_pixel<3>(0,0,0).convert<typename Destination::pixel_type>(),
             bool transparent_background = true,
             unsigned int tab_width=4,
             srect16* clip=nullptr) {

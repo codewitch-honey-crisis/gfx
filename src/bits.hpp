@@ -20,14 +20,10 @@ namespace bits {
     {
 #ifdef HTCW_BIG_ENDIAN
         return endian_mode::big_endian;
-#endif
-#ifdef HTCW_LITTLE_ENDIAN
-        return endian_mode::little_endian;
-#endif
-#ifdef ESP_PLATFORM
+#elif defined(HTCW_LITTLE_ENDIAN) || defined(ESP_PLATFORM)
         return endian_mode::little_endian;
 #else
-    return endian_mode::little_endian;    
+        return endian_mode::none;
 #endif
         
     }

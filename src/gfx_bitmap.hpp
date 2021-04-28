@@ -14,39 +14,8 @@ namespace gfx {
         using type = bitmap<PixelType>;
         // the type of the pixel used for the bitmap
         using pixel_type = PixelType;
-        constexpr static const gfx_caps caps = {0,1,0,0,0,0,0,0,0,0};
-        // allows for access to individual pixels
-        class accessor final {
-            const type* m_cparent;
-            type* m_parent;
-            const point16& m_location;
-            
-        public:
-            // constructs the accessor
-            inline accessor(type* parent,const point16& location) : m_cparent(nullptr), m_parent(parent),m_location(location) {
-            }
-            inline accessor(const type* parent,const point16& location) : m_cparent(parent), m_parent(nullptr),m_location(location) {
-            }
-            // copies the accessor
-            inline accessor(const accessor& rhs) = default;
-            // copies the accessor
-            inline accessor& operator=(const accessor& rhs) = default;
-            // returns the pixel at the current location
-            operator pixel_type() const {
-                pixel_type result;
-                if(nullptr!=m_cparent)
-                    m_cparent->point(m_location,&result);
-                else
-                    m_parent->point(m_location,&result);
-                return result;
-            }
-            // sets the pixel at the current location
-            accessor& operator=(const pixel_type& rhs) {
-                if(nullptr!=m_parent)
-                    m_parent->point(m_location,rhs);
-                return *this;
-            }
-        };
+        static const gfx_caps caps;
+        
         // constructs a new bitmap with the specified size and buffer
         bitmap(size16 dimensions,void* buffer) : m_dimensions(dimensions),m_begin((uint8_t*)buffer) {}
         // constructs a new bitmap with the specified width, height and buffer
@@ -89,6 +58,11 @@ namespace gfx {
             bits::set_bits(offs_bits,pixel_type::bit_depth,begin()+offs/8,tmp);
             return gfx_result::success;
         }
+        pixel_type point(point16 location) {
+            pixel_type result;
+            point(location,&result);
+            return result;
+        }
         // indicates the dimensions of the bitmap
         inline size16 dimensions() const {
             return m_dimensions;
@@ -113,14 +87,7 @@ namespace gfx {
         inline uint8_t* end() const {
             return begin()+size_bytes();
         }
-        // gets or sets the pixel at the specified location
-        inline accessor operator[](point16 location) {
-            return accessor(this,location);
-        }
-        // gets or sets the pixel at the specified location
-        inline accessor operator[](point16 location) const {
-            return accessor(this,location);
-        }
+        
         // clears a region of the bitmap
         gfx_result clear(const rect16& dst) {
             if(!dst.intersects(bounds())) return gfx_result::success;
@@ -273,6 +240,8 @@ namespace gfx {
         // this is more so it won't compile unless PixelType is actually a pixel
         static_assert(PixelType::channels>0,"The type is not a pixel or the pixel is invalid");
     };
+    template<typename PixelType>
+    const gfx::gfx_caps bitmap<PixelType>::caps = {0,1,0,0,0,0,0,0,0,0};
 }
 
 #endif

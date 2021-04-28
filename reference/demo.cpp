@@ -194,7 +194,8 @@ void dump_bitmap(const BitmapType& bmp) {
     using gsc4 = pixel<channel_traits<channel_name::L,4>>;
     for(int y = 0;y<bmp.dimensions().height;++y) {
         for(int x = 0;x<bmp.dimensions().width;++x) {
-            const typename BitmapType::pixel_type px = bmp[point16(x,y)];
+            typename BitmapType::pixel_type px;
+            bmp.point(point16(x,y),&px);
             const auto px2 = px.template convert<gsc4>();
             size_t i =px2.template channel<0>();
             printf("%c",col_table[i]);
@@ -234,6 +235,7 @@ int main(int argc, char** argv) {
     // draw stuff
     bmp.clear(bmp.bounds()); // comment this out and check out the uninitialized RAM. It looks neat.
 
+    draw::point(bmp,spoint16(0,0),color::white);
     // bounding info for the face
     srect16 bounds(0,0,bmp_size.width-1,(bmp_size.height-1)/(4/3.0));
     rect16 ubounds(0,0,bounds.x2,bounds.y2);
@@ -258,7 +260,7 @@ int main(int argc, char** argv) {
     // we need to clip part of the circle we'll be drawing
     srect16 mouth_clip(mouth_bounds.x1,mouth_bounds.y1+mouth_bounds.height()/(float)1.6,mouth_bounds.x2,mouth_bounds.y2);
     draw::ellipse(bmp,mouth_bounds,color::black,&mouth_clip);
-   
+
     // now blt the bitmaps
     const size_t count  =3; // 3 faces
     // our second bitmap. Not strictly necessary because one

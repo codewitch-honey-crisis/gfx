@@ -1,5 +1,6 @@
 #ifndef HTCW_GFX_BITMAP
 #define HTCW_GFX_BITMAP
+#include "gfx_core.hpp"
 #include "gfx_pixel.hpp"
 #include "gfx_positioning.hpp"
 namespace gfx {
@@ -13,19 +14,18 @@ namespace gfx {
         using type = bitmap<PixelType>;
         // the type of the pixel used for the bitmap
         using pixel_type = PixelType;
+        constexpr static const gfx_caps caps = {0,1,0,0,0,0,0,0,0,0};
         // allows for access to individual pixels
         class accessor final {
-            uint8_t* begin;
-            int offs_bits;
+            const type* m_cparent;
+            type* m_parent;
+            const point16& m_location;
+            
         public:
             // constructs the accessor
-            inline accessor(uint8_t* begin,size_t offs) {
-                if(nullptr==begin) {
-                    this->begin=nullptr;
-                    return;
-                }
-                this->begin=begin+offs/8;
-                offs_bits = offs % 8;
+            inline accessor(type* parent,const point16& location) : m_cparent(nullptr), m_parent(parent),m_location(location) {
+            }
+            inline accessor(const type* parent,const point16& location) : m_cparent(parent), m_parent(nullptr),m_location(location) {
             }
             // copies the accessor
             inline accessor(const accessor& rhs) = default;
@@ -33,37 +33,62 @@ namespace gfx {
             inline accessor& operator=(const accessor& rhs) = default;
             // returns the pixel at the current location
             operator pixel_type() const {
-                if(nullptr==begin) {
-                    return pixel_type();
-                }
-                uint8_t tmp[pixel_type::packed_size+(((int)pixel_type::pad_right_bits)<=offs_bits)];
-                tmp[pixel_type::packed_size]=0;
-                memcpy(tmp,begin,sizeof(tmp));
-                
-                if(0<offs_bits)
-                    bits::shift_left(tmp,0,sizeof(tmp)*8,offs_bits);
                 pixel_type result;
-                typename pixel_type::int_type r = 0;
-                memcpy(&r,tmp,pixel_type::packed_size);
-                r=helpers::order_guard(r);
-                r&=pixel_type::mask;
-                result.native_value=r;
-                return result;        
+                if(nullptr!=m_cparent)
+                    m_cparent->point(m_location,&result);
+                else
+                    m_parent->point(m_location,&result);
+                return result;
             }
             // sets the pixel at the current location
             accessor& operator=(const pixel_type& rhs) {
-                if(nullptr==begin) return *this;
-                uint8_t tmp[pixel_type::packed_size+(((int)pixel_type::pad_right_bits)<=offs_bits)];
-                *((typename pixel_type::int_type*)tmp)=rhs.value();
-                bits::shift_right(tmp,0,pixel_type::bit_depth+offs_bits,offs_bits);
-                bits::set_bits(offs_bits,pixel_type::bit_depth,begin,tmp);
-                return *this;            
+                if(nullptr!=m_parent)
+                    m_parent->point(m_location,rhs);
+                return *this;
             }
         };
         // constructs a new bitmap with the specified size and buffer
         bitmap(size16 dimensions,void* buffer) : m_dimensions(dimensions),m_begin((uint8_t*)buffer) {}
         // constructs a new bitmap with the specified width, height and buffer
         bitmap(uint16_t width,uint16_t height,void* buffer) : m_dimensions(width,height),m_begin((uint8_t*)buffer) {}
+        gfx_result point(point16 location,pixel_type* out_pixel) const {
+            if(nullptr==out_pixel)
+                return gfx_result::invalid_argument;
+            if(location.x>=dimensions().width||location.y>=dimensions().height) {
+                *out_pixel = pixel_type();
+                return gfx_result::success;
+            }
+            const size_t bit_depth = pixel_type::bit_depth;
+            const size_t offs = (location.y*dimensions().width+location.x)*bit_depth;
+            const size_t offs_bits = offs % 8;
+            uint8_t tmp[pixel_type::packed_size+(((int)pixel_type::pad_right_bits)<=offs_bits)];
+            tmp[pixel_type::packed_size]=0;
+            memcpy(tmp,begin()+offs/8,sizeof(tmp));
+            if(0<offs_bits)
+                bits::shift_left(tmp,0,sizeof(tmp)*8,offs_bits);
+            pixel_type result;
+            typename pixel_type::int_type r = 0;
+            memcpy(&r,tmp,pixel_type::packed_size);
+            r=helpers::order_guard(r);
+            r&=pixel_type::mask;
+            result.native_value=r;
+            *out_pixel=result;
+            return gfx_result::success;
+        }
+        gfx_result point(point16 location,pixel_type rhs) {
+            // clip
+            if(location.x>=dimensions().width||location.y>=dimensions().height)
+                return gfx_result::success;
+            const size_t bit_depth = pixel_type::bit_depth;
+            const size_t offs = (location.y*dimensions().width+location.x)*bit_depth;
+            const size_t offs_bits = offs % 8;
+            // now set the pixel
+            uint8_t tmp[pixel_type::packed_size+(((int)pixel_type::pad_right_bits)<=offs_bits)];
+            *((typename pixel_type::int_type*)tmp)=rhs.value();
+            bits::shift_right(tmp,0,pixel_type::bit_depth+offs_bits,offs_bits);
+            bits::set_bits(offs_bits,pixel_type::bit_depth,begin()+offs/8,tmp);
+            return gfx_result::success;
+        }
         // indicates the dimensions of the bitmap
         inline size16 dimensions() const {
             return m_dimensions;
@@ -90,23 +115,15 @@ namespace gfx {
         }
         // gets or sets the pixel at the specified location
         inline accessor operator[](point16 location) {
-            if(location.x>=dimensions().width||location.y>=dimensions().height)
-                return accessor(nullptr,0);
-            const size_t bit_depth = pixel_type::bit_depth;
-            size_t offs = (location.y*dimensions().width+location.x)*bit_depth;
-            return accessor(m_begin,offs);
+            return accessor(this,location);
         }
         // gets or sets the pixel at the specified location
         inline accessor operator[](point16 location) const {
-            if(location.x>=dimensions().width||location.y>=dimensions().height)
-                return accessor(nullptr,0);
-            const size_t bit_depth = pixel_type::bit_depth;
-            size_t offs = (location.y*dimensions().width+location.x)*bit_depth;
-            return accessor(m_begin,offs);
+            return accessor(this,location);
         }
         // clears a region of the bitmap
-        void clear(const rect16& dst) {
-            if(!dst.intersects(bounds())) return;
+        gfx_result clear(const rect16& dst) {
+            if(!dst.intersects(bounds())) return gfx_result::success;
             rect16 dstr = dst.crop(bounds());
             size_t dy = 0, dye=dstr.height();
             if(pixel_type::byte_aligned) {
@@ -123,15 +140,17 @@ namespace gfx {
                     const size_t offs = (((dstr.top()+dy)*dimensions().width+dstr.left())*pixel_type::bit_depth);
                     const size_t offs_bytes = offs / 8;
                     const size_t offs_bits = offs % 8;
+
                     uint8_t* pdst = begin()+offs_bytes;
                     bits::set_bits(pdst,offs_bits,line_len_bits,false);
                     ++dy;
                 }
             }
+            return gfx_result::success;
         }
         // fills a region of the bitmap with the specified pixel
-        void fill(const rect16& dst,const pixel_type& pixel) {
-            if(!dst.intersects(bounds())) return;
+        gfx_result fill(const rect16& dst,const pixel_type& pixel) {
+            if(!dst.intersects(bounds())) return gfx_result::success;
             typename pixel_type::int_type be_val = pixel.value();
             rect16 dstr = dst.crop(bounds());
             size_t dy = 0, dye=dstr.height();
@@ -179,11 +198,12 @@ namespace gfx {
                     ++dy;
                 }
             } 
+            return gfx_result::success;
         }
         // blts a portion of this bitmap to the destination at the specified location.
         // out of bounds regions are cropped
-        void blt(const rect16& src,type& dst,point16 location) {
-            if(!src.intersects(bounds())) return;
+        gfx_result blt_to(const rect16& src,type& dst,point16 location) {
+            if(!src.intersects(bounds())) return gfx_result::success;
             rect16 srcr = src.crop(bounds());
             rect16 dstr= rect16(location,srcr.dimensions()).crop(dst.bounds());
             srcr=rect16(srcr.location(),dstr.dimensions());
@@ -233,19 +253,17 @@ namespace gfx {
                     }
                     ++dy;
                 }
-
+                return gfx_result::success;
             }
             
             // TODO:
             // clear any bits we couldn't copy 
-            // on account of being out of bounds
-            //
-            // first need to come up with a scenario!
+            // on account of being out of bounds?
             
         }
         // computes the minimum required size for a bitmap buffer, in bytes
         inline static size_t sizeof_buffer(size16 size) {
-            return (size.width*size.height*pixel_type::bit_depth)/8.0+.99999;
+            return (size.width*size.height*pixel_type::bit_depth+7)/8;
         }
         // computes the minimum required size for a bitmap buffer, in bytes
         inline static size_t sizeof_buffer(uint16_t width,uint16_t height) {

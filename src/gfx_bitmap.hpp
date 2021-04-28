@@ -253,13 +253,13 @@ namespace gfx {
                     }
                     ++dy;
                 }
-                return gfx_result::success;
+        
             }
             
             // TODO:
             // clear any bits we couldn't copy 
             // on account of being out of bounds?
-            
+            return gfx_result::success;    
         }
         // computes the minimum required size for a bitmap buffer, in bytes
         inline static size_t sizeof_buffer(size16 size) {

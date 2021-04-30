@@ -394,6 +394,8 @@ namespace gfx {
         }
         // resource steals from another font
         font& operator=(font&& rhs) {
+            if(nullptr!=m_owned_data)
+                free(m_owned_data);
             m_height=rhs.m_height;
             m_average_width=rhs.m_average_width;
             m_point_size=rhs.m_point_size;

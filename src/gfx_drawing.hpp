@@ -154,7 +154,7 @@ namespace gfx {
         struct bmp_helper<Destination,Destination> {
             static gfx_result draw_bitmap(Destination& destination, const srect16& dest_rect, Destination& source, const rect16& source_rect,bitmap_flags options,srect16* clip) {
                 // disqualify fast blting
-                if(!Destination::caps.blt_to || dest_rect.x1>dest_rect.x2 || 
+                if(!Destination::caps.blt || dest_rect.x1>dest_rect.x2 || 
                     dest_rect.y1>dest_rect.y2 || 
                     ((int)bitmap_flags::resize==((int)options&(int)bitmap_flags::resize)&&
                         (dest_rect.width()!=source_rect.width()||
@@ -874,7 +874,7 @@ namespace gfx {
         template<typename Destination>
         static gfx_result text(
             Destination& destination,
-            srect16& dest_rect,
+            const srect16& dest_rect,
             const char* text,
             const font& font,
             typename Destination::pixel_type color,

@@ -58,7 +58,7 @@ namespace gfx {
             bits::set_bits(offs_bits,pixel_type::bit_depth,begin()+offs/8,tmp);
             return gfx_result::success;
         }
-        pixel_type point(point16 location) {
+        pixel_type point(point16 location) const {
             pixel_type result;
             point(location,&result);
             return result;

@@ -3,7 +3,6 @@
 #include <stdint.h>
 namespace gfx {
     struct gfx_caps {
-        uint32_t blt_from : 1;
         uint32_t blt_to : 1;
         uint32_t frame_write : 1;
         uint32_t frame_read : 1;

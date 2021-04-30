@@ -17,6 +17,10 @@ namespace gfx {
         // constructs a new instance with the specified coordinates
         constexpr inline pointx(T x, T y) : x(x), y(y) {
         }
+        constexpr explicit operator pointx<bits::signedx<value_type>>() const {
+            return pointx<bits::signedx<value_type>>(bits::signedx<value_type>(x),bits::signedx<value_type>(y));
+        }
+        
     };
     // represents a size with 16-bit integer coordinates
     template <typename T>
@@ -32,6 +36,10 @@ namespace gfx {
         // constructs a new instance with the specified width and height
         constexpr inline sizex(T width, T height) : width(width), height(height) {
         }
+        constexpr explicit operator sizex<bits::signedx<value_type>>() {
+            return sizex<bits::signedx<value_type>>(bits::signedx<value_type>(width),bits::signedx<value_type>(height));
+        }
+        
     };
     enum struct rect_orientation {
         normalized = 0,
@@ -249,7 +257,10 @@ namespace gfx {
             }
             return result;
         }
-        
+        explicit operator rectx<bits::signedx<value_type>>() {
+            using t = bits::signedx<value_type>;
+            return rectx<bits::signedx<value_type>>(t(x1),t(y1),t(x2),t(y2));
+        }
     };
     RESTORE_PACK
     

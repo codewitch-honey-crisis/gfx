@@ -5,7 +5,6 @@
 namespace gfx {
     template<bool Blt,bool BatchWrite,bool FrameWrite,bool FrameRead,bool QueueFrameWrite,bool QueueFrameRead,bool FrameWritePartial, bool FrameReadPartial,bool QueueFrameWritePartial, bool QueueFrameReadPartial>
     struct gfx_caps {
-<<<<<<< HEAD
         constexpr const static bool blt = Blt;
         constexpr const static bool batch_write = BatchWrite;
         constexpr const static bool frame_write = FrameWrite;
@@ -16,17 +15,6 @@ namespace gfx {
         constexpr const static bool frame_read_partial = FrameReadPartial;
         constexpr const static bool queue_frame_write_partial = QueueFrameWritePartial;
         constexpr const static bool queue_frame_read_partial = QueueFrameReadPartial;
-=======
-        uint32_t blt_to : 1;
-        uint32_t frame_write : 1;
-        uint32_t frame_read : 1;
-        uint32_t async_frame_read : 1;
-        uint32_t async_frame_write : 1;
-        uint32_t frame_write_partial : 1;
-        uint32_t frame_read_partial : 1;
-        uint32_t async_frame_write_partial : 1;
-        uint32_t async_frame_read_partial : 1;
->>>>>>> 05d2db92e049247a71af781d78da7e12c25a872d
     };
     enum struct gfx_result {
         success = 0,

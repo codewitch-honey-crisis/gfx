@@ -17,7 +17,6 @@ namespace gfx {
         // constructs a new instance with the specified coordinates
         constexpr inline pointx(T x, T y) : x(x), y(y) {
         }
-<<<<<<< HEAD
         constexpr inline explicit operator pointx<bits::signedx<value_type>>() const {
             return pointx<bits::signedx<value_type>>(bits::signedx<value_type>(x),bits::signedx<value_type>(y));
         }
@@ -30,12 +29,6 @@ namespace gfx {
         constexpr inline bool operator==(const type& rhs) const { 
             return x==rhs.x && y==rhs.y;   
         }
-=======
-        constexpr explicit operator pointx<bits::signedx<value_type>>() const {
-            return pointx<bits::signedx<value_type>>(bits::signedx<value_type>(x),bits::signedx<value_type>(y));
-        }
-        
->>>>>>> 05d2db92e049247a71af781d78da7e12c25a872d
     };
     // represents a size with 16-bit integer coordinates
     template <typename T>
@@ -51,7 +44,6 @@ namespace gfx {
         // constructs a new instance with the specified width and height
         constexpr inline sizex(T width, T height) : width(width), height(height) {
         }
-<<<<<<< HEAD
         constexpr explicit operator sizex<bits::signedx<value_type>>() const {
             return sizex<bits::signedx<value_type>>(bits::signedx<value_type>(width),bits::signedx<value_type>(height));
         }
@@ -61,12 +53,6 @@ namespace gfx {
         constexpr inline bool operator==(const type& rhs) const { 
             return width==rhs.width && height==rhs.height;   
         }
-=======
-        constexpr explicit operator sizex<bits::signedx<value_type>>() {
-            return sizex<bits::signedx<value_type>>(bits::signedx<value_type>(width),bits::signedx<value_type>(height));
-        }
-        
->>>>>>> 05d2db92e049247a71af781d78da7e12c25a872d
     };
     enum struct rect_orientation {
         normalized = 0,
@@ -284,7 +270,6 @@ namespace gfx {
             }
             return result;
         }
-<<<<<<< HEAD
         explicit operator rectx<bits::signedx<value_type>>() const {
             using t = bits::signedx<value_type>;
             return rectx<bits::signedx<value_type>>(t(x1),t(y1),t(x2),t(y2));
@@ -297,12 +282,6 @@ namespace gfx {
             return x1==rhs.x1 && y1==rhs.y1 &&
                 x2==rhs.x2 && y2==rhs.y2;
         }
-=======
-        explicit operator rectx<bits::signedx<value_type>>() {
-            using t = bits::signedx<value_type>;
-            return rectx<bits::signedx<value_type>>(t(x1),t(y1),t(x2),t(y2));
-        }
->>>>>>> 05d2db92e049247a71af781d78da7e12c25a872d
     };
     RESTORE_PACK
     

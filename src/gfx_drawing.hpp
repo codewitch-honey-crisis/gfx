@@ -234,11 +234,7 @@ namespace gfx {
             static gfx_result draw_bitmap(Destination& destination, const srect16& dest_rect, Source& source, const rect16& source_rect,bitmap_flags options,srect16* clip) {
                 const bool optimized = (Destination::caps::blt || Destination::caps::frame_write_partial) && (Source::caps::blt);
                 // disqualify fast blting
-<<<<<<< HEAD
                 if(!optimized || dest_rect.x1>dest_rect.x2 || 
-=======
-                if(!Destination::caps.blt || dest_rect.x1>dest_rect.x2 || 
->>>>>>> 05d2db92e049247a71af781d78da7e12c25a872d
                     dest_rect.y1>dest_rect.y2 || 
                     ((int)bitmap_flags::resize==((int)options&(int)bitmap_flags::resize)&&
                         (dest_rect.width()!=source_rect.width()||

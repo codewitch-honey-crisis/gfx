@@ -6,6 +6,12 @@
 #include "gfx_bitmap.hpp"
 #include "stream.hpp"
 #define HTCW_JPEG_AS_RGB
+// Jpg decompression code ported from TJpgDec. The original
+// copyright notice is below:
+/*----------------------------------------------------------------------------/
+/ TJpgDec - Tiny JPEG Decompressor include file               (C)ChaN, 2020
+/----------------------------------------------------------------------------*/
+
 namespace gfx {
     struct image final {
         #ifdef HTCW_JPEG_AS_RGB

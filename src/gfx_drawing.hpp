@@ -28,7 +28,7 @@ namespace gfx {
         template<typename Destination,typename Source> 
         struct draw_bmp_caps_helper<Destination,Source,false,true> {
             static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
-                return destination.frame_write(src_rect,source,location);
+                return destination.write_frame(src_rect,source,location);
             }
         };
         template<typename Destination,typename Source,bool Batch>
@@ -101,7 +101,7 @@ namespace gfx {
                         if(gfx_result::success!=r)
                             return r;
                         typename Destination::pixel_type px2=px.template convert<typename Destination::pixel_type>();
-                        r=destination.batch_write(px2);
+                        r=destination.write_batch(px2);
                         if(gfx_result::success!=r)
                             return r;
                         ++x2;

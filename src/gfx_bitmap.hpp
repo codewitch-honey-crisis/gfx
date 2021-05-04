@@ -14,7 +14,7 @@ namespace gfx {
         using type = bitmap<PixelType>;
         // the type of the pixel used for the bitmap
         using pixel_type = PixelType;
-        static const gfx_caps caps;
+        using caps = gfx::gfx_caps<true,false,false,false,false,false,false,false,false,false>;
         
         // constructs a new bitmap with the specified size and buffer
         bitmap(size16 dimensions,void* buffer) : m_dimensions(dimensions),m_begin((uint8_t*)buffer) {}
@@ -240,8 +240,6 @@ namespace gfx {
         // this is more so it won't compile unless PixelType is actually a pixel
         static_assert(PixelType::channels>0,"The type is not a pixel or the pixel is invalid");
     };
-    template<typename PixelType>
-    const gfx::gfx_caps bitmap<PixelType>::caps = {0,1,0,0,0,0,0,0,0,0};
 }
 
 #endif

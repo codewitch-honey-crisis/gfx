@@ -1,43 +1,9 @@
 #ifndef HTCW_GFX_PIXEL_HPP
 #define HTCW_GFX_PIXEL_HPP
-#include "bits.hpp"
+#include "gfx_core.hpp"
 #include <math.h>
 #define GFX_CHANNEL_NAME(x) struct x { static inline constexpr const char* value() { return #x; } };
 namespace gfx {
-    namespace helpers {
-        // adjusts byte order if necessary
-        constexpr static inline uint16_t order_guard(uint16_t value) {
-            if(bits::endianness()==bits::endian_mode::little_endian) {
-                return bits::swap(value);
-            }
-            return value;
-        }
-        // adjusts byte order if necessary
-        constexpr static inline uint32_t order_guard(uint32_t value) {
-            if(bits::endianness()==bits::endian_mode::little_endian) {
-                return bits::swap(value);
-            }
-            return value;
-        }
-#if HTCW_MAX_WORD>=64
-        // adjusts byte order if necessary
-        constexpr static inline uint64_t order_guard(uint64_t value) {
-            if(bits::endianness()==bits::endian_mode::little_endian) {
-                return bits::swap(value);
-            }
-            return value;
-        }
-#endif
-        // adjusts byte order if necessary (disambiguation)
-        constexpr static inline uint8_t order_guard(uint8_t value) {
-            return value;
-        }
-        template<typename IntType>
-        constexpr static inline IntType clamp(IntType value,IntType min,IntType max) {
-            return value<min?min:value>max?max:value;
-        }
-        
-    }
     // predefined channel names
     struct channel_name {
         // red
@@ -60,6 +26,10 @@ namespace gfx {
         GFX_CHANNEL_NAME(Y)
         // luminosity
         GFX_CHANNEL_NAME(L)
+        // Cb for YCbCr such as jpeg
+        GFX_CHANNEL_NAME(Cb);
+        // Cr for YCbCr such as jpeg
+        GFX_CHANNEL_NAME(Cr);
         // index (for indexed color)
         GFX_CHANNEL_NAME(index)
         // non-op
@@ -116,6 +86,7 @@ namespace gfx {
 #endif
         static_assert(Scale>0,"Scale must not be zero");
     };
+    
     // specialization for empty channel
     template<>
     struct channel_traits<channel_name::nop,0, 0,0, 0> {
@@ -244,16 +215,6 @@ namespace gfx {
             
             }
         };
-
-        template<bool Value>
-        struct boolean_type {
-            constexpr static const bool value = Value;
-        };
-
-        template<typename T, typename U>
-        struct is_same : boolean_type<false> {};
-        template<typename T>
-        struct is_same<T, T> : boolean_type<true> {};
 
         template<size_t Count,typename Name, typename ...ChannelTraits>
         struct channel_index_by_name_impl;
@@ -465,6 +426,8 @@ namespace gfx {
         template<typename PixelRhs> using unordered_equals = typename helpers::unordered_equals_pixel_impl<type,PixelRhs>;
         // returns true if the two pixels have channels with the same names, in the same order
         template<typename PixelRhs> using equals = typename helpers::equals_pixel_impl<PixelRhs,ChannelTraits...>;
+        // returns true if the two pixels are exactly the same
+        template<typename PixelRhs> using equals_exact = typename helpers::is_same<type,PixelRhs>;
         // retrieves the integer channel value without performing compile time checking on Index
         template<size_t Index>
         constexpr inline typename channel_by_index_unchecked<Index>::int_type channel_unchecked() const {
@@ -530,10 +493,11 @@ namespace gfx {
             if(nullptr==result) return false;
             bool good = false;
             typename PixelTypeRhs::int_type native_value = 0;
-
+            
             // here's where we gather color model information
             using is_rgb = has_channel_names<channel_name::R,channel_name::G,channel_name::B>;
             using is_yuv = has_channel_names<channel_name::Y,channel_name::U,channel_name::V>;
+            using is_ycbcr = has_channel_names<channel_name::Y,channel_name::Cb,channel_name::Cr>;
             using trhas_alpha = typename PixelTypeRhs::template has_channel_names<channel_name::A>;
             const bool has_alpha = has_channel_names<channel_name::A>::value;
             const bool is_bw_candidate = 1==channels || (2==channels && has_alpha);
@@ -545,7 +509,7 @@ namespace gfx {
             const bool ris_bw_candidate2 = tris_bw_candidate::value;
             using is_rhs_rgb = typename PixelTypeRhs::template has_channel_names<channel_name::R,channel_name::G,channel_name::B>;
             using is_rhs_yuv = typename PixelTypeRhs::template has_channel_names<channel_name::Y,channel_name::U,channel_name::V>;
-
+            //using is_rhs_ycbcr = typename PixelTypeRhs::template has_channel_names<channel_name::Y,channel_name::Cb,channel_name::Cr>;
             // TODO: Add code for determining other additional color models here
 
             // check the source color model
@@ -753,6 +717,48 @@ namespace gfx {
                 
                     good = true;
                 }
+            } else if(is_ycbcr::value && channels<5) {
+                // source color model is YCbCr
+                using tindexY = channel_index_by_name<channel_name::Y>;
+                using tchY = channel_by_index_unchecked<tindexY::value>;
+                const size_t chiY = tindexY::value;
+                    
+                using tindexCb = channel_index_by_name<channel_name::Cb>;
+                using tchCb = channel_by_index_unchecked<tindexCb::value>;
+                const size_t chiCb = tindexCb::value;
+
+                using tindexCr = channel_index_by_name<channel_name::Cr>;
+                using tchCr = channel_by_index_unchecked<tindexCr::value>;
+                const size_t chiCr = tindexCr::value;
+
+                if(is_rhs_rgb::value && PixelTypeRhs::channels<5) {
+                    const int CVACC = (sizeof(int) > 2) ? 1024 : 128; /* Adaptive accuracy for both 16-/32-bit systems */
+                    // destination color model is RGB
+                    using trindexR = typename PixelTypeRhs::template channel_index_by_name<channel_name::R>;
+                    using trchR = typename PixelTypeRhs::template channel_by_index_unchecked<trindexR::value>;
+                    
+                    using trindexG = typename PixelTypeRhs::template channel_index_by_name<channel_name::G>;
+                    using trchG = typename PixelTypeRhs::template channel_by_index_unchecked<trindexG::value>;
+                
+                    using trindexB = typename PixelTypeRhs::template channel_index_by_name<channel_name::B>;
+                    using trchB = typename PixelTypeRhs::template channel_by_index_unchecked<trindexB::value>;
+                    
+                    auto chY = helpers::clamp((int)(channel_unchecked<chiY>()*(tchY::scale/255.0)),0,255);
+                    auto chCb = helpers::clamp((int)(channel_unchecked<chiCb>()*(tchCb::scale/255.0)),0,255);
+                    auto chCr = helpers::clamp((int)(channel_unchecked<chiCr>()*(tchCr::scale/255.0)),0,255);
+                    auto cnR = (uint8_t)helpers::clamp((int)(chY + ((int)(1.402 * CVACC) * chCr) / CVACC),0,255);
+                    auto cnG = (uint8_t)helpers::clamp((int)(chY - ((int)(0.344 * CVACC) * chCb + (int)(0.714 * CVACC) * chCr) / CVACC),0,255);
+                    auto cnB = (uint8_t)helpers::clamp((int)(chY + ((int)(1.772 * CVACC) * chCb) / CVACC),0,255);
+                    
+                    auto r = typename trchR::int_type(cnR*(trchR::scale/255.0));
+                    helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexR::value>(native_value,r);
+                    auto g = typename trchG::int_type(cnG*(trchG::scale/255.0));
+                    helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexG::value>(native_value,g);
+                    auto b = typename trchB::int_type(cnB*(trchB::scale/255.0));
+                    helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexB::value>(native_value,b);
+                    good = true;                    
+                }
+
             } // TODO: add more source color models other than RGB and grayscale/mono
             if(good) {
                 // now do the alpha channels
@@ -832,6 +838,44 @@ namespace gfx {
     using gsc_pixel = pixel<
         channel_traits<channel_name::L,BitDepth>
     >;
-    
+    // creates a Y'UV pixel by making each channel 
+    // one third of the whole. Any remainder bits
+    // are added to the Y' channel
+    template<size_t BitDepth>
+    using yuv_pixel = pixel<
+        channel_traits<channel_name::Y,((BitDepth/3)+(BitDepth%3))>,
+        channel_traits<channel_name::U,(BitDepth/3)>,
+        channel_traits<channel_name::V,(BitDepth/3)>
+    >;
+    // creates a Y'UV/A pixel by making each 
+    // channel 1/4 of the whole. Remaining bits
+    // are added to Y'
+    template<size_t BitDepth>
+    using yuva_pixel = pixel<
+        channel_traits<channel_name::Y,((BitDepth/4)+(BitDepth%4))>,
+        channel_traits<channel_name::U,(BitDepth/4)>,
+        channel_traits<channel_name::V,(BitDepth/4)>,
+        channel_traits<channel_name::A,(BitDepth/4)>
+    >;
+
+    // creates a YCbCr pixel by making each channel 
+    // one third of the whole. Any remainder bits
+    // are added to the Y channel
+    template<size_t BitDepth>
+    using ycbcr_pixel = pixel<
+        channel_traits<channel_name::Y,((BitDepth/3)+(BitDepth%3))>,
+        channel_traits<channel_name::Cb,(BitDepth/3)>,
+        channel_traits<channel_name::Cr,(BitDepth/3)>
+    >;
+    // creates a ycbcr pixel by making each 
+    // channel 1/4 of the whole. Remaining bits
+    // are added to Y
+    template<size_t BitDepth>
+    using ycbcra_pixel = pixel<
+        channel_traits<channel_name::Y,((BitDepth/4)+(BitDepth%4))>,
+        channel_traits<channel_name::Cb,(BitDepth/4)>,
+        channel_traits<channel_name::Cr,(BitDepth/4)>,
+        channel_traits<channel_name::A,(BitDepth/4)>
+    >;
 }
 #endif

@@ -15,6 +15,107 @@ namespace gfx {
     struct draw {
 
     private:
+        template<typename Destination,typename Source,bool BltDst,bool BltSrc> 
+        struct draw_bmp_caps_helper {
+            
+        };
+        template<typename Destination,typename Source> 
+        struct draw_bmp_caps_helper<Destination,Source,true,true> {
+            static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
+                return source.blt_to(src_rect,destination,location);
+            }
+        };
+        template<typename Destination,typename Source> 
+        struct draw_bmp_caps_helper<Destination,Source,false,true> {
+            static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
+                return destination.frame_write(src_rect,source,location);
+            }
+        };
+        template<typename Destination,typename Source,bool Batch>
+        struct draw_bmp_batch_caps_helper { 
+        };
+        template<typename Destination,typename Source>
+        struct draw_bmp_batch_caps_helper<Destination,Source,false> {
+            static gfx_result do_draw(Destination& destination, const gfx::rect16& dstr, Source& source,const gfx::rect16& srcr,int o) {
+                // do cropping
+                bool flipX = (int)rect_orientation::flipped_horizontal==(o&(int)rect_orientation::flipped_horizontal);
+                bool flipY= (int)rect_orientation::flipped_vertical==(o&(int)rect_orientation::flipped_vertical);
+                    
+                uint16_t x2=srcr.x1;
+                uint16_t y2=srcr.y1;
+
+                for(typename rect16::value_type y=dstr.y1;y<=dstr.y2;++y) {
+                    for(typename rect16::value_type x=dstr.x1;x<=dstr.x2;++x) {
+                        typename Source::pixel_type px;
+                        uint16_t ssx=x2;
+                        uint16_t ssy=y2;
+                        if(flipX) {
+                            ssx= srcr.x2-x2-dstr.x1;
+                        }
+                        if(flipY) {
+                            ssy=srcr.y2-y2-dstr.y1;
+                        }
+                        gfx_result r = source.point(point16(ssx,ssy),&px);
+                        if(gfx_result::success!=r)
+                            return r;
+                        typename Destination::pixel_type px2=px.template convert<typename Destination::pixel_type>();
+                        r=destination.point(point16(x,y),px2);
+                        if(gfx_result::success!=r)
+                            return r;
+                        ++x2;
+                        if(x2>srcr.x2)
+                            break;
+                    }    
+                    x2=srcr.x1;
+                    ++y2;
+                    if(y2>srcr.y2)
+                        break;
+                }
+                return gfx_result::success;
+            }
+        };
+        template<typename Destination,typename Source>
+        struct draw_bmp_batch_caps_helper<Destination,Source,true> {
+            static gfx_result do_draw(Destination& destination, const gfx::rect16& dstr, Source& source,const gfx::rect16& srcr,int o) {
+                // do cropping
+                bool flipX = (int)rect_orientation::flipped_horizontal==(o&(int)rect_orientation::flipped_horizontal);
+                bool flipY= (int)rect_orientation::flipped_vertical==(o&(int)rect_orientation::flipped_vertical);
+                //gfx::rect16 sr = source_rect.crop(source.bounds()).normalize();
+                uint16_t x2=0;
+                uint16_t y2=0;
+                gfx_result r = destination.begin_batch(dstr);
+                if(gfx_result::success!=r)
+                    return r;
+                for(typename rect16::value_type y=dstr.y1;y<=dstr.y2;++y) {
+                    for(typename rect16::value_type x=dstr.x1;x<=dstr.x2;++x) {
+                        typename Source::pixel_type px;
+                        uint16_t ssx=x2+srcr.x1;
+                        uint16_t ssy=y2+srcr.y1;
+                        if(flipX) {
+                            ssx= srcr.x2-x2-dstr.x1;
+                        }
+                        if(flipY) {
+                            ssy=srcr.y2-y2-dstr.y1;
+                        }
+                        r = source.point(point16(ssx,ssy),&px);
+                        if(gfx_result::success!=r)
+                            return r;
+                        typename Destination::pixel_type px2=px.template convert<typename Destination::pixel_type>();
+                        r=destination.batch_write(px2);
+                        if(gfx_result::success!=r)
+                            return r;
+                        ++x2;
+                    }    
+                    x2=0;
+                    ++y2;
+                }
+                r=destination.commit_batch();
+                if(gfx_result::success!=r) {
+                    return r;
+                }
+                return gfx_result::success;
+            }
+        };
         template<typename Destination,typename Source>
         static gfx_result draw_bitmap_impl(Destination& destination, const srect16& dest_rect, Source& source, const rect16& source_rect,bitmap_flags options,srect16* clip) {
             gfx_result r;
@@ -56,44 +157,22 @@ namespace gfx {
             rect16 dstr(dr.x1,dr.y1,srcr.width()*sx+.5+dr.x1,srcr.height()*sy+.5+dr.y1);
             if(dstr.x2>dr.x2) dstr.x2=dr.x2;
             if(dstr.y2>dr.y2) dstr.y2=dr.y2;
-            typename srect16::value_type ix,iy;
-            if((int)rect_orientation::flipped_horizontal==(o&(int)rect_orientation::flipped_horizontal)) {
-                dstr=dstr.flip_horizontal();
-                ix=-1;
-            } else
-                ix=1;
-            if((int)rect_orientation::flipped_vertical==(o&(int)rect_orientation::flipped_vertical)) {
-                iy=-1;
-                dstr=dstr.flip_vertical();
-            } else
-                iy=1;
             
             if((int)bitmap_flags::resize!=((int)options&(int)bitmap_flags::resize)) {
-               // do cropping
-
-               x2=srcr.x1;
-               y2=srcr.y1;
-               for(typename rect16::value_type y=dstr.y1;y!=dstr.y2+iy;y+=iy) {
-                for(typename rect16::value_type x=dstr.x1;x!=dstr.x2+ix;x+=ix) {
-                    typename Source::pixel_type px;
-                    r = source.point(point16(x2,y2),&px);
-                    if(gfx_result::success!=r)
-                        return r;
-                    typename Destination::pixel_type px2=px.template convert<typename Destination::pixel_type>();
-                    r=destination.point(point16(x,y),px2);
-                    if(gfx_result::success!=r)
-                        return r;
-                    ++x2;
-                    if(x2>srcr.x2)
-                        break;
-                }    
-                x2=srcr.x1;
-                ++y2;
-                if(y2>srcr.y2)
-                    break;
-               }
+                gfx_result r=draw_bmp_batch_caps_helper<Destination,Source,Destination::caps::batch_write>::do_draw(destination,dstr,source,srcr,o);
+                if(gfx_result::success!=r)
+                    return r;
                
             } else {
+                
+                if((int)rect_orientation::flipped_horizontal==(o&(int)rect_orientation::flipped_horizontal)) {
+                    dstr=dstr.flip_horizontal();
+                }
+                if((int)rect_orientation::flipped_vertical==(o&(int)rect_orientation::flipped_vertical)) {
+                    dstr=dstr.flip_vertical();
+                }
+                // TODO: Modify this to write the destination left to right top to bottom
+                // and then use batching to speed up writes
                 // do resizing
                 int o = (int)dest_rect.orientation();
                 uint32_t x_ratio = (uint32_t)((dest_rect.width()<<16)/source_rect.width()) +1;
@@ -143,18 +222,23 @@ namespace gfx {
             }
             return gfx_result::success;
         }
-        template<typename Destination,typename Source>
+        template<typename Destination,typename Source,typename DestinationPixelType,typename SourcePixelType>
         struct bmp_helper {
             inline static gfx_result draw_bitmap(Destination& destination, const srect16& dest_rect, Source& source, const rect16& source_rect,bitmap_flags options,srect16* clip) {
                 return draw_bitmap_impl(destination,dest_rect,source,source_rect,options,clip);
             }
         };
         
-        template<typename Destination>
-        struct bmp_helper<Destination,Destination> {
-            static gfx_result draw_bitmap(Destination& destination, const srect16& dest_rect, Destination& source, const rect16& source_rect,bitmap_flags options,srect16* clip) {
+        template<typename Destination,typename Source,typename PixelType>
+        struct bmp_helper<Destination,Source,PixelType,PixelType> {
+            static gfx_result draw_bitmap(Destination& destination, const srect16& dest_rect, Source& source, const rect16& source_rect,bitmap_flags options,srect16* clip) {
+                const bool optimized = (Destination::caps::blt || Destination::caps::frame_write_partial) && (Source::caps::blt);
                 // disqualify fast blting
+<<<<<<< HEAD
+                if(!optimized || dest_rect.x1>dest_rect.x2 || 
+=======
                 if(!Destination::caps.blt || dest_rect.x1>dest_rect.x2 || 
+>>>>>>> 05d2db92e049247a71af781d78da7e12c25a872d
                     dest_rect.y1>dest_rect.y2 || 
                     ((int)bitmap_flags::resize==((int)options&(int)bitmap_flags::resize)&&
                         (dest_rect.width()!=source_rect.width()||
@@ -164,7 +248,6 @@ namespace gfx {
                     return draw_bitmap_impl(destination,dest_rect,source,source_rect,options,clip);
                     
                 }
-               
                 rect16 dr;
                 if(!translate_adjust(dest_rect,&dr))
                     return gfx_result::success; // whole thing is offscreen
@@ -194,9 +277,8 @@ namespace gfx {
                 loc.x+=source_rect.top();
                 loc.y+=source_rect.left();
                 rect16 r = rect16(loc,dim);
-            
-                // fast blt  
-                return source.blt_to(r,destination,dr.top_left());
+                return draw_bmp_caps_helper<Destination,Source,Destination::caps::blt,Source::caps::blt>::do_draw(destination,source, r,dr.top_left());
+                
             }
         };
         // Defining region codes
@@ -712,6 +794,7 @@ namespace gfx {
             if(rect.x1==rect.x2||rect.y1==rect.y2) {
                 return filled_rectangle(destination,rect,color,clip);
             }
+            // TODO: Change the following to use horizontal and vertical line segments in order to speed up line drawing
             srect16 c = (nullptr!=clip)?*clip:rect;
             ssize16 ss;
             translate(destination.dimensions(),&ss);
@@ -796,11 +879,11 @@ namespace gfx {
         }
         // draws a rounded rectangle with the specified dimensions and of the specified color, with an optional clipping rectangle
         template<typename Destination>
-        static gfx_result rounded_rectangle(Destination& destination,const srect16& rect,const pointx<float>& ratios, typename Destination::pixel_type color,srect16* clip=nullptr)  {
+        static gfx_result rounded_rectangle(Destination& destination,const srect16& rect,float ratio, typename Destination::pixel_type color,srect16* clip=nullptr)  {
             gfx_result r;
             srect16 sr=rect.normalize();
-            float fx = .025>ratios.x?.025:ratios.x>.5?.5:ratios.x;
-            float fy = .025>ratios.y?.025:ratios.y>.5?.5:ratios.y;
+            float fx = .025>ratio?.025:ratio>.5?.5:ratio;
+            float fy = .025>ratio?.025:ratio>.5?.5:ratio;
             int rw = (sr.width()*fx+.5);
             int rh = (sr.height()*fy+.5);
             // top
@@ -833,11 +916,11 @@ namespace gfx {
         }
         // draws a filled rounded rectangle with the specified dimensions and of the specified color, with an optional clipping rectangle
         template<typename Destination>
-        static gfx_result filled_rounded_rectangle(Destination& destination,const srect16& rect,const pointx<float>& ratios, typename Destination::pixel_type color,srect16* clip=nullptr)  {
+        static gfx_result filled_rounded_rectangle(Destination& destination,const srect16& rect,const float ratio, typename Destination::pixel_type color,srect16* clip=nullptr)  {
             gfx_result r;
             srect16 sr=rect.normalize();
-            float fx = .025>ratios.x?.025:ratios.x>.5?.5:ratios.x;
-            float fy = .025>ratios.y?.025:ratios.y>.5?.5:ratios.y;
+            float fx = .025>ratio?.025:ratio>.5?.5:ratio;
+            float fy = .025>ratio?.025:ratio>.5?.5:ratio;
             int rw = (sr.width()*fx+.5);
             int rh = (sr.height()*fy+.5);
             // top
@@ -867,7 +950,7 @@ namespace gfx {
         // draws a portion of a bitmap or display buffer to the specified rectangle with an optional clipping rentangle
         template<typename Destination,typename Source>
         static inline gfx_result bitmap(Destination& destination,const srect16& dest_rect,Source& source,const rect16& source_rect,bitmap_flags options=bitmap_flags::crop,srect16* clip=nullptr) {
-            return bmp_helper<Destination,Source>
+            return bmp_helper<Destination,Source,typename Destination::pixel_type,typename Source::pixel_type>
                 ::draw_bitmap(destination,dest_rect,source,source_rect,options,clip);
         }
         // draws text to the specified destination rectangle with the specified font and colors and optional clipping rectangle

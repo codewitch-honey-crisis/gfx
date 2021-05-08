@@ -26,10 +26,16 @@ namespace gfx {
         constexpr inline type offset(bits::signedx<value_type> x, bits::signedx<value_type> y) const {
             return type(this->x+x,this->y+y);
         }
+        
         constexpr inline bool operator==(const type& rhs) const { 
             return x==rhs.x && y==rhs.y;   
         }
+        constexpr inline type offset(bits::signedx<value_type> x,bits::signedx<value_type> y) {
+            return type(this->x+x,this->y+y);
+        }
     };
+    template <typename T>
+    struct rectx;
     // represents a size with 16-bit integer coordinates
     template <typename T>
     struct PACKED sizex {
@@ -44,6 +50,11 @@ namespace gfx {
         // constructs a new instance with the specified width and height
         constexpr inline sizex(T width, T height) : width(width), height(height) {
         }
+        // increases or decreases the width and height by the specified amounts.
+        constexpr sizex<T> inflate(typename bits::signedx<T> width,typename bits::signedx<T> height) const {
+            return sizex<T>(width+this->width,height+this->height);
+        }
+        constexpr inline rectx<T> bounds() const;
         constexpr explicit operator sizex<bits::signedx<value_type>>() const {
             return sizex<bits::signedx<value_type>>(bits::signedx<value_type>(width),bits::signedx<value_type>(height));
         }
@@ -53,6 +64,7 @@ namespace gfx {
         constexpr inline bool operator==(const type& rhs) const { 
             return width==rhs.width && height==rhs.height;   
         }
+        
     };
     enum struct rect_orientation {
         normalized = 0,
@@ -178,9 +190,22 @@ namespace gfx {
             }
             return rectx<T>(x1-x,y1-y,x2+x,y2+y);
         }
+        // indicates the aspect ratio of the rectangle
+        constexpr inline float aspect_ratio() {
+            return width()/(float)height();
+        }
         // offsets the rectangle by the specified amounts.
         constexpr inline rectx<T> offset(typename bits::signedx<T> x,typename bits::signedx<T> y) const {
             return rectx<T>(x1+x,y1+y,x2+x,y2+y);
+        }
+        constexpr inline rectx<T> center_horizontal(const rectx<T>& bounds) const {
+            return offset((bounds.width()-width())/2,0);
+        }
+        constexpr inline rectx<T> center_vertical(const rectx<T>& bounds) const {
+            return offset(0,(bounds.height()-height())/2);
+        }
+        constexpr inline rectx<T> center(const rectx<T>& bounds) const {
+            return offset((bounds.width()-width())/2,(bounds.height()-height())/2);
         }
         // normalizes a rectangle, such that x1<=x2 and y1<=y2
         constexpr inline rectx<T> normalize() const {
@@ -283,6 +308,11 @@ namespace gfx {
                 x2==rhs.x2 && y2==rhs.y2;
         }
     };
+    
+    template<typename T>
+    constexpr rectx<T> sizex<T>::bounds() const {
+        return rectx<T>(pointx<T>(0,0),*this);
+    }
     RESTORE_PACK
     
     using spoint16 = pointx<int16_t>;

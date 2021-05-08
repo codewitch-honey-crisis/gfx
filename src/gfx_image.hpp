@@ -13,7 +13,7 @@
 /----------------------------------------------------------------------------*/
 
 namespace gfx {
-    struct image final {
+    struct jpeg_image final {
         #ifdef HTCW_JPEG_AS_RGB
         using pixel_type = rgb_pixel<24>;
         #else
@@ -1001,12 +1001,12 @@ namespace gfx {
             return gfx_result::success;
         }
     };
-    const uint8_t image::Zig[64] = {/* Zigzag-order to raster-order conversion table */
+    const uint8_t jpeg_image::Zig[64] = {/* Zigzag-order to raster-order conversion table */
 									0, 1, 8, 16, 9, 2, 3, 10, 17, 24, 32, 25, 18, 11, 4, 5,
 									12, 19, 26, 33, 40, 48, 41, 34, 27, 20, 13, 6, 7, 14, 21, 28,
 									35, 42, 49, 56, 57, 50, 43, 36, 29, 22, 15, 23, 30, 37, 44, 51,
 									58, 59, 52, 45, 38, 31, 39, 46, 53, 60, 61, 54, 47, 55, 62, 63};
-    const uint16_t image::Ipsf[64] = {/* See also aa_idct.png */
+    const uint16_t jpeg_image::Ipsf[64] = {/* See also aa_idct.png */
 									  (uint16_t)(1.00000 * 8192), (uint16_t)(1.38704 * 8192), (uint16_t)(1.30656 * 8192), (uint16_t)(1.17588 * 8192), (uint16_t)(1.00000 * 8192), (uint16_t)(0.78570 * 8192), (uint16_t)(0.54120 * 8192), (uint16_t)(0.27590 * 8192),
 									  (uint16_t)(1.38704 * 8192), (uint16_t)(1.92388 * 8192), (uint16_t)(1.81226 * 8192), (uint16_t)(1.63099 * 8192), (uint16_t)(1.38704 * 8192), (uint16_t)(1.08979 * 8192), (uint16_t)(0.75066 * 8192), (uint16_t)(0.38268 * 8192),
 									  (uint16_t)(1.30656 * 8192), (uint16_t)(1.81226 * 8192), (uint16_t)(1.70711 * 8192), (uint16_t)(1.53636 * 8192), (uint16_t)(1.30656 * 8192), (uint16_t)(1.02656 * 8192), (uint16_t)(0.70711 * 8192), (uint16_t)(0.36048 * 8192),

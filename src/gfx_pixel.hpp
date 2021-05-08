@@ -416,6 +416,9 @@ namespace gfx {
         template<typename Name> using channel_index_by_name = typename helpers::channel_index_by_name_impl<0,Name,ChannelTraits...>;
         // gets the channel by name
         template<typename Name> using channel_by_name = channel_by_index<helpers::channel_index_by_name_impl<0,Name,ChannelTraits...>::value>;
+        // retrieves a channel's metadata by name in cases where the checked version will cause an error
+        template<typename Name> using channel_by_name_unchecked = channel_by_index_unchecked<channel_index_by_name<Name>::value>;
+        
         // returns true if the pixel contains channels with each name
         template<typename... ChannelNames> using has_channel_names = typename helpers::has_channel_names_impl<type,ChannelNames...>;
         // returns true if this channel is a subset of the other

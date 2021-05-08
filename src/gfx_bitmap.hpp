@@ -7,19 +7,27 @@ namespace gfx {
     // represents an in-memory bitmap
     template<typename PixelType>
     class bitmap final {
-        const size16 m_dimensions;
-        uint8_t* const m_begin;
+        size16 m_dimensions;
+        uint8_t* m_begin;
     public:
         // the type of the bitmap, itself
         using type = bitmap<PixelType>;
         // the type of the pixel used for the bitmap
         using pixel_type = PixelType;
-        using caps = gfx::gfx_caps<true,false,false,false,false,false,false,false,false,false>;
+        using caps = gfx::gfx_caps<true,false,false,false,false,false,false,false,false,false,false>;
         
         // constructs a new bitmap with the specified size and buffer
         bitmap(size16 dimensions,void* buffer) : m_dimensions(dimensions),m_begin((uint8_t*)buffer) {}
         // constructs a new bitmap with the specified width, height and buffer
         bitmap(uint16_t width,uint16_t height,void* buffer) : m_dimensions(width,height),m_begin((uint8_t*)buffer) {}
+        bitmap(const type& rhs)=default;
+        type& operator=(const type& rhs)=default;
+        bitmap(type&& rhs)=default;
+        type& operator=(type&& rhs) {
+            m_dimensions = rhs.m_dimensions;
+            m_begin = rhs.m_begin;
+            return *this;
+        }
         gfx_result point(point16 location,pixel_type* out_pixel) const {
             if(nullptr==out_pixel)
                 return gfx_result::invalid_argument;
@@ -87,7 +95,25 @@ namespace gfx {
         inline uint8_t* end() const {
             return begin()+size_bytes();
         }
-        
+        template<typename Destination>
+        gfx_result convert(Destination& out) const {
+            size16 dim = bounds().crop(out.bounds()).dimensions();
+            point16 pt;
+            for(pt.y = 0;pt.y<dim.width;++pt.y) {
+                for(pt.x=0;pt.x<dim.height;++pt.x) {
+                    pixel_type px;
+                    point(pt,&px); // don't bother err checking
+                    typename Destination::pixel_type dpx;
+                    if(!px.convert(&dpx))
+                        return gfx_result::not_supported;
+                    gfx_result r = out.point(pt,dpx);
+                    if(r!=gfx_result::success) {
+                        return r;
+                    }
+                }
+            }
+            return gfx_result::success;
+        }
         // clears a region of the bitmap
         gfx_result clear(const rect16& dst) {
             if(!dst.intersects(bounds())) return gfx_result::success;

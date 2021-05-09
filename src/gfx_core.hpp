@@ -3,19 +3,13 @@
 #include <stdint.h>
 #include "bits.hpp"
 namespace gfx {
-    template<bool Blt,bool Async,bool BatchWrite,bool FrameWrite,bool FrameRead,bool QueueFrameWrite,bool QueueFrameRead,bool FrameWritePartial, bool FrameReadPartial,bool QueueFrameWritePartial, bool QueueFrameReadPartial>
+    template<bool Blt,bool Async,bool BatchWrite,bool CopyFrom,bool Suspend>
     struct gfx_caps {
         constexpr const static bool blt = Blt;
         constexpr const static bool async = Async;
         constexpr const static bool batch_write = BatchWrite;
-        constexpr const static bool frame_write = FrameWrite;
-        constexpr const static bool frame_read = FrameRead;
-        constexpr const static bool queued_frame_write = QueueFrameWrite;
-        constexpr const static bool queue_frame_read = QueueFrameRead;
-        constexpr const static bool frame_write_partial = FrameWritePartial;
-        constexpr const static bool frame_read_partial = FrameReadPartial;
-        constexpr const static bool queued_frame_write_partial = QueueFrameWritePartial;
-        constexpr const static bool queue_frame_read_partial = QueueFrameReadPartial;
+        constexpr const static bool copy_from = CopyFrom;
+        constexpr const static bool suspend = Suspend;
 
     };
     enum struct gfx_result {
@@ -29,6 +23,7 @@ namespace gfx {
         invalid_format,
         unknown_error
     };
+    
     namespace helpers {
         template<typename T, typename U>
         struct is_same  {

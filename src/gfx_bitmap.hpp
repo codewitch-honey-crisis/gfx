@@ -14,7 +14,7 @@ namespace gfx {
         using type = bitmap<PixelType>;
         // the type of the pixel used for the bitmap
         using pixel_type = PixelType;
-        using caps = gfx::gfx_caps<true,false,false,false,false,false,false,false,false,false,false>;
+        using caps = gfx::gfx_caps<true,false,false,false,false>;
         
         // constructs a new bitmap with the specified size and buffer
         bitmap(size16 dimensions,void* buffer) : m_dimensions(dimensions),m_begin((uint8_t*)buffer) {}

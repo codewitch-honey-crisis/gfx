@@ -52,72 +52,151 @@ namespace gfx {
             }    
         };
         
-        template<typename Destination,typename Source,bool CopyFrom,bool BltDst,bool BltSrc,bool Async> 
+        template<typename Destination,typename Source,bool CopyFrom,bool CopyTo,bool BltDst,bool BltSrc,bool Async> 
         struct draw_bmp_caps_helper {
             
         };
         template<typename Destination,typename Source> 
-        struct draw_bmp_caps_helper<Destination,Source,true,true,true,false> {
-            static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
+        struct draw_bmp_caps_helper<Destination,Source,true,false,true,true,false> {
+            inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
                 // suspend if we can
                 suspend_token<Destination> stok(destination);
-                return source.blt_to(src_rect,destination,location);
+                return source.copy_to(src_rect,destination,location);
             }
         };
         template<typename Destination,typename Source> 
-        struct draw_bmp_caps_helper<Destination,Source,true,false,true,false> {
-            static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
+        struct draw_bmp_caps_helper<Destination,Source,true,false,false,true,false> {
+            inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
                 // suspend if we can
                 suspend_token<Destination> stok(destination);
                 return destination.copy_from(src_rect,source,location);
             }
         };
         template<typename Destination,typename Source> 
-        struct draw_bmp_caps_helper<Destination,Source,true,true,true,true> {
-            static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
+        struct draw_bmp_caps_helper<Destination,Source,true,false,true,true,true> {
+            inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
                 // suspend if we can
                 suspend_token<Destination> stok(destination,true);
-                return source.blt_to_async(src_rect,destination,location);
+                return source.copy_to_async(src_rect,destination,location);
             }
         };
         template<typename Destination,typename Source> 
-        struct draw_bmp_caps_helper<Destination,Source,true,false,true,true> {
-            static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
+        struct draw_bmp_caps_helper<Destination,Source,true,false,false,true,true> {
+            inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
                 // suspend if we can
                 suspend_token<Destination> stok(destination,true);
                 return destination.copy_from(src_rect,source,location);
                 //return copy_from_impl_helper<Destination,Source,Destination::caps::batch,Destination::caps::async>::do_draw(destintion,src_rect,source,location);
             }
         };
-
-
         template<typename Destination,typename Source> 
-        struct draw_bmp_caps_helper<Destination,Source,false,false,true,false> {
-            static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
+        struct draw_bmp_caps_helper<Destination,Source,false,false,false,true,false> {
+            inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
                 // suspend if we can
                 suspend_token<Destination> stok(destination);
-                return copy_from_impl_helper<Destination,Source,Destination::caps::batch_write,false>::do_draw(destination,src_rect,source,location);
+                return copy_from_impl_helper<Destination,Source,Destination::caps::batch,false>::do_draw(destination,src_rect,source,location);
                 //return destination.copy_from(src_rect,source,location);
             }
         };
         template<typename Destination,typename Source> 
-        struct draw_bmp_caps_helper<Destination,Source,false,true,true,true> {
-            static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
+        struct draw_bmp_caps_helper<Destination,Source,false,false,true,true,true> {
+            inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
                 // suspend if we can
                 suspend_token<Destination> stok(destination,true);
-                return source.blt_to_async(src_rect,destination,location);
+                return source.copy_to_async(src_rect,destination,location);
             }
         };
         template<typename Destination,typename Source> 
-        struct draw_bmp_caps_helper<Destination,Source,false,false,true,true> {
-            static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
+        struct draw_bmp_caps_helper<Destination,Source,false,false,false,true,true> {
+            inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
                 // suspend if we can
                 suspend_token<Destination> stok(destination,true);
                 return copy_from_impl_helper<Destination,Source,Destination::caps::batch,Destination::caps::async>::do_draw(destination,src_rect,source,location);
-                //return destination.copy_from_async(src_rect,source,location);
             }
         };
 
+
+        template<typename Destination,typename Source> 
+        // copyfrom, copyto, bltdst, bltsrc, async
+        struct draw_bmp_caps_helper<Destination,Source,true,true,true,true,false> {
+            inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
+                // suspend if we can
+                suspend_token<Destination> stok(destination);
+                return destination.copy_from(src_rect,source,location);
+            }
+        };
+        // copyfrom, copyto, bltdst, bltsrc, async
+        template<typename Destination,typename Source> 
+        struct draw_bmp_caps_helper<Destination,Source,true,true,false,true,false> {
+            inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
+                // suspend if we can
+                suspend_token<Destination> stok(destination);
+                return destination.copy_from(src_rect,source,location);
+            }
+        };
+        // copyfrom, copyto, bltdst, bltsrc, async
+        template<typename Destination,typename Source> 
+        struct draw_bmp_caps_helper<Destination,Source,true,true,true,true,true> {
+            inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
+                // suspend if we can
+                suspend_token<Destination> stok(destination,true);
+                return destination.copy_from_async(src_rect,source,location);
+            }
+        };
+        template<typename Destination,typename Source> 
+        // copyfrom, copyto, bltdst, bltsrc, async
+        struct draw_bmp_caps_helper<Destination,Source,true,true,false,true,true> {
+            inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
+                // suspend if we can
+                suspend_token<Destination> stok(destination,true);
+                return destination.copy_from_async(src_rect,source,location);
+            }
+        };
+        template<typename Destination,typename Source> 
+        // copyfrom, copyto, bltdst, bltsrc, async
+        struct draw_bmp_caps_helper<Destination,Source,false,true,false,true,false> {
+            inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
+                // suspend if we can
+                suspend_token<Destination> stok(destination);
+                return source.copy_to(src_rect,destination,location);
+            }
+        };
+        template<typename Destination,typename Source> 
+        struct draw_bmp_caps_helper<Destination,Source,false,true,true,true,true> {
+            inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
+                // suspend if we can
+                suspend_token<Destination> stok(destination,true);
+                return source.copy_to_async(src_rect,destination,location);
+            }
+        };
+        template<typename Destination,typename Source> 
+        struct draw_bmp_caps_helper<Destination,Source,false,true,false,true,true> {
+            inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
+                // suspend if we can
+                suspend_token<Destination> stok(destination,true);
+                //return copy_from_impl_helper<Destination,Source,Destination::caps::batch,Destination::caps::async>::do_draw(destination,src_rect,source,location);
+                return source.copy_to_async(src_rect,destination,location);
+            }
+        };
+        template<typename Destination,typename Source> 
+        struct draw_bmp_caps_helper<Destination,Source,false,false,false,false,true> {
+            inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
+                // suspend if we can
+                suspend_token<Destination> stok(destination,true);
+                // reuse the non batch version of our batch helper since it already has this code
+                return draw_bmp_batch_caps_helper<Destination,Source,false,true>::do_draw(destination,rect16(location,src_rect.dimensions()),source,src_rect,(int)rect_orientation::normalized);
+            }
+        };
+        template<typename Destination,typename Source> 
+        struct draw_bmp_caps_helper<Destination,Source,false,false,false,false,false> {
+            inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
+                // suspend if we can
+                suspend_token<Destination> stok(destination,true);
+                // reuse the non batch version of our batch helper since it already has this code
+                return draw_bmp_batch_caps_helper<Destination,Source,false,false>::do_draw(destination,rect16(location,src_rect.dimensions()),source,src_rect,(int)rect_orientation::normalized);
+            }
+        };
+        
         template<typename Destination,typename Source,bool Batch,bool Async>
         struct copy_from_impl_helper {};
         template<typename Destination,typename Source>
@@ -243,41 +322,7 @@ namespace gfx {
                 return gfx_result::success;
             }
         };
-        template<typename Destination,typename Source>
-        struct copy_from_impl_helper<Destination,Source,false,false> {
-            static gfx_result do_draw(Destination& destination,const rect16& src_rect,const Source& src,point16 location) {
-                gfx_result r;
-                rect16 srcr = src_rect.normalize().crop(src.bounds());
-                rect16 dstr(location,src_rect.dimensions());
-                dstr=dstr.crop(destination.bounds());
-                if(srcr.width()>dstr.width()) {
-                    srcr.x2=srcr.x1+dstr.width()-1;
-                }
-                if(srcr.height()>dstr.height()) {
-                    srcr.y2=srcr.y1+dstr.height()-1;
-                }
-                uint16_t w = dstr.dimensions().width;
-                uint16_t h = dstr.dimensions().height;
-                
-                for(uint16_t y=0;y<h;++y) {
-                    for(uint16_t x=0;x<w;++x) {
-                        typename Source::pixel_type pp;
-                        r=src.point(gfx::point16(x+srcr.x1,y+srcr.y1), &pp);
-                        if(r!=gfx_result::success)
-                            return r;
-                        typename Destination::pixel_type p;
-                        if(!pp.convert(&p)) {
-                            return gfx_result::invalid_format;
-                        }
-                        r=destination.point(point16(dstr.x1+x,dstr.y1+y),p);
-                        if(gfx_result::success!=r) {
-                            return r;
-                        }
-                    }
-                }
-                return gfx_result::success;
-            }
-        };
+       
         template<typename Destination,typename Source,bool Batch,bool Async>
         struct draw_bmp_batch_caps_helper { 
         };
@@ -497,9 +542,9 @@ namespace gfx {
             if((int)bitmap_flags::resize!=((int)options&(int)bitmap_flags::resize)) {
                 gfx_result r;
                 if(async)
-                    r=draw_bmp_batch_caps_helper<Destination,Source,Destination::caps::batch_write,Destination::caps::async>::do_draw(destination,dstr,source,srcr,o);
+                    r=draw_bmp_batch_caps_helper<Destination,Source,Destination::caps::batch,Destination::caps::async>::do_draw(destination,dstr,source,srcr,o);
                 else
-                    r=draw_bmp_batch_caps_helper<Destination,Source,Destination::caps::batch_write,false>::do_draw(destination,dstr,source,srcr,o);
+                    r=draw_bmp_batch_caps_helper<Destination,Source,Destination::caps::batch,false>::do_draw(destination,dstr,source,srcr,o);
                 if(gfx_result::success!=r)
                     return r;
                
@@ -572,7 +617,7 @@ namespace gfx {
         template<typename Destination,typename Source,typename PixelType>
         struct bmp_helper<Destination,Source,PixelType,PixelType> {
             static gfx_result draw_bitmap(Destination& destination, const srect16& dest_rect, Source& source, const rect16& source_rect,bitmap_flags options,srect16* clip,bool async) {
-                const bool optimized = (Destination::caps::blt || Destination::caps::copy_from) && (Source::caps::blt);
+                const bool optimized = (Destination::caps::blt && Source::caps::blt) || (Destination::caps::copy_from || Source::caps::copy_to);
                 // disqualify fast blting
                 if(!optimized || dest_rect.x1>dest_rect.x2 || 
                     dest_rect.y1>dest_rect.y2 || 
@@ -616,9 +661,9 @@ namespace gfx {
                 // suspend if we can
                 suspend_token<Destination> stok(destination,async);
                 if(async)
-                    return draw_bmp_caps_helper<Destination,Source,Destination::caps::copy_from, Destination::caps::blt,Source::caps::blt,Destination::caps::async>::do_draw(destination,source, r,dr.top_left());
+                    return draw_bmp_caps_helper<Destination,Source,Destination::caps::copy_from,Source::caps::copy_to, Destination::caps::blt,Source::caps::blt,Destination::caps::async>::do_draw(destination,source, r,dr.top_left());
                 else
-                    return draw_bmp_caps_helper<Destination,Source,Destination::caps::copy_from,Destination::caps::blt,Source::caps::blt,false>::do_draw(destination,source, r,dr.top_left());
+                    return draw_bmp_caps_helper<Destination,Source,Destination::caps::copy_from,Source::caps::copy_to,Destination::caps::blt,Source::caps::blt,false>::do_draw(destination,source, r,dr.top_left());
             }
         };
         // Defining region codes
@@ -1579,7 +1624,7 @@ namespace gfx {
                                 if(transparent_background)
                                     r=draw_font_batch_helper<Destination,false,Destination::caps::async>::do_draw(destination,font,fc,chr,color,backcolor,transparent_background,clip,async);
                                 else
-                                    r=draw_font_batch_helper<Destination,Destination::caps::batch_write,Destination::caps::async>::do_draw(destination,font,fc,chr,color,backcolor,transparent_background,clip,async);
+                                    r=draw_font_batch_helper<Destination,Destination::caps::batch,Destination::caps::async>::do_draw(destination,font,fc,chr,color,backcolor,transparent_background,clip,async);
                                 if(gfx_result::success!=r) {
                                     return r;
                                 }

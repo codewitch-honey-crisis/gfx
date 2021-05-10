@@ -3,14 +3,14 @@
 #include <stdint.h>
 #include "bits.hpp"
 namespace gfx {
-    template<bool Blt,bool Async,bool BatchWrite,bool CopyFrom,bool Suspend>
+    template<bool Blt,bool Async,bool Batch,bool CopyFrom,bool Suspend,bool CopyTo>
     struct gfx_caps {
         constexpr const static bool blt = Blt;
         constexpr const static bool async = Async;
-        constexpr const static bool batch_write = BatchWrite;
+        constexpr const static bool batch = Batch;
         constexpr const static bool copy_from = CopyFrom;
         constexpr const static bool suspend = Suspend;
-
+        constexpr const static bool copy_to = CopyTo;
     };
     enum struct gfx_result {
         success = 0,

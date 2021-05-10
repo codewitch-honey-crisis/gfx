@@ -20,7 +20,7 @@ namespace gfx {
         using pixel_type = ycbcr_pixel<24>;
         #endif
         using region_type = bitmap<pixel_type>;
-        typedef bool(*callback)(const region_type& region,point16 location,void* state);
+        typedef gfx_result(*callback)(const region_type& region,point16 location,void* state);
     private:
         // this private section is all ported from tjpgd.c
         // TJpgDec - Tiny JPEG Decompressor include file               (C)ChaN, 2020
@@ -912,6 +912,7 @@ namespace gfx {
             io::stream* stream;
             callback out;
             void* state;
+            gfx_result result;
         } JpegDev;
         static gfx_result xlt_err(int jderr) {
             switch(jderr) {
@@ -962,12 +963,14 @@ namespace gfx {
         static int outfunc(JDEC *decoder, void *bitmap, JRECT *rect)
         {
             JpegDev *jd = (JpegDev *)decoder->device;
-            return jd->out(region_type(size16(rect->right-rect->left+1,rect->bottom-rect->top+1),bitmap),point16(rect->left,rect->top),jd->state);
+            //jd->result=gfx_result::success;
+            jd->result=jd->out(region_type(size16(rect->right-rect->left+1,rect->bottom-rect->top+1),bitmap),point16(rect->left,rect->top),jd->state);
+            return (gfx_result::success!=jd->result)?0:1;
         }
 
     public:
         
-        static gfx_result load(io::stream* input,callback out_func,void* state) {
+        static gfx_result load(io::stream* input,callback out_func,void* state=nullptr) {
             if(nullptr==input)
                 return gfx_result::invalid_argument;
             if(nullptr==out_func)
@@ -986,6 +989,7 @@ namespace gfx {
             jd.stream=input;
             jd.state = state;
             jd.out = out_func;
+            jd.result = gfx_result::success;
             //Prepare and decode the jpeg.
             r = jd_prepare(&decoder, infunc, work, WORKSZ, (void *)&jd);
             if(JDR_OK!=r) {
@@ -993,11 +997,13 @@ namespace gfx {
                 return xlt_err(r);
             }
             r = jd_decomp(&decoder, outfunc, 0);
-            if (r != JDR_OK && r != JDR_FMT1) {
-                ::free(work);
-                return xlt_err(r);
-            }
             ::free(work);
+            if (r != JDR_OK && r != JDR_FMT1) {
+                return xlt_err(r);
+            } else if(jd.result!=gfx_result::success) {
+                return jd.result;    
+            }
+            
             return gfx_result::success;
         }
     };

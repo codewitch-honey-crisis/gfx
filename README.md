@@ -3,6 +3,9 @@
 A device independent graphics library for embedded and IoT devices
 
 Draw on anything
+
+Read more here: https://www.codeproject.com/Articles/5302085/GFX-Forever-The-Complete-Guide-to-GFX-for-IoT
+
 ```
            @@@@@@@@@@                                                                                                           
         @@@@@@@@@@@@@@@@                                                                                                        

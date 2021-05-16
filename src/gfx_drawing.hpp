@@ -51,11 +51,12 @@ namespace gfx {
                 draw::resume(destination);
             }    
         };
-        
+                                                        
         template<typename Destination,typename Source,bool CopyFrom,bool CopyTo,bool BltDst,bool BltSrc,bool Async> 
         struct draw_bmp_caps_helper {
             
         };
+         
         template<typename Destination,typename Source> 
         struct draw_bmp_caps_helper<Destination,Source,true,false,true,true,false> {
             inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
@@ -82,6 +83,24 @@ namespace gfx {
         };
         template<typename Destination,typename Source> 
         struct draw_bmp_caps_helper<Destination,Source,true,false,false,true,true> {
+            inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
+                // suspend if we can
+                suspend_token<Destination> stok(destination,true);
+                return destination.copy_from(src_rect,source,location);
+                //return copy_from_impl_helper<Destination,Source,Destination::caps::batch,Destination::caps::async>::do_draw(destintion,src_rect,source,location);
+            }
+        };
+        template<typename Destination,typename Source> 
+        struct draw_bmp_caps_helper<Destination,Source,true,false,false,false,true> {
+            inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
+                // suspend if we can
+                suspend_token<Destination> stok(destination,true);
+                return destination.copy_from_async(src_rect,source,location);
+                //return copy_from_impl_helper<Destination,Source,Destination::caps::batch,Destination::caps::async>::do_draw(destintion,src_rect,source,location);
+            }
+        };
+        template<typename Destination,typename Source> 
+        struct draw_bmp_caps_helper<Destination,Source,true,false,false,false,false> {
             inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
                 // suspend if we can
                 suspend_token<Destination> stok(destination,true);
@@ -1260,6 +1279,7 @@ namespace gfx {
                         if(accum&m) {
                             if(!transparent_background&&-1!=run_start_bg) {
                                 r=line(destination,srect16(run_start_bg+chr.left(),chr.top()+j,n-1+chr.left(),chr.top()+j),backcolor,clip);
+                        
                                 run_start_bg=-1;
                             }
                             if(-1==run_start_fg)
@@ -1267,6 +1287,7 @@ namespace gfx {
                         } else {
                             if(-1!=run_start_fg) {
                                 r=line(destination,srect16(run_start_fg+chr.left(),chr.top()+j,n-1+chr.left(),chr.top()+j),color,clip);
+                        
                                 run_start_fg=-1;
                             }
                             if(!transparent_background) {
@@ -1279,9 +1300,11 @@ namespace gfx {
                     }
                     if(-1!=run_start_fg) {
                         r=line(destination,srect16(run_start_fg+chr.left(),chr.top()+j,fc.width()-1+chr.left(),chr.top()+j),color,clip);
+                        
                     }
                     if(!transparent_background&&-1!=run_start_bg) {
                         r=line(destination,srect16(run_start_bg+chr.left(),chr.top()+j,fc.width()-1+chr.left(),chr.top()+j),backcolor,clip);
+                
                         
                     }
                 }
@@ -1349,14 +1372,14 @@ namespace gfx {
                     for(size_t n=0;n<fc.width();++n) {
                         if(accum&m) {
                             if(!transparent_background&&-1!=run_start_bg) {
-                                r=(async)?line_async(destination,srect16(run_start_bg+chr.left(),chr.top()+j,n-1+chr.left(),chr.top()+j),backcolor,clip):line(destination,srect16(run_start_bg+chr.left(),chr.top()+j,n-1+chr.left(),chr.top()+j),backcolor,clip);
+                                r=line_impl(destination,srect16(run_start_bg+chr.left(),chr.top()+j,n-1+chr.left(),chr.top()+j),backcolor,clip,async);
                                 run_start_bg=-1;
                             }
                             if(-1==run_start_fg)
                                 run_start_fg=n;
                         } else {
                             if(-1!=run_start_fg) {
-                                r=(async)?line(destination,srect16(run_start_fg+chr.left(),chr.top()+j,n-1+chr.left(),chr.top()+j),color,clip):line(destination,srect16(run_start_fg+chr.left(),chr.top()+j,n-1+chr.left(),chr.top()+j),color,clip);
+                                r=line_impl(destination,srect16(run_start_fg+chr.left(),chr.top()+j,n-1+chr.left(),chr.top()+j),color,clip,async);
                                 run_start_fg=-1;
                             }
                             if(!transparent_background) {
@@ -1368,11 +1391,10 @@ namespace gfx {
                         accum<<=1;
                     }
                     if(-1!=run_start_fg) {
-                        r=(async)?line_async(destination,srect16(run_start_fg+chr.left(),chr.top()+j,fc.width()-1+chr.left(),chr.top()+j),color,clip):line(destination,srect16(run_start_fg+chr.left(),chr.top()+j,fc.width()-1+chr.left(),chr.top()+j),color,clip);
+                        r=line_impl(destination,srect16(run_start_fg+chr.left(),chr.top()+j,fc.width()-1+chr.left(),chr.top()+j),color,clip,async);
                     }
                     if(!transparent_background&&-1!=run_start_bg) {
-                        r=(async)?line_async(destination,srect16(run_start_bg+chr.left(),chr.top()+j,fc.width()-1+chr.left(),chr.top()+j),backcolor,clip):line(destination,srect16(run_start_bg+chr.left(),chr.top()+j,fc.width()-1+chr.left(),chr.top()+j),backcolor,clip);
-                        
+                        r=line_impl(destination,srect16(run_start_bg+chr.left(),chr.top()+j,fc.width()-1+chr.left(),chr.top()+j),backcolor,clip,async);
                     }
                 }
                 return r;
@@ -1388,9 +1410,9 @@ namespace gfx {
             translate(destination.dimensions(),&ss);
             c = c.crop(srect16(spoint16(0,0),ss));
             srect16 r = rect;
-            if(!c.contains(r))
-                line_clip(&r,&c);
-            
+            if(!c.contains(r)) {
+                 line_clip(&r,&c);
+            }
             
             float xinc,yinc,x,y,ox,oy;
             float dx,dy,e;

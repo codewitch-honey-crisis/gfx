@@ -516,7 +516,7 @@ namespace gfx {
             }
         };
         template<typename Destination,typename Source>
-        static gfx_result draw_bitmap_impl(Destination& destination, const srect16& dest_rect, Source& source, const rect16& source_rect,bitmap_flags options,srect16* clip,bool async) {
+        static gfx_result draw_bitmap_impl(Destination& destination, const srect16& dest_rect, Source& source, const rect16& source_rect,bitmap_flags options,const typename Source::pixel_type* transparent_color, srect16* clip,bool async) {
             gfx_result r;
             rect16 dr;
             if(!translate_adjust(dest_rect,&dr))
@@ -558,7 +558,7 @@ namespace gfx {
             if(dstr.y2>dr.y2) dstr.y2=dr.y2;
             // suspend if we can
             suspend_token<Destination> stok(destination,async);
-            if((int)bitmap_flags::resize!=((int)options&(int)bitmap_flags::resize)) {
+            if(transparent_color==nullptr && (int)bitmap_flags::resize!=((int)options&(int)bitmap_flags::resize)) {
                 gfx_result r;
                 if(async)
                     r=draw_bmp_batch_caps_helper<Destination,Source,Destination::caps::batch,Destination::caps::async>::do_draw(destination,dstr,source,srcr,o);
@@ -575,77 +575,107 @@ namespace gfx {
                 if((int)rect_orientation::flipped_vertical==(o&(int)rect_orientation::flipped_vertical)) {
                     dstr=dstr.flip_vertical();
                 }
-                // TODO: Modify this to write the destination left to right top to bottom
-                // and then use batching to speed up writes
-                // do resizing
-                int o = (int)dest_rect.orientation();
-                uint32_t x_ratio = (uint32_t)((dest_rect.width()<<16)/source_rect.width()) +1;
-                uint32_t y_ratio = (uint32_t)((dest_rect.height()<<16)/source_rect.height()) +1;
-                bool growX = dest_rect.width()>source_rect.width(),
-                    growY = dest_rect.height()>source_rect.height();
-                point16 p(-1,-1);
-                point16 ps;
-                srcr = source_rect.normalize();
-                for(ps.y=srcr.y1;ps.y<srcr.y2;++ps.y) {
-                    for(ps.x=srcr.x1;ps.x<srcr.x2;++ps.x) {
-                        uint16_t px = ps.x;
-                        uint16_t py = ps.y;
-                        if((int)rect_orientation::flipped_horizontal==((int)rect_orientation::flipped_horizontal&o)) {
-                            px=source_rect.width()-px-1;
-                        }
-                        if((int)rect_orientation::flipped_vertical==((int)rect_orientation::flipped_vertical&o)) {
-                            py=source_rect.height()-py-1;
-                        }
-                        uint16_t ux(((px*x_ratio)>>16));
-                        
-                        uint16_t uy(((py*y_ratio)>>16));
-                        ux+=dstr.left();
-                        uy+=dstr.top();
-                        if(ux!=p.x || uy!=p.y) {
-                            typename Source::pixel_type px;
-                            r= source.point(ps,&px);
-                            if(gfx_result::success!=r)
-                                return r;
-                            p=point16(ux,uy);
-                            typename Destination::pixel_type px2=px.template convert<typename Destination::pixel_type>();
-                            if(!(growX || growY)) {
-                                r=destination.point(p,px2);
+                if((int)bitmap_flags::crop==((int)options & (int)bitmap_flags::crop)) {
+                    int o = (int)dest_rect.orientation();
+                    point16 ps;
+                    for(ps.y=srcr.y1;ps.y<=srcr.y2;++ps.y) {
+                        for(ps.x=srcr.x1;ps.x<=srcr.x2;++ps.x) {
+                            uint16_t px = ps.x;
+                            uint16_t py = ps.y;
+                            if((int)rect_orientation::flipped_horizontal==((int)rect_orientation::flipped_horizontal&o)) {
+                                px=source_rect.width()-px-1;
+                            }
+                            if((int)rect_orientation::flipped_vertical==((int)rect_orientation::flipped_vertical&o)) {
+                                py=source_rect.height()-py-1;
+                            }
+                            point16 p(px+dstr.left(),py+dstr.top());
+                            if(dstr.intersects(p)) {
+                                typename Source::pixel_type px;
+                                r= source.point(ps,&px);
                                 if(gfx_result::success!=r)
                                     return r;
-                            } else {
-                                uint16_t w = x_ratio>>16,h=y_ratio>>16;
-                                r=destination.fill(rect16(p,size16(w,h)),px2);
-                                if(gfx_result::success!=r)
-                                    return r;
+                                if(nullptr==transparent_color || transparent_color->native_value!=px.native_value) {
+                                    typename Destination::pixel_type px2=px.template convert<typename Destination::pixel_type>();
+                                    r=destination.point(p,px2);
+                                    if(gfx_result::success!=r)
+                                        return r;
+                                }
                             }
                         }
-                        
-                    }    
-                    
+                    }
+                } else {
+                    // TODO: Modify this to write the destination left to right top to bottom
+                    // and then use batching to speed up writes
+                    // do resizing
+                    int o = (int)dest_rect.orientation();
+                    uint32_t x_ratio = (uint32_t)((dest_rect.width()<<16)/source_rect.width()) +1;
+                    uint32_t y_ratio = (uint32_t)((dest_rect.height()<<16)/source_rect.height()) +1;
+                    bool growX = dest_rect.width()>source_rect.width(),
+                        growY = dest_rect.height()>source_rect.height();
+                    point16 p(-1,-1);
+                    point16 ps;
+                    srcr = source_rect.normalize();
+                    for(ps.y=srcr.y1;ps.y<=srcr.y2;++ps.y) {
+                        for(ps.x=srcr.x1;ps.x<=srcr.x2;++ps.x) {
+                            uint16_t px = ps.x;
+                            uint16_t py = ps.y;
+                            if((int)rect_orientation::flipped_horizontal==((int)rect_orientation::flipped_horizontal&o)) {
+                                px=source_rect.width()-px-1;
+                            }
+                            if((int)rect_orientation::flipped_vertical==((int)rect_orientation::flipped_vertical&o)) {
+                                py=source_rect.height()-py-1;
+                            }
+                            uint16_t ux(((px*x_ratio)>>16));
+                            
+                            uint16_t uy(((py*y_ratio)>>16));
+                            ux+=dstr.left();
+                            uy+=dstr.top();
+                            if(ux!=p.x || uy!=p.y) {
+                                typename Source::pixel_type px;
+                                r= source.point(ps,&px);
+                                if(gfx_result::success!=r)
+                                    return r;
+                                if(nullptr==transparent_color || transparent_color->native_value!=px.native_value) {
+                                    p=point16(ux,uy);
+                                    typename Destination::pixel_type px2=px.template convert<typename Destination::pixel_type>();
+                                    if(!(growX || growY)) {
+                                        r=destination.point(p,px2);
+                                        if(gfx_result::success!=r)
+                                            return r;
+                                    } else {
+                                        uint16_t w = x_ratio>>16,h=y_ratio>>16;
+                                        r=destination.fill(rect16(p,size16(w,h)),px2);
+                                        if(gfx_result::success!=r)
+                                            return r;
+                                    }
+                                }
+                            }
+                        }    
+                    }
                 }
             }
             return gfx_result::success;
         }
         template<typename Destination,typename Source,typename DestinationPixelType,typename SourcePixelType>
         struct bmp_helper {
-            inline static gfx_result draw_bitmap(Destination& destination, const srect16& dest_rect, Source& source, const rect16& source_rect,bitmap_flags options,srect16* clip,bool async) {
-                return draw_bitmap_impl(destination,dest_rect,source,source_rect,options,clip,async);
+            inline static gfx_result draw_bitmap(Destination& destination, const srect16& dest_rect, Source& source, const rect16& source_rect,bitmap_flags options,const typename Source::pixel_type* transparent_color, srect16* clip,bool async) {
+                return draw_bitmap_impl(destination,dest_rect,source,source_rect,options,transparent_color,clip,async);
             }
         };
         
         template<typename Destination,typename Source,typename PixelType>
         struct bmp_helper<Destination,Source,PixelType,PixelType> {
-            static gfx_result draw_bitmap(Destination& destination, const srect16& dest_rect, Source& source, const rect16& source_rect,bitmap_flags options,srect16* clip,bool async) {
+            static gfx_result draw_bitmap(Destination& destination, const srect16& dest_rect, Source& source, const rect16& source_rect,bitmap_flags options, const typename Source::pixel_type* transparent_color,srect16* clip,bool async) {
                 const bool optimized = (Destination::caps::blt && Source::caps::blt) || (Destination::caps::copy_from || Source::caps::copy_to);
                 // disqualify fast blting
-                if(!optimized || dest_rect.x1>dest_rect.x2 || 
+                if(!optimized || transparent_color!=nullptr || dest_rect.x1>dest_rect.x2 || 
                     dest_rect.y1>dest_rect.y2 || 
                     ((int)bitmap_flags::resize==((int)options&(int)bitmap_flags::resize)&&
                         (dest_rect.width()!=source_rect.width()||
                         dest_rect.height()!=source_rect.height())
                         )
                     ) {
-                    return draw_bitmap_impl(destination,dest_rect,source,source_rect,options,clip,async);
+                    return draw_bitmap_impl(destination,dest_rect,source,source_rect,options,transparent_color,clip,async);
                     
                 }
                 rect16 dr;
@@ -1485,19 +1515,19 @@ namespace gfx {
             // suspend if we can
             suspend_token<Destination> stok(destination,async);
             // top or bottom
-            r=line_async(destination,srect16(rect.x1,rect.y1,rect.x2,rect.y1),color,clip,async);
+            r=line_impl(destination,srect16(rect.x1,rect.y1,rect.x2,rect.y1),color,clip,async);
             if(r!=gfx_result::success)
                 return r;
             // left or right
-            r=line_async(destination,srect16(rect.x1,rect.y1,rect.x1,rect.y2),color,clip,async);
+            r=line_impl(destination,srect16(rect.x1,rect.y1,rect.x1,rect.y2),color,clip,async);
             if(r!=gfx_result::success)
                 return r;
             // right or left
-            r=line_async(destination,srect16(rect.x2,rect.y1,rect.x2,rect.y2),color,clip,async);
+            r=line_impl(destination,srect16(rect.x2,rect.y1,rect.x2,rect.y2),color,clip,async);
             if(r!=gfx_result::success)
                 return r;
             // bottom or top
-            return line_async(destination,srect16(rect.x1,rect.y2,rect.x2,rect.y2),color,clip,async);
+            return line_impl(destination,srect16(rect.x1,rect.y2,rect.x2,rect.y2),color,clip,async);
         }
         template<typename Destination>
         static gfx_result rounded_rectangle_impl(Destination& destination,const srect16& rect,float ratio, typename Destination::pixel_type color,srect16* clip,bool async) {
@@ -1820,15 +1850,15 @@ namespace gfx {
         }
         // draws a portion of a bitmap or display buffer to the specified rectangle with an optional clipping rentangle
         template<typename Destination,typename Source>
-        static inline gfx_result bitmap(Destination& destination,const srect16& dest_rect,Source& source,const rect16& source_rect,bitmap_flags options=bitmap_flags::crop,srect16* clip=nullptr) {
+        static inline gfx_result bitmap(Destination& destination,const srect16& dest_rect,Source& source,const rect16& source_rect,bitmap_flags options=bitmap_flags::crop,const typename Source::pixel_type* transparent_color=nullptr, srect16* clip=nullptr) {
             return bmp_helper<Destination,Source,typename Destination::pixel_type,typename Source::pixel_type>
-                ::draw_bitmap(destination,dest_rect,source,source_rect,options,clip,false);
+                ::draw_bitmap(destination,dest_rect,source,source_rect,options,transparent_color,clip,false);
         }        
         // asynchronously draws a portion of a bitmap or display buffer to the specified rectangle with an optional clipping rentangle
         template<typename Destination,typename Source>
-        static inline gfx_result bitmap_async(Destination& destination,const srect16& dest_rect,Source& source,const rect16& source_rect,bitmap_flags options=bitmap_flags::crop,srect16* clip=nullptr) {
+        static inline gfx_result bitmap_async(Destination& destination,const srect16& dest_rect,Source& source,const rect16& source_rect,bitmap_flags options=bitmap_flags::crop,const typename Source::pixel_type* transparent_color=nullptr,srect16* clip=nullptr) {
             return bmp_helper<Destination,Source,typename Destination::pixel_type,typename Source::pixel_type>
-                ::draw_bitmap(destination,dest_rect,source,source_rect,options,clip,true);
+                ::draw_bitmap(destination,dest_rect,source,source_rect,options,transparent_color,clip,true);
         }        
         // draws text to the specified destination rectangle with the specified font and colors and optional clipping rectangle
         template<typename Destination>

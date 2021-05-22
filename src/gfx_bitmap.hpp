@@ -129,8 +129,8 @@ namespace gfx {
                             const size_t block_pels = (line_block_pels+dx>dstr.width())?dstr.width()-dx:line_block_pels;
                             if(0==block_pels) 
                                 break;
-                            const size_t block_bytes = (block_pels*Source::bit_depth+7)/8;
-                            const size_t block_bits = block_pels*Source::bit_depth;
+                            const size_t block_bytes = (block_pels*Source::pixel_type::bit_depth+7)/8;
+                            const size_t block_bits = block_pels*Source::pixel_type::bit_depth;
                             const int shift = dst_offs_bits-src_offs_bits;
                             // TODO: Make this more efficient:
                             memcpy(buf,psrc,block_bytes+(dpx+block_pels<=dst.size_pixels()));
@@ -164,7 +164,7 @@ namespace gfx {
         using type = bitmap<PixelType>;
         // the type of the pixel used for the bitmap
         using pixel_type = PixelType;
-        using caps = gfx::gfx_caps<true,false,false,false,false,true>;
+        using caps = gfx::gfx_caps< true,false,false,false,false,true>;
         
         // constructs a new bitmap with the specified size and buffer
         bitmap(size16 dimensions,void* buffer) : m_dimensions(dimensions),m_begin((uint8_t*)buffer) {}

@@ -181,6 +181,7 @@ namespace gfx {
             }
         };
         template<typename Destination,typename Source> 
+        // copyfrom, copyto, bltdst, bltsrc, async
         struct draw_bmp_caps_helper<Destination,Source,false,true,true,true,true> {
             inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
                 // suspend if we can
@@ -189,6 +190,7 @@ namespace gfx {
             }
         };
         template<typename Destination,typename Source> 
+        // copyfrom, copyto, bltdst, bltsrc, async
         struct draw_bmp_caps_helper<Destination,Source,false,true,false,true,true> {
             inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
                 // suspend if we can
@@ -198,6 +200,7 @@ namespace gfx {
             }
         };
         template<typename Destination,typename Source> 
+        // copyfrom, copyto, bltdst, bltsrc, async
         struct draw_bmp_caps_helper<Destination,Source,false,false,false,false,true> {
             inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
                 // suspend if we can
@@ -207,6 +210,7 @@ namespace gfx {
             }
         };
         template<typename Destination,typename Source> 
+        // copyfrom, copyto, bltdst, bltsrc, async 
         struct draw_bmp_caps_helper<Destination,Source,false,false,false,false,false> {
             inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
                 // suspend if we can
@@ -215,6 +219,24 @@ namespace gfx {
                 return draw_bmp_batch_caps_helper<Destination,Source,false,false>::do_draw(destination,rect16(location,src_rect.dimensions()),source,src_rect,(int)rect_orientation::normalized);
             }
         };
+        template<typename Destination,typename Source> 
+        // copyfrom, copyto, bltdst, bltsrc, async 
+        struct draw_bmp_caps_helper<Destination,Source,false,true,true,true,false> {
+            inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
+                // suspend if we can
+                suspend_token<Destination> stok(destination,true);
+                return source.copy_to(src_rect,destination,location);
+            }
+        };
+        /*template<typename Destination,typename Source> 
+        // copyfrom, copyto, bltdst, bltsrc, async 
+        struct draw_bmp_caps_helper<Destination,Source,false,true,true,true,true> {
+            inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
+                // suspend if we can
+                suspend_token<Destination> stok(destination,true);
+                return source.copy_to(src_rect,destination,location);
+            }
+        };*/
         
         template<typename Destination,typename Source,bool Batch,bool Async>
         struct copy_from_impl_helper {};
@@ -558,7 +580,7 @@ namespace gfx {
             if(dstr.y2>dr.y2) dstr.y2=dr.y2;
             // suspend if we can
             suspend_token<Destination> stok(destination,async);
-            if(transparent_color==nullptr && (int)bitmap_flags::resize!=((int)options&(int)bitmap_flags::resize)) {
+            if(transparent_color==nullptr && bitmap_flags::resize!=options) {
                 gfx_result r;
                 if(async)
                     r=draw_bmp_batch_caps_helper<Destination,Source,Destination::caps::batch,Destination::caps::async>::do_draw(destination,dstr,source,srcr,o);
@@ -575,7 +597,7 @@ namespace gfx {
                 if((int)rect_orientation::flipped_vertical==(o&(int)rect_orientation::flipped_vertical)) {
                     dstr=dstr.flip_vertical();
                 }
-                if((int)bitmap_flags::crop==((int)options & (int)bitmap_flags::crop)) {
+                if(bitmap_flags::crop==options) {
                     int o = (int)dest_rect.orientation();
                     point16 ps;
                     for(ps.y=srcr.y1;ps.y<=srcr.y2;++ps.y) {

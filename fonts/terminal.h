@@ -2,7 +2,7 @@
 #define terminal_fon_HPP
 #include <stdint.h>
 #include <gfx_font.hpp>
-
+#include <gfx_positioning.hpp>
 #ifndef PROGMEM
 	#define PROGMEM
 #endif

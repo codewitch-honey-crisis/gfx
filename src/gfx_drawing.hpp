@@ -1500,7 +1500,7 @@ namespace gfx {
                     
                     x+=xinc;
                     if(oy!=y || y==r.y1) {
-                        line_impl(destination,srect16(ox,oy,x,oy),color,nullptr,async);
+                        line_impl(destination,srect16(x,oy,x,oy),color,nullptr,async);
                         ox=x;
                     }
                     
@@ -1524,7 +1524,7 @@ namespace gfx {
                     }
                     y+=yinc;
                     if(ox!=x || x==r.x1) {
-                        line_impl(destination,srect16(ox,oy,ox,y),color,nullptr,async);
+                        line_impl(destination,srect16(ox,y,ox,y),color,nullptr,async);
                         oy=y;
                     }
                 }

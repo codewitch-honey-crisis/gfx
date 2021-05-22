@@ -726,8 +726,8 @@ namespace gfx {
                     if(nullptr==clip)
                         dim.height+=dest_rect.y1;
                 }
-                loc.x+=source_rect.top();
-                loc.y+=source_rect.left();
+                loc.x+=source_rect.left();
+                loc.y+=source_rect.top();
                 rect16 r = rect16(loc,dim);
                 // suspend if we can
                 suspend_token<Destination> stok(destination,async);

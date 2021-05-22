@@ -170,6 +170,7 @@ namespace gfx {
         bitmap(size16 dimensions,void* buffer) : m_dimensions(dimensions),m_begin((uint8_t*)buffer) {}
         // constructs a new bitmap with the specified width, height and buffer
         bitmap(uint16_t width,uint16_t height,void* buffer) : m_dimensions(width,height),m_begin((uint8_t*)buffer) {}
+        
         bitmap(const type& rhs)=default;
         type& operator=(const type& rhs)=default;
         bitmap(type&& rhs)=default;

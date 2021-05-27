@@ -1250,6 +1250,9 @@ namespace gfx {
                     auto alp = color.template channel_unchecked<chiA>();
                     if(alp!=tchA::max) {
                         // we have to mix at this level because the destination doesn't support alpha
+                        if(alp==tchA::min) {
+                            return gfx_result::success;
+                        }
                         typename Destination::pixel_type bgpx;
                         gfx_result r= read_point_helper<Destination,Destination::caps::read>::do_read(destination,location,&bgpx);
                         if(gfx_result::success!=r) {
@@ -1283,6 +1286,9 @@ namespace gfx {
                     auto alp = color.template channel_unchecked<chiA>();
                     if(alp!=tchA::max) {
                         // we have to mix at this level because the destination doesn't support alpha
+                        if(alp==tchA::min) {
+                            return gfx_result::success;
+                        }
                         typename Destination::pixel_type bgpx;
                         gfx_result r= read_point_helper<Destination,Destination::caps::read>::do_read(destination,location,&bgpx);
                         if(gfx_result::success!=r) {
@@ -1335,6 +1341,9 @@ namespace gfx {
                     using tchA = typename PixelType::template channel_by_index_unchecked<chiA>;
                     auto alp = color.template channel_unchecked<chiA>();
                     if(alp!=tchA::max) {
+                        if(alp==tchA::min) {
+                            return gfx_result::success;
+                        }
                         rect16 rr = rect.normalize();
                         for(int y=rr.y1;y<=rr.y2;++y) {
                             for(int x=rr.x1;x<=rr.x2;++x) {
@@ -1370,6 +1379,9 @@ namespace gfx {
                     using tchA = typename PixelType::template channel_by_index_unchecked<chiA>;
                     auto alp = color.template channel_unchecked<chiA>();
                     if(alp!=tchA::max) {
+                        if(alp==tchA::min) {
+                            return gfx_result::success;
+                        }
                         rect16 rr = rect.normalize();
                         for(int y=rr.y1;y<=rr.y2;++y) {
                             for(int x=rr.x1;x<=rr.x2;++x) {

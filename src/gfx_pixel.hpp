@@ -50,8 +50,11 @@ namespace gfx {
 #else
         bits::uintx<bits::get_word_size(BitDepth)> Max= ((BitDepth==32)?0xFFFFFFFF:((1<<BitDepth)-1)), 
 #endif
+        // the default value
+        bits::uintx<bits::get_word_size(BitDepth)> Default = Min,
         // the scale denominator
-        bits::uintx<bits::get_word_size(BitDepth)> Scale = Max> 
+        bits::uintx<bits::get_word_size(BitDepth)> Scale = Max
+    >
     struct channel_traits {
         // this type
         using type = channel_traits<Name,BitDepth,Min,Max,Scale>;
@@ -67,6 +70,8 @@ namespace gfx {
         constexpr static const int_type min = Min;
         // the maximum value
         constexpr static const int_type max = Max;
+        // the default value
+        constexpr static const int_type default_ = Default;
         // the scale denominator
         constexpr static const int_type scale = Scale;
         // the reciprocal of the scale denominator
@@ -79,6 +84,8 @@ namespace gfx {
         static_assert(BitDepth>0,"Bit depth must be greater than 0");
         static_assert(BitDepth<=64,"Bit depth must be less than or equal to 64");
         static_assert(Min<=Max,"Min must be less than or equal to Max");
+        static_assert(Default>=Min,"Default must be greater than or equal to the minimum value");
+        static_assert(Default<=Max,"Default must be less than or equal to the maximum value");
 #if HTCW_MAX_WORD >= 64        
         static_assert(Max<=((BitDepth==64)?0xFFFFFFFFFFFFFFFF:((1<<BitDepth)-1)),"Max is greater than the maximum allowable value");
 #else
@@ -97,6 +104,7 @@ namespace gfx {
         constexpr static const size_t bit_depth = 0;
         constexpr static const int_type min = 0;
         constexpr static const int_type max = 0;
+        constexpr static const int_type default_=0;
         constexpr static const int_type scale = 0;
         constexpr static const float scalef = 0.0; 
         constexpr static const int_type int_mask = 0;
@@ -138,6 +146,8 @@ namespace gfx {
         constexpr static const int_type min = ChannelTraits::min;
         // the maximum value for the channel
         constexpr static const int_type max = ChannelTraits::max;
+        // the default value for the channel
+        constexpr static const int_type default_ = ChannelTraits::default_;  
         // the scale denominator
         constexpr static const int_type scale = ChannelTraits::scale;
         // the reciprocal of the scale denominator
@@ -191,7 +201,12 @@ namespace gfx {
         struct pixel_init_impl<PixelType,Count,ChannelTrait,ChannelTraits...> {
             using ch = typename PixelType::template channel_by_index<Count>;
             using next = pixel_init_impl<PixelType,Count+1, ChannelTraits...>;
-            
+            constexpr static inline void init(PixelType& pixel) {
+                constexpr const size_t index = Count;
+                if(ChannelTrait::bit_depth==0) return;
+                pixel.template channel<index>(ChannelTrait::default_);
+                next::init(pixel);
+            }
             constexpr static inline void init(PixelType& pixel,typename ChannelTrait::int_type value, typename ChannelTraits::int_type... values) {
                 constexpr const size_t index = Count;
                 if(ChannelTrait::bit_depth==0) return;
@@ -367,7 +382,7 @@ namespace gfx {
         // this type
         using type = pixel<ChannelTraits...>;
         // the type used for doing intermediary conversions to different formats when no explicit conversion is implemented
-        using rgb_conversion_type = pixel<channel_traits<channel_name::R,8>,channel_traits<channel_name::G,8>,channel_traits<channel_name::B,8>,channel_traits<channel_name::A,8>>;
+        using rgb_conversion_type = pixel<channel_traits<channel_name::R,16>,channel_traits<channel_name::G,16>,channel_traits<channel_name::B,16>,channel_traits<channel_name::A,16>>;
         // the integer type of the pixel
         using int_type = bits::uintx<bits::get_word_size(helpers::bit_depth<ChannelTraits...>::value)>;
         // the number of channels
@@ -391,7 +406,9 @@ namespace gfx {
         int_type native_value;
         
         // initializes the pixel
-        constexpr inline pixel() : native_value(0) {}
+        constexpr inline pixel() : native_value(0) {
+            helpers::pixel_init_impl<type,0,ChannelTraits...>::init(*this);
+        }
         // initializes the pixel with a set of channel values
         constexpr inline pixel(typename ChannelTraits::int_type... values) : native_value(0) {
             helpers::pixel_init_impl<type,0,ChannelTraits...>::init(*this,values...);
@@ -439,7 +456,7 @@ namespace gfx {
         // sets the integer channel value without performing compile time checking on Index
         template<size_t Index>
         constexpr inline void channel_unchecked(typename channel_by_index_unchecked<Index>::int_type value) {
-            native_value = helpers::set_channel_direct_unchecked<type,Index>(native_value,value);
+            helpers::set_channel_direct_unchecked<type,Index>(native_value,value);
         }
         // retrieves the integer channel value by index
         template<size_t Index>
@@ -492,10 +509,12 @@ namespace gfx {
         }
         // converts a pixel to the destination pixel type
         template<typename PixelTypeRhs>
-        constexpr inline bool convert(PixelTypeRhs* result) const {
+        constexpr inline bool convert(PixelTypeRhs* result,const PixelTypeRhs* background=nullptr) const {
             if(nullptr==result) return false;
+            
             bool good = false;
-            typename PixelTypeRhs::int_type native_value = 0;
+            PixelTypeRhs tmp;
+            typename PixelTypeRhs::int_type native_value = tmp.native_value;
             
             // here's where we gather color model information
             using is_rgb = has_channel_names<channel_name::R,channel_name::G,channel_name::B>;
@@ -769,18 +788,30 @@ namespace gfx {
                     using tindexA = channel_index_by_name<channel_name::A>;
                     const size_t chiA = tindexA::value;
                     using tchA = channel_by_index_unchecked<chiA>;
+                    
+                    // we need to blend it
+                    if(nullptr!=background) {
+                        // first set the result
+                        result->native_value = native_value;
+                        // now blend it
+                        if(!result->blend(*background,channel_unchecked<chiA>()*channel_by_index_unchecked<chiA>::scalef,result)) {
+                            return false;
+                        }
+                        
+                        return true;
+                    }
                     if(rhas_alpha) {
                         using trindexA = typename PixelTypeRhs::template channel_index_by_name<channel_name::A>;
                         const size_t chirA = trindexA::value;
                         using trchA = typename PixelTypeRhs::template channel_by_index_unchecked<chirA>;
                         auto chA = helpers::convert_channel_depth<tchA,trchA>(channel_unchecked<chiA>());
                         helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexA::value>(native_value,chA);
-                    }
+                    } 
                 } else {
                     if(rhas_alpha) {
                         using trindexA = typename PixelTypeRhs::template channel_index_by_name<channel_name::A>;
                         using trchA = typename PixelTypeRhs::template channel_by_index_unchecked<trindexA::value>;
-                        helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexA::value>(native_value,trchA::max);
+                        helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexA::value>(native_value,trchA::default_);
                     }
                 }
                 // finally, set the result
@@ -793,7 +824,7 @@ namespace gfx {
                 PixelTypeRhs tmp2;
                 good = convert(&tmp1);
                 if(good) {
-                    good = tmp1.template convert(&tmp2);
+                    good = tmp1.template convert(&tmp2,background);
                     if(good) {
                         *result=tmp2;
                         return true;
@@ -803,19 +834,58 @@ namespace gfx {
             // TODO: Add any additional metachannel processing (like alpha above) here
             return false;
         } 
-        // converts a pixel to the destination pixel type
+        // converts a pixel to the destination pixel type. background is optional and is for alpha blending
         template<typename PixelTypeRhs>
-        constexpr inline PixelTypeRhs convert() const {
+        constexpr inline PixelTypeRhs convert(const PixelTypeRhs* background=nullptr) const {
             PixelTypeRhs result;
             if(!convert(&result)) {
                 result.native_value = 0;
             }
             return result;
         }
+        // blends two pixels. ratio is between zero and one. larger ratio numbers favor this pixel
+        bool blend(type rhs,double ratio,type* out_pixel) {
+            if(has_channel_names<channel_name::R,channel_name::G,channel_name::B>::value && channels<5) {
+                if(nullptr==out_pixel)
+                    return false;
+                if(ratio>1.0) ratio = 1.0;
+                if(ratio<0) ratio = 0;
+                const double rrat = 1.0-ratio;
+                using tindexR = channel_index_by_name<channel_name::R>;
+                const size_t chiR = tindexR::value;
+                out_pixel->channel_unchecked<chiR>(rhs.template channel_unchecked<chiR>()*rrat+channel_unchecked<chiR>()*ratio);
+
+                using tindexG = channel_index_by_name<channel_name::G>;
+                const size_t chiG = tindexG::value;
+                out_pixel->channel_unchecked<chiG>(rhs.template channel_unchecked<chiG>()*rrat+channel_unchecked<chiG>()*ratio);
+
+                using tindexB = channel_index_by_name<channel_name::B>;
+                const size_t chiB = tindexB::value;
+                out_pixel->channel_unchecked<chiB>(rhs.template channel_unchecked<chiB>()*rrat+channel_unchecked<chiB>()*ratio);
+                return true;
+            }
+            using tmp_pixel=pixel<channel_traits<channel_name::R,HTCW_MAX_WORD/3>,channel_traits<channel_name::G,HTCW_MAX_WORD/3+(HTCW_MAX_WORD%3)>,channel_traits<channel_name::B,HTCW_MAX_WORD/3>>;
+            tmp_pixel tmp,tmp2,tmp3;
+            if(!convert(&tmp)) {
+                return false;
+            }
+            if(!rhs.template convert(&tmp2)) {
+                return false;
+            }
+            if(!tmp.blend(tmp2,ratio,&tmp3)) {
+                return false;
+            }
+            return tmp3.template convert(out_pixel);
+        }
+        // blends two pixels. ratio is between zero and one. larger ratio numbers favor this pixel
+        type blend(type rhs,double ratio) {
+            type result;
+            blend(rhs,ratio,&result);
+            return result;
+        }
     
         static_assert(sizeof...(ChannelTraits)>0,"A pixel must have at least one channel trait");
-        static_assert(bit_depth<=64,"Bit depth must be less than or equal to 64");
-        //static_assert(bit_depth<=32,"Bit depth must be less than or equal to 32 (temporary limitation)");
+        static_assert(bit_depth<=HTCW_MAX_WORD,"Bit depth must be less than or equal to the maximum machine word size");
     };
     // creates an RGB pixel by making each channel 
     // one third of the whole. Any remainder bits
@@ -834,7 +904,7 @@ namespace gfx {
         channel_traits<channel_name::R,(BitDepth/4)>,
         channel_traits<channel_name::G,((BitDepth/4)+(BitDepth%4))>,
         channel_traits<channel_name::B,(BitDepth/4)>,
-        channel_traits<channel_name::A,(BitDepth/4)>
+        channel_traits<channel_name::A,(BitDepth/4),0,(1<<(BitDepth/4))-1,(1<<(BitDepth/4))-1>
     >;
     // creates a grayscale or monochome pixel
     template<size_t BitDepth>

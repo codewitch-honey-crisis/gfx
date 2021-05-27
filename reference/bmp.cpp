@@ -53,9 +53,5 @@ int main(int argc, char** argv) {
     draw::bitmap(bmp2,(srect16)bmp2.bounds(),bmp,rect16(point16(4,0),bmp2.dimensions()));
     // display our mess
     dump_bitmap(bmp2);
-
-    bmp2.clear(bmp2.bounds());
-    draw::line(bmp2,(srect16)bmp2.bounds(),color::white);
-    dump_bitmap(bmp2);
     return 0;
 }

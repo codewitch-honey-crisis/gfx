@@ -48,7 +48,7 @@ namespace gfx {
             }
         };
 
-        template<typename Source,typename Destination>
+        template<typename Source,typename Destination,bool AllowBlt=true>
         struct bmp_copy_to_helper {
             static inline gfx_result copy_to(const Source& src,const rect16& src_rect,Destination& dst,point16 location) {
                 if(!src_rect.intersects(src.bounds())) return gfx_result::success;
@@ -74,8 +74,20 @@ namespace gfx {
                         if(gfx_result::success!=r)
                             return r;
                         typename Destination::pixel_type dpx;
-                        if(!spx.template convert(&dpx))
-                            return gfx_result::invalid_format;
+                        if(Source::pixel_type::template has_channel_names<channel_name::A>::value) {
+                            typename Destination::pixel_type bgpx;
+                            r=dst.point(point16(dox+dx,doy+dy),&bgpx);
+                            if(gfx_result::success!=r) {
+                                return r;
+                            }
+                            if(!spx.template convert(&dpx,&bgpx)) {
+                                return gfx_result::not_supported;
+                            }
+                        } else {    
+                            if(!spx.template convert(&dpx)) {
+                                return gfx_result::invalid_format;
+                            }
+                        }
                         r = helpers::batch_helper<Destination,Destination::caps::batch>::write_batch(dst,point16(dox+dx,doy+dy),dpx);
                         if(gfx_result::success!=r)
                             return r;
@@ -92,7 +104,7 @@ namespace gfx {
         // blts a portion of this bitmap to the destination at the specified location.
         // out of bounds regions are cropped
         template<typename Source>
-        struct bmp_copy_to_helper<Source,Source> {
+        struct bmp_copy_to_helper<Source,Source,true> {
             static gfx_result copy_to(const Source& src,const rect16& src_rect,Source& dst,point16 location) {
                 if(!src_rect.intersects(src.bounds())) return gfx_result::success;
                 rect16 srcr = src_rect.crop(src.bounds());
@@ -113,7 +125,7 @@ namespace gfx {
                     const size_t line_len_bits = dstr.width()*Source::pixel_type::bit_depth;
                     const size_t line_block_pels = line_len_bits>(128*8)?(128*8)/Source::pixel_type::bit_depth:dstr.width();
                     const size_t line_block_bits = line_block_pels*Source::pixel_type::bit_depth;
-                    const size_t buf_size = line_block_bits/8.0+1.99999;
+                    const size_t buf_size = (line_block_bits+7)/8;
                     uint8_t buf[buf_size];
                     buf[buf_size-1]=0;
                     while(dy<dye) {
@@ -164,8 +176,21 @@ namespace gfx {
         using type = bitmap<PixelType>;
         // the type of the pixel used for the bitmap
         using pixel_type = PixelType;
-        using caps = gfx::gfx_caps< true,false,false,false,false,true>;
-        
+        using caps = gfx::gfx_caps< true,false,false,false,false,true,true>;
+    private:
+        gfx_result point_impl(point16 location,pixel_type rhs) {
+            // clip
+            const size_t bit_depth = pixel_type::bit_depth;
+            const size_t offs = (location.y*dimensions().width+location.x)*bit_depth;
+            const size_t offs_bits = offs % 8;
+            // now set the pixel
+            uint8_t tmp[pixel_type::packed_size+(((int)pixel_type::pad_right_bits)<=offs_bits)];
+            *((typename pixel_type::int_type*)tmp)=rhs.value();
+            bits::shift_right(tmp,0,pixel_type::bit_depth+offs_bits,offs_bits);
+            bits::set_bits(offs_bits,pixel_type::bit_depth,begin()+offs/8,tmp);
+            return gfx_result::success;
+        }
+    public:
         // constructs a new bitmap with the specified size and buffer
         bitmap(size16 dimensions,void* buffer) : m_dimensions(dimensions),m_begin((uint8_t*)buffer) {}
         // constructs a new bitmap with the specified width, height and buffer
@@ -207,15 +232,17 @@ namespace gfx {
             // clip
             if(location.x>=dimensions().width||location.y>=dimensions().height)
                 return gfx_result::success;
-            const size_t bit_depth = pixel_type::bit_depth;
-            const size_t offs = (location.y*dimensions().width+location.x)*bit_depth;
-            const size_t offs_bits = offs % 8;
-            // now set the pixel
-            uint8_t tmp[pixel_type::packed_size+(((int)pixel_type::pad_right_bits)<=offs_bits)];
-            *((typename pixel_type::int_type*)tmp)=rhs.value();
-            bits::shift_right(tmp,0,pixel_type::bit_depth+offs_bits,offs_bits);
-            bits::set_bits(offs_bits,pixel_type::bit_depth,begin()+offs/8,tmp);
-            return gfx_result::success;
+            if(pixel_type::template has_channel_names<channel_name::A>::value) {
+                pixel_type bgpx;
+                gfx_result r=point(location,&bgpx);
+                if(gfx_result::success!=r) {
+                    return r;
+                }
+                if(!rhs.template convert(&rhs,&bgpx)) {
+                    return gfx_result::not_supported;
+                }
+            }
+            return point_impl(location,rhs);
         }
         pixel_type point(point16 location) const {
             pixel_type result;
@@ -237,7 +264,7 @@ namespace gfx {
         }
         // indicates the size of the bitmap in bytes
         inline size_t size_bytes() const {
-            return (size_pixels()*(PixelType::bit_depth/8.0)+.99999);
+            return (size_pixels()*((PixelType::bit_depth+7)/8));
         }
         // indicates the beginning of the bitmap buffer
         inline uint8_t* begin() const {
@@ -256,8 +283,19 @@ namespace gfx {
                     pixel_type px;
                     point(pt,&px); // don't bother err checking
                     typename Destination::pixel_type dpx;
-                    if(!px.convert(&dpx))
-                        return gfx_result::not_supported;
+                    if(pixel_type::template has_channel_names<channel_name::A>::value) {
+                        pixel_type bgpx;
+                        gfx_result r=out.point(pt,&bgpx);
+                        if(gfx_result::success!=r) {
+                            return r;
+                        }
+                        if(!px.template convert(&dpx,&bgpx)) {
+                            return gfx_result::not_supported;
+                        }
+                    } else {
+                        if(!px.convert(&dpx))
+                            return gfx_result::not_supported;
+                    }
                     gfx_result r = out.point(pt,dpx);
                     if(r!=gfx_result::success) {
                         return r;
@@ -296,19 +334,44 @@ namespace gfx {
         // fills a region of the bitmap with the specified pixel
         gfx_result fill(const rect16& dst,const pixel_type& pixel) {
             if(!dst.intersects(bounds())) return gfx_result::success;
+            using pach = typename pixel_type::template channel_by_name_unchecked<channel_name::A>;
+            using chindex = typename pixel_type::template channel_index_by_name<channel_name::A>;
+            const size_t chi = chindex::value;
+            if(pixel_type::template has_channel_names<channel_name::A>::value && pach::max!=pixel.template channel_unchecked<chi>()) {
+                pixel_type bgpx;
+                rect16 rc = dst.normalize();
+                point16 pt;
+                for(pt.y=rc.y1;pt.y<=rc.y2;++pt.y) {
+                    for(pt.x=rc.x1;pt.x<=rc.x2;++pt.x) {
+                        gfx_result r=point(pt,&bgpx);
+                        if(gfx_result::success!=r) {
+                            return r;
+                        }
+                        pixel_type dpx;
+                        if(!pixel.template convert(&dpx,&bgpx)) {
+                            return gfx_result::not_supported;
+                        }        
+                        r=point_impl(pt,dpx);
+                        if(gfx_result::success!=r) {
+                            return r;
+                        }
+                    }    
+                }
+                return gfx_result::success;    
+            } 
             typename pixel_type::int_type be_val = pixel.value();
             rect16 dstr = dst.crop(bounds());
             size_t dy = 0, dye=dstr.height();
             if(pixel_type::byte_aligned) {
                 const size_t line_len = dstr.width()*pixel_type::packed_size;
                 while(dy<dye) {
-                   uint8_t* pdst = begin()+(((dstr.top()+dy)*dimensions().width+dstr.left())*pixel_type::packed_size); 
-                   for(size_t x = 0;x<line_len;x+=pixel_type::packed_size) {
-                       
-                       memcpy(pdst,&be_val,pixel_type::packed_size);
-                       pdst+=pixel_type::packed_size;
-                   }
-                   ++dy;
+                uint8_t* pdst = begin()+(((dstr.top()+dy)*dimensions().width+dstr.left())*pixel_type::packed_size); 
+                for(size_t x = 0;x<line_len;x+=pixel_type::packed_size) {
+                    
+                    memcpy(pdst,&be_val,pixel_type::packed_size);
+                    pdst+=pixel_type::packed_size;
+                }
+                ++dy;
                 }
             } else if(pixel_type::bit_depth!=1) {
                 // unaligned version
@@ -343,11 +406,12 @@ namespace gfx {
                     ++dy;
                 }
             } 
+        
             return gfx_result::success;
         }
         template<typename Destination>
         inline gfx_result copy_to(const rect16& src_rect,Destination& dst,point16 location) {
-            return helpers::bmp_copy_to_helper<type,Destination>::copy_to(*this,src_rect,dst,location);
+            return helpers::bmp_copy_to_helper<type,Destination,!(pixel_type::template has_channel_names<channel_name::A>::value)>::copy_to(*this,src_rect,dst,location);
         }
         
         // computes the minimum required size for a bitmap buffer, in bytes
@@ -362,6 +426,8 @@ namespace gfx {
         // this is more so it won't compile unless PixelType is actually a pixel
         static_assert(PixelType::channels>0,"The type is not a pixel or the pixel is invalid");
     };
+   
+    
 }
 
 #endif

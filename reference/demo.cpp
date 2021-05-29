@@ -18,7 +18,7 @@ void dump_bitmap(const BitmapType& bmp) {
         for(int x = 0;x<bmp.dimensions().width;++x) {
             typename BitmapType::pixel_type px;
             bmp.point(point16(x,y),&px);
-            const auto px2 = px.template convert<gsc4>();
+            const auto px2 = convert<BitmapType::pixel_type,gsc4>(px);
             size_t i =px2.template channel<0>();
             printf("%c",col_table[i]);
             

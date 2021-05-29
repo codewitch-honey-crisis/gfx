@@ -80,11 +80,11 @@ namespace gfx {
                             if(gfx_result::success!=r) {
                                 return r;
                             }
-                            if(!spx.template convert(&dpx,&bgpx)) {
+                            if(!convert(spx,&dpx,&bgpx)) {
                                 return gfx_result::not_supported;
                             }
                         } else {    
-                            if(!spx.template convert(&dpx)) {
+                            if(!convert(spx,&dpx)) {
                                 return gfx_result::invalid_format;
                             }
                         }
@@ -106,6 +106,8 @@ namespace gfx {
         template<typename Source>
         struct bmp_copy_to_helper<Source,Source,true> {
             static gfx_result copy_to(const Source& src,const rect16& src_rect,Source& dst,point16 location) {
+                if(nullptr==src.begin() || nullptr==dst.begin())
+                    return gfx_result::out_of_memory;
                 if(!src_rect.intersects(src.bounds())) return gfx_result::success;
                 rect16 srcr = src_rect.crop(src.bounds());
                 rect16 dstr= rect16(location,srcr.dimensions()).crop(dst.bounds());
@@ -179,6 +181,9 @@ namespace gfx {
         using caps = gfx::gfx_caps< true,false,false,false,false,true,true>;
     private:
         gfx_result point_impl(point16 location,pixel_type rhs) {
+            if(nullptr==begin()) {
+                return gfx_result::out_of_memory;
+            }
             // clip
             const size_t bit_depth = pixel_type::bit_depth;
             const size_t offs = (location.y*dimensions().width+location.x)*bit_depth;
@@ -195,7 +200,9 @@ namespace gfx {
         bitmap(size16 dimensions,void* buffer) : m_dimensions(dimensions),m_begin((uint8_t*)buffer) {}
         // constructs a new bitmap with the specified width, height and buffer
         bitmap(uint16_t width,uint16_t height,void* buffer) : m_dimensions(width,height),m_begin((uint8_t*)buffer) {}
-        
+        bitmap() : m_dimensions(0,0),m_begin(nullptr) {
+            
+        }
         bitmap(const type& rhs)=default;
         type& operator=(const type& rhs)=default;
         bitmap(type&& rhs)=default;
@@ -204,7 +211,13 @@ namespace gfx {
             m_begin = rhs.m_begin;
             return *this;
         }
+        inline bool initialized() const {
+            return nullptr!=m_begin;
+        }
         gfx_result point(point16 location,pixel_type* out_pixel) const {
+            if(nullptr==begin()) {
+                return gfx_result::out_of_memory;
+            }
             if(nullptr==out_pixel)
                 return gfx_result::invalid_argument;
             if(location.x>=dimensions().width||location.y>=dimensions().height) {
@@ -229,6 +242,9 @@ namespace gfx {
             return gfx_result::success;
         }
         gfx_result point(point16 location,pixel_type rhs) {
+            if(nullptr==begin()) {
+                return gfx_result::out_of_memory;
+            }
             // clip
             if(location.x>=dimensions().width||location.y>=dimensions().height)
                 return gfx_result::success;
@@ -238,7 +254,7 @@ namespace gfx {
                 if(gfx_result::success!=r) {
                     return r;
                 }
-                if(!rhs.template convert(&rhs,&bgpx)) {
+                if(!convert(rhs,&rhs,&bgpx)) {
                     return gfx_result::not_supported;
                 }
             }
@@ -274,38 +290,11 @@ namespace gfx {
         inline uint8_t* end() const {
             return begin()+size_bytes();
         }
-        template<typename Destination>
-        gfx_result convert(Destination& out) const {
-            size16 dim = bounds().crop(out.bounds()).dimensions();
-            point16 pt;
-            for(pt.y = 0;pt.y<dim.width;++pt.y) {
-                for(pt.x=0;pt.x<dim.height;++pt.x) {
-                    pixel_type px;
-                    point(pt,&px); // don't bother err checking
-                    typename Destination::pixel_type dpx;
-                    if(pixel_type::template has_channel_names<channel_name::A>::value) {
-                        pixel_type bgpx;
-                        gfx_result r=out.point(pt,&bgpx);
-                        if(gfx_result::success!=r) {
-                            return r;
-                        }
-                        if(!px.template convert(&dpx,&bgpx)) {
-                            return gfx_result::not_supported;
-                        }
-                    } else {
-                        if(!px.convert(&dpx))
-                            return gfx_result::not_supported;
-                    }
-                    gfx_result r = out.point(pt,dpx);
-                    if(r!=gfx_result::success) {
-                        return r;
-                    }
-                }
-            }
-            return gfx_result::success;
-        }
         // clears a region of the bitmap
         gfx_result clear(const rect16& dst) {
+            if(nullptr==begin()) {
+                return gfx_result::out_of_memory;
+            }
             if(!dst.intersects(bounds())) return gfx_result::success;
             rect16 dstr = dst.crop(bounds());
             size_t dy = 0, dye=dstr.height();
@@ -348,7 +337,7 @@ namespace gfx {
                             return r;
                         }
                         pixel_type dpx;
-                        if(!pixel.template convert(&dpx,&bgpx)) {
+                        if(!convert(pixel,&dpx,&bgpx)) {
                             return gfx_result::not_supported;
                         }        
                         r=point_impl(pt,dpx);
@@ -359,6 +348,9 @@ namespace gfx {
                 }
                 return gfx_result::success;    
             } 
+            if(nullptr==begin()) {
+                return gfx_result::out_of_memory;
+            }
             typename pixel_type::int_type be_val = pixel.value();
             rect16 dstr = dst.crop(bounds());
             size_t dy = 0, dye=dstr.height();
@@ -410,7 +402,7 @@ namespace gfx {
             return gfx_result::success;
         }
         template<typename Destination>
-        inline gfx_result copy_to(const rect16& src_rect,Destination& dst,point16 location) {
+        inline gfx_result copy_to(const rect16& src_rect,Destination& dst,point16 location) const {
             return helpers::bmp_copy_to_helper<type,Destination,!(pixel_type::template has_channel_names<channel_name::A>::value)>::copy_to(*this,src_rect,dst,location);
         }
         
@@ -426,7 +418,200 @@ namespace gfx {
         // this is more so it won't compile unless PixelType is actually a pixel
         static_assert(PixelType::channels>0,"The type is not a pixel or the pixel is invalid");
     };
-   
+    template<typename PixelType>
+    class large_bitmap final {
+        size16 m_dimensions;
+        uint16_t m_segment_height;
+        bitmap<PixelType>* m_segments;
+        void(*m_deallocate)(void* ptr);
+        void deinit(size_t count) {
+            if(nullptr==m_segments) {
+                return;
+            }
+            if(0==count) {
+                const uint16_t remainder = m_dimensions.height%m_segment_height;
+                const size_t segment_count = (m_dimensions.height/m_segment_height)+(!!remainder);
+                count = segment_count;
+            }
+            for(size_t j=0;j<count;++j) {
+                m_deallocate(m_segments[j].begin());
+            }
+            m_deallocate(m_segments);
+            m_segments = nullptr;
+        }
+    public:
+        using type = large_bitmap<PixelType>;
+        using pixel_type = PixelType;
+        using caps = gfx_caps<false,false,false,false,false,true,false>;
+        using segment_type = bitmap<pixel_type>;
+        large_bitmap(size16 dimensions,uint16_t segment_height, void*(allocate)(size_t)=::malloc,void(deallocate)(void*)=::free) 
+            : m_dimensions(dimensions),m_segment_height(segment_height),m_deallocate(deallocate)
+        {
+            
+            if(m_segment_height==0)
+                m_segment_height=1;
+            if(m_segment_height>m_dimensions.height)
+                m_segment_height = m_dimensions.height;
+            if(m_deallocate==nullptr) m_deallocate = ::free;
+            if(allocate==nullptr) allocate = ::malloc;
+            const size16 segment_size(m_dimensions.width,m_segment_height);
+            const uint16_t remainder = m_dimensions.height%m_segment_height;
+            const size_t segment_count = (m_dimensions.height/m_segment_height)+(!!remainder);
+            m_segments = (segment_type*)allocate(sizeof(segment_type)*segment_count);
+            if(nullptr==m_segments) {
+                return;
+            }
+            size_t i=0;
+            segment_type* p=m_segments;
+            for(;i<segment_count;++i) {
+                size16 s = segment_size;
+                if(i==segment_count-1 && !!remainder) {
+                    s = size16(s.width,remainder);
+                }
+                *p++=segment_type(s,allocate(segment_type::sizeof_buffer(s)));
+                if(nullptr==p->begin()) {
+                    // free everything we allocated so far
+                    deinit(i);
+                    return;
+                }
+            }
+        }
+        large_bitmap() : m_dimensions(0,0),m_segment_height(0),m_segments(nullptr) {
+            
+        }
+        large_bitmap(const type& rhs)=delete;
+        type& operator=(const type& rhs)=delete;
+        large_bitmap(type&& rhs) : m_dimensions(rhs.m_dimensions),m_segment_height(rhs.m_segment_height),m_segments(rhs.m_segments) {
+            rhs.m_dimensions = size16(0,0);
+            rhs.m_segment_height = 0;
+            rhs.m_segments = nullptr;
+        }
+        type& operator=(type&& rhs) {
+            m_dimensions=rhs.m_dimensions;
+            m_segment_height=rhs.m_segment_height;
+            m_segments=rhs.m_segments;
+            rhs.m_dimensions = size16(0,0);
+            rhs.m_segment_height = 0;
+            rhs.m_segments = nullptr;
+            return *this;
+        }
+        ~large_bitmap() {
+            deinit(0);
+        }
+        inline bool initialized() const {
+            return nullptr!=m_segments;
+        }
+        inline size16 dimensions() const {
+            return m_dimensions;
+        }
+        inline rect16 bounds() const {
+            return m_dimensions.bounds();
+        }
+        gfx_result point(point16 location,pixel_type color) {
+            if(nullptr==m_segments) {
+                return gfx_result::out_of_memory;
+            }
+            if(location.x>=m_dimensions.width || location.y>=m_dimensions.height) {
+                return gfx_result::success;
+            }
+            const size_t seg = location.y/m_segment_height;
+            const uint16_t offs = location.y%m_segment_height;
+            return m_segments[seg].point(point16(location.x,offs),color);
+        }
+        gfx_result point(point16 location,pixel_type* out_color) const {
+            if(nullptr==m_segments) {
+                return gfx_result::out_of_memory;
+            }
+            pixel_type result;
+            if(location.x>=m_dimensions.width || location.y>=m_dimensions.height) {
+                *out_color=result;
+                return gfx_result::success;
+            }
+            const size_t seg = location.y/m_segment_height;
+            const uint16_t offs = location.y%m_segment_height;
+            return m_segments[seg].point(point16(location.x,offs),out_color);
+        }
+        gfx_result fill(const rect16& bounds,pixel_type color) {
+            if(nullptr==m_segments) {
+                return gfx_result::out_of_memory;
+            }
+            const rect16 tb = this->bounds();
+            const rect16 b = bounds.normalize();
+            if(!b.intersects(tb)) {
+                return gfx_result::success;
+            }
+            const size_t segment = b.y1/m_segment_height;
+            const uint16_t offset = b.y1%m_segment_height;
+            rect16 rf(b.x1,offset,b.x2,m_segment_height-1);
+            uint16_t h = (b.y2-b.y1+1);
+            if(m_segment_height>=h) {
+                // it's all contained within one segment
+                rf.y2 = h+offset-1;
+                return m_segments[segment].fill(rf,color);
+            }
+            gfx_result r=m_segments[segment].fill(rf,color);
+            if(gfx_result::success!=r) {
+                return r;
+            }
+            rf.y1=0;
+            size_t i = 1;
+            for(;b.y2>=i*m_segment_height;++i) {
+                gfx_result r=m_segments[i].fill(rf,color);
+                if(gfx_result::success!=r) {
+                    return r;
+                }   
+            }
+            // see if there's any remainder to fill
+            const uint16_t yy2 = (b.y2+b.y1);
+            const uint16_t end_offset = yy2%m_segment_height;
+            if(0!=end_offset) {
+                const size_t end_segment = yy2/m_segment_height;
+                rf.y2 = end_offset;
+                return m_segments[end_segment].fill(rf,color);
+            }
+            return gfx_result::success;
+        }
+        gfx_result clear(const rect16& bounds) {
+            pixel_type p;
+            p.native_value = 0;
+            return fill(bounds,p);
+        }
+    };
+    template<typename Destination,typename Source> gfx_result convert(Destination& destination,const Source& source) {
+        size16 dim = source.bounds().crop(destination.bounds()).dimensions();
+        point16 pt;
+        gfx_result r;
+        for(pt.y = 0;pt.y<dim.width;++pt.y) {
+            for(pt.x=0;pt.x<dim.height;++pt.x) {
+                typename Source::pixel_type px;
+                r=source.point(pt,&px);
+                if(gfx_result::success!=r) {
+                    return r;
+                }
+                typename Destination::pixel_type dpx;
+                using thas_alpha=typename Source::pixel_type::template has_channel_names<channel_name::A>;
+                if(thas_alpha::value) {
+                    typename Destination::pixel_type bgpx;
+                    gfx_result r=destination.point(pt,&bgpx);
+                    if(gfx_result::success!=r) {
+                        return r;
+                    }
+                    if(!convert(px,&dpx,&bgpx)) {
+                        return gfx_result::not_supported;
+                    }
+                } else {
+                    if(!convert(px,&dpx))
+                        return gfx_result::not_supported;
+                }
+                r = destination.point(pt,dpx);
+                if(r!=gfx_result::success) {
+                    return r;
+                }
+            }
+        }
+        return gfx_result::success;
+    }
+
     
 }
 

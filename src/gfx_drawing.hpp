@@ -131,6 +131,15 @@ namespace gfx {
             }
         };
         template<typename Destination,typename Source> 
+        struct draw_bmp_caps_helper<Destination,Source,false,false,true,false,false> {
+            inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
+                // suspend if we can
+                suspend_token<Destination> stok(destination);
+                return copy_from_impl_helper<Destination,Source,false,false>::do_draw(destination,src_rect,source,location);
+                //return destination.copy_from(src_rect,source,location);
+            }
+        };
+        template<typename Destination,typename Source> 
         struct draw_bmp_caps_helper<Destination,Source,false,false,false,true,true> {
             inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
                 using thas_alpha=typename Source::pixel_type::template has_channel_names<channel_name::A>;
@@ -276,7 +285,7 @@ namespace gfx {
                         if(r!=gfx_result::success)
                             return r;
                         typename Destination::pixel_type p;
-                        if(!pp.convert(&p)) {
+                        if(!convert(pp,&p)) {
                             return gfx_result::invalid_format;
                         }
                         uint16_t pv = p.value();
@@ -317,7 +326,7 @@ namespace gfx {
                         if(r!=gfx_result::success)
                             return r;
                         typename Destination::pixel_type p;
-                        if(!pp.convert(&p)) {
+                        if(!convert(pp,&p)) {
                             return gfx_result::invalid_format;
                         }
                         r=point_impl(destination,spoint16(dstr.x1+x,dstr.y1+y),p,nullptr,true);
@@ -329,7 +338,7 @@ namespace gfx {
                 return gfx_result::success;
             }
         };
-                template<typename Destination,typename Source>
+        template<typename Destination,typename Source>
         struct copy_from_impl_helper<Destination,Source,true,false> {
             static gfx_result do_draw(Destination& destination,const rect16& src_rect,const Source& src,point16 location) {
                 gfx_result r;
@@ -355,12 +364,12 @@ namespace gfx {
                         if(r!=gfx_result::success)
                             return r;
                         typename Destination::pixel_type p;
-                        if(!pp.convert(&p)) {
+                        if(!convert(pp,&p)) {
                             return gfx_result::invalid_format;
                         }
-                        uint16_t pv = p.value();
+                        //uint16_t pv = p.value();
                         
-                        r = destination.write_batch(pv);
+                        r = destination.write_batch(p);
                         if(gfx_result::success!=r) {
                             return r;
                         }
@@ -373,7 +382,40 @@ namespace gfx {
                 return gfx_result::success;
             }
         };
-       
+        template<typename Destination,typename Source>
+        struct copy_from_impl_helper<Destination,Source,false,false> {
+            static gfx_result do_draw(Destination& destination,const rect16& src_rect,const Source& src,point16 location) {
+                gfx_result r;
+                rect16 srcr = src_rect.normalize().crop(src.bounds());
+                rect16 dstr(location,src_rect.dimensions());
+                dstr=dstr.crop(destination.bounds());
+                if(srcr.width()>dstr.width()) {
+                    srcr.x2=srcr.x1+dstr.width()-1;
+                }
+                if(srcr.height()>dstr.height()) {
+                    srcr.y2=srcr.y1+dstr.height()-1;
+                }
+                uint16_t w = dstr.dimensions().width;
+                uint16_t h = dstr.dimensions().height;
+                for(uint16_t y=0;y<h;++y) {
+                    for(uint16_t x=0;x<w;++x) {
+                        typename Source::pixel_type pp;
+                        r=src.point(point16(x+srcr.x1,y+srcr.y1), &pp);
+                        if(r!=gfx_result::success)
+                            return r;
+                        typename Destination::pixel_type p;
+                        if(!convert(pp,&p)) {
+                            return gfx_result::invalid_format;
+                        }
+                        r = point_impl(destination,spoint16(x,y),p,nullptr,false);
+                        if(gfx_result::success!=r) {
+                            return r;
+                        }
+                    }
+                }
+                return gfx_result::success;
+            }
+        };
         template<typename Destination,typename Source,bool Batch,bool Async>
         struct draw_bmp_batch_caps_helper { 
         };
@@ -402,7 +444,7 @@ namespace gfx {
                         gfx_result r = source.point(point16(ssx,ssy),&px);
                         if(gfx_result::success!=r)
                             return r;
-                        typename Destination::pixel_type px2=px.template convert<typename Destination::pixel_type>();
+                        typename Destination::pixel_type px2=convert<typename Source::pixel_type, typename Destination::pixel_type>(px);
                         r=point_impl(destination,spoint16(x,y),px2,nullptr,false);
                         if(gfx_result::success!=r)
                             return r;
@@ -446,7 +488,7 @@ namespace gfx {
                         r = source.point(point16(ssx,ssy),&px);
                         if(gfx_result::success!=r)
                             return r;
-                        typename Destination::pixel_type px2=px.template convert<typename Destination::pixel_type>();
+                        typename Destination::pixel_type px2=convert<typename Source::pixel_type, typename Destination::pixel_type>(px);
                         r=destination.write_batch(px2);
                         if(gfx_result::success!=r)
                             return r;
@@ -487,8 +529,8 @@ namespace gfx {
                         gfx_result r = source.point(point16(ssx,ssy),&px);
                         if(gfx_result::success!=r)
                             return r;
-                        typename Destination::pixel_type px2=px.template convert<typename Destination::pixel_type>();
-                        r=destination.point_async(point16(x,y),px2);
+                        typename Destination::pixel_type px2=convert<typename Source::pixel_type, typename Destination::pixel_type>(px);
+                        r=point_impl(destination,spoint16(x,y),px2,nullptr,true);
                         if(gfx_result::success!=r)
                             return r;
                         ++x2;
@@ -531,7 +573,7 @@ namespace gfx {
                         r = source.point(point16(ssx,ssy),&px);
                         if(gfx_result::success!=r)
                             return r;
-                        typename Destination::pixel_type px2=px.template convert<typename Destination::pixel_type>();
+                        typename Destination::pixel_type px2=convert<typename Source::pixel_type, typename Destination::pixel_type>(px);
                         r=destination.write_batch_async(px2);
                         if(gfx_result::success!=r)
                             return r;
@@ -582,8 +624,8 @@ namespace gfx {
                 if(nullptr==clip)
                     dim.height+=y2;
             }
-            loc.x+=source_rect.top();
-            loc.y+=source_rect.left();
+            loc.x+=source_rect.left();
+            loc.y+=source_rect.top();
             rect16 srcr = rect16(loc,dim);
             rect16 dstr(dr.x1,dr.y1,srcr.width()*sx+.5+dr.x1,srcr.height()*sy+.5+dr.y1);
             if(dstr.x2>dr.x2) dstr.x2=dr.x2;
@@ -627,7 +669,7 @@ namespace gfx {
                                 if(gfx_result::success!=r)
                                     return r;
                                 if(nullptr==transparent_color || transparent_color->native_value!=px.native_value) {
-                                    typename Destination::pixel_type px2=px.template convert<typename Destination::pixel_type>();
+                                    typename Destination::pixel_type px2=convert<typename Source::pixel_type,typename Destination::pixel_type>(px);
                                     r=destination.point(p,px2);
                                     if(gfx_result::success!=r)
                                         return r;
@@ -669,7 +711,7 @@ namespace gfx {
                                     return r;
                                 if(nullptr==transparent_color || transparent_color->native_value!=px.native_value) {
                                     p=point16(ux,uy);
-                                    typename Destination::pixel_type px2=px.template convert<typename Destination::pixel_type>();
+                                    typename Destination::pixel_type px2=convert<typename Source::pixel_type,typename Destination::pixel_type>(px);
                                     if(!(growX || growY)) {
                                         r=destination.point(p,px2);
                                         if(gfx_result::success!=r)
@@ -908,7 +950,9 @@ namespace gfx {
             float dx, dy, d1, d2, x, y;
             x = 0;
             y = ry;
-        
+            // suspend if we can
+            suspend_token<Destination> stok(destination,async);
+            
             // Initial decision parameter of region 1
             d1 = (ry * ry)
                 - (rx * rx * ry)
@@ -916,8 +960,6 @@ namespace gfx {
             dx = 2 * ry * ry * x;
             dy = 2 * rx * rx * y;
             int_type oy=-1;
-            // suspend if we can
-            suspend_token<Destination> stok(destination,async);
             // For region 1
             while (dx < dy+y_adj) {
                 if(filled) {
@@ -1258,13 +1300,13 @@ namespace gfx {
                         if(gfx_result::success!=r) {
                             return r;
                         }
-                        if(!color.convert(&dpx,&bgpx)) {
+                        if(!convert(color,&dpx,&bgpx)) {
                             return gfx_result::not_supported;
                         }
                         return destination.point_async(location,dpx);
                     }
                 }
-                if(!color.convert(&dpx)) {
+                if(!convert(color,&dpx)) {
                     return gfx_result::not_supported;
                 }
                 return destination.point_async(location,dpx);
@@ -1294,13 +1336,13 @@ namespace gfx {
                         if(gfx_result::success!=r) {
                             return r;
                         }
-                        if(!color.convert(&dpx,&bgpx)) {
+                        if(!convert(color,&dpx,&bgpx)) {
                             return gfx_result::not_supported;
                         }
                         return destination.point(location,dpx);
                     }
                 }
-                if(!color.convert(&dpx)) {
+                if(!convert(color,&dpx)) {
                     return gfx_result::not_supported;
                 }
                 return destination.point(location,dpx);
@@ -1339,7 +1381,7 @@ namespace gfx {
                     using tindexA = typename PixelType::template channel_index_by_name<channel_name::A>;
                     const size_t chiA = tindexA::value;
                     using tchA = typename PixelType::template channel_by_index_unchecked<chiA>;
-                    auto alp = color.template channel_unchecked<chiA>();
+                    const auto alp = color.template channel_unchecked<chiA>();
                     if(alp!=tchA::max) {
                         if(alp==tchA::min) {
                             return gfx_result::success;
@@ -1356,7 +1398,7 @@ namespace gfx {
                         return gfx_result::success;
                     }
                 }
-                if(!color.convert(&dpx)) {
+                if(!convert(color,&dpx)) {
                     return gfx_result::not_supported;
                 }
                 return destination.fill_async(rect,dpx);
@@ -1395,7 +1437,7 @@ namespace gfx {
                     }
                     
                 }
-                if(!color.convert(&dpx)) {
+                if(!convert(color,&dpx)) {
                     return gfx_result::not_supported;
                 }
                 return destination.fill(rect,dpx);
@@ -2047,7 +2089,7 @@ namespace gfx {
             const char* text,
             const font& font,
             PixelType color,
-            PixelType backcolor=::gfx::rgb_pixel<3>(0,0,0).convert<PixelType>(),
+            PixelType backcolor=convert<::gfx::rgb_pixel<3>,PixelType>(::gfx::rgb_pixel<3>(0,0,0)),
             bool transparent_background = true,
             unsigned int tab_width=4,
             srect16* clip=nullptr) {
@@ -2061,7 +2103,7 @@ namespace gfx {
             const char* text,
             const font& font,
             PixelType color,
-            PixelType backcolor=::gfx::rgb_pixel<3>(0,0,0).convert<PixelType>(),
+            PixelType backcolor=convert<::gfx::rgb_pixel<3>,PixelType>(::gfx::rgb_pixel<3>(0,0,0)),
             bool transparent_background = true,
             unsigned int tab_width=4,
             srect16* clip=nullptr) {

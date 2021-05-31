@@ -16,17 +16,17 @@ namespace gfx {
 
     private:
         template<typename Destination>
-        struct suspend_token final {
+        struct suspend_token_internal final {
             Destination& destination;
             const bool async;
-            inline suspend_token(Destination& dest,bool async=false) : destination(dest),async(async) {
+            inline suspend_token_internal(Destination& dest,bool async=false) : destination(dest),async(async) {
                 if(async) {
                     draw::suspend_async(destination);
                     return;
                 }
                 draw::suspend(destination);
             }
-            inline suspend_token(const suspend_token& rhs) {
+            inline suspend_token_internal(const suspend_token_internal& rhs) {
                 destination = rhs.destination;
                 if(async) {
                     draw::suspend_async(destination);
@@ -34,7 +34,7 @@ namespace gfx {
                 }
                 draw::suspend(destination);
             }
-            inline suspend_token& operator=(const suspend_token& rhs) {
+            inline suspend_token_internal& operator=(const suspend_token_internal& rhs) {
                 destination = rhs.destination;
                 if(async) {
                     draw::suspend_async(destination);
@@ -43,7 +43,7 @@ namespace gfx {
                 draw::suspend(destination);
                 return *this;
             }
-            inline ~suspend_token() {
+            inline ~suspend_token_internal() {
                 if(async) {
                     draw::resume_async(destination);
                     return;
@@ -61,7 +61,7 @@ namespace gfx {
         struct draw_bmp_caps_helper<Destination,Source,true,false,true,true,false> {
             inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
                 // suspend if we can
-                suspend_token<Destination> stok(destination);
+                suspend_token_internal<Destination> stok(destination);
                 return source.copy_to(src_rect,destination,location);
             }
         };
@@ -69,7 +69,7 @@ namespace gfx {
         struct draw_bmp_caps_helper<Destination,Source,true,false,false,true,false> {
             inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
                 // suspend if we can
-                suspend_token<Destination> stok(destination);
+                suspend_token_internal<Destination> stok(destination);
                 return destination.copy_from(src_rect,source,location);
             }
         };
@@ -77,7 +77,7 @@ namespace gfx {
         struct draw_bmp_caps_helper<Destination,Source,true,false,true,true,true> {
             inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
                 // suspend if we can
-                suspend_token<Destination> stok(destination,true);
+                suspend_token_internal<Destination> stok(destination,true);
                 return source.copy_to_async(src_rect,destination,location);
             }
         };
@@ -85,7 +85,7 @@ namespace gfx {
         struct draw_bmp_caps_helper<Destination,Source,true,false,false,true,true> {
             inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
                 // suspend if we can
-                suspend_token<Destination> stok(destination,true);
+                suspend_token_internal<Destination> stok(destination,true);
                 return destination.copy_from(src_rect,source,location);
                 //return copy_from_impl_helper<Destination,Source,Destination::caps::batch,Destination::caps::async>::do_draw(destintion,src_rect,source,location);
             }
@@ -94,7 +94,7 @@ namespace gfx {
         struct draw_bmp_caps_helper<Destination,Source,true,false,false,false,true> {
             inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
                 // suspend if we can
-                suspend_token<Destination> stok(destination,true);
+                suspend_token_internal<Destination> stok(destination,true);
                 return destination.copy_from_async(src_rect,source,location);
                 //return copy_from_impl_helper<Destination,Source,Destination::caps::batch,Destination::caps::async>::do_draw(destintion,src_rect,source,location);
             }
@@ -103,7 +103,7 @@ namespace gfx {
         struct draw_bmp_caps_helper<Destination,Source,true,false,false,false,false> {
             inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
                 // suspend if we can
-                suspend_token<Destination> stok(destination,true);
+                suspend_token_internal<Destination> stok(destination,true);
                 return destination.copy_from(src_rect,source,location);
                 //return copy_from_impl_helper<Destination,Source,Destination::caps::batch,Destination::caps::async>::do_draw(destintion,src_rect,source,location);
             }
@@ -117,7 +117,7 @@ namespace gfx {
                 const bool dhas_alpha = tdhas_alpha::value;
                 
                 // suspend if we can
-                suspend_token<Destination> stok(destination);
+                suspend_token_internal<Destination> stok(destination);
                 return copy_from_impl_helper<Destination,Source,!(has_alpha&&!dhas_alpha),false>::do_draw(destination,src_rect,source,location);
                 //return destination.copy_from(src_rect,source,location);
             }
@@ -126,7 +126,7 @@ namespace gfx {
         struct draw_bmp_caps_helper<Destination,Source,false,false,true,true,true> {
             inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
                 // suspend if we can
-                suspend_token<Destination> stok(destination,true);
+                suspend_token_internal<Destination> stok(destination,true);
                 return source.copy_to_async(src_rect,destination,location);
             }
         };
@@ -134,7 +134,7 @@ namespace gfx {
         struct draw_bmp_caps_helper<Destination,Source,false,false,true,false,false> {
             inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
                 // suspend if we can
-                suspend_token<Destination> stok(destination);
+                suspend_token_internal<Destination> stok(destination);
                 return copy_from_impl_helper<Destination,Source,false,false>::do_draw(destination,src_rect,source,location);
                 //return destination.copy_from(src_rect,source,location);
             }
@@ -148,7 +148,7 @@ namespace gfx {
                 const bool dhas_alpha = tdhas_alpha::value;
                 
                 // suspend if we can
-                suspend_token<Destination> stok(destination,true);
+                suspend_token_internal<Destination> stok(destination,true);
                 return copy_from_impl_helper<Destination,Source,!(has_alpha&&!dhas_alpha),Destination::caps::async>::do_draw(destination,src_rect,source,location);
             }
         };
@@ -159,7 +159,7 @@ namespace gfx {
         struct draw_bmp_caps_helper<Destination,Source,true,true,true,true,false> {
             inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
                 // suspend if we can
-                suspend_token<Destination> stok(destination);
+                suspend_token_internal<Destination> stok(destination);
                 return destination.copy_from(src_rect,source,location);
             }
         };
@@ -168,7 +168,7 @@ namespace gfx {
         struct draw_bmp_caps_helper<Destination,Source,true,true,false,true,false> {
             inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
                 // suspend if we can
-                suspend_token<Destination> stok(destination);
+                suspend_token_internal<Destination> stok(destination);
                 return destination.copy_from(src_rect,source,location);
             }
         };
@@ -177,7 +177,7 @@ namespace gfx {
         struct draw_bmp_caps_helper<Destination,Source,true,true,true,true,true> {
             inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
                 // suspend if we can
-                suspend_token<Destination> stok(destination,true);
+                suspend_token_internal<Destination> stok(destination,true);
                 return destination.copy_from_async(src_rect,source,location);
             }
         };
@@ -186,7 +186,7 @@ namespace gfx {
         struct draw_bmp_caps_helper<Destination,Source,true,true,false,true,true> {
             inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
                 // suspend if we can
-                suspend_token<Destination> stok(destination,true);
+                suspend_token_internal<Destination> stok(destination,true);
                 return destination.copy_from_async(src_rect,source,location);
             }
         };
@@ -195,7 +195,7 @@ namespace gfx {
         struct draw_bmp_caps_helper<Destination,Source,false,true,false,true,false> {
             inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
                 // suspend if we can
-                suspend_token<Destination> stok(destination);
+                suspend_token_internal<Destination> stok(destination);
                 return source.copy_to(src_rect,destination,location);
             }
         };
@@ -204,7 +204,7 @@ namespace gfx {
         struct draw_bmp_caps_helper<Destination,Source,false,true,true,true,true> {
             inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
                 // suspend if we can
-                suspend_token<Destination> stok(destination,true);
+                suspend_token_internal<Destination> stok(destination,true);
                 return source.copy_to_async(src_rect,destination,location);
             }
         };
@@ -213,7 +213,7 @@ namespace gfx {
         struct draw_bmp_caps_helper<Destination,Source,false,true,false,true,true> {
             inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
                 // suspend if we can
-                suspend_token<Destination> stok(destination,true);
+                suspend_token_internal<Destination> stok(destination,true);
                 //return copy_from_impl_helper<Destination,Source,Destination::caps::batch,Destination::caps::async>::do_draw(destination,src_rect,source,location);
                 return source.copy_to_async(src_rect,destination,location);
             }
@@ -223,7 +223,7 @@ namespace gfx {
         struct draw_bmp_caps_helper<Destination,Source,false,false,false,false,true> {
             inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
                 // suspend if we can
-                suspend_token<Destination> stok(destination,true);
+                suspend_token_internal<Destination> stok(destination,true);
                 // reuse the non batch version of our batch helper since it already has this code
                 return draw_bmp_batch_caps_helper<Destination,Source,false,true>::do_draw(destination,rect16(location,src_rect.dimensions()),source,src_rect,(int)rect_orientation::normalized);
             }
@@ -233,7 +233,7 @@ namespace gfx {
         struct draw_bmp_caps_helper<Destination,Source,false,false,false,false,false> {
             inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
                 // suspend if we can
-                suspend_token<Destination> stok(destination,true);
+                suspend_token_internal<Destination> stok(destination,true);
                 // reuse the non batch version of our batch helper since it already has this code
                 return draw_bmp_batch_caps_helper<Destination,Source,false,false>::do_draw(destination,rect16(location,src_rect.dimensions()),source,src_rect,(int)rect_orientation::normalized);
             }
@@ -243,7 +243,7 @@ namespace gfx {
         struct draw_bmp_caps_helper<Destination,Source,false,true,true,true,false> {
             inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
                 // suspend if we can
-                suspend_token<Destination> stok(destination,true);
+                suspend_token_internal<Destination> stok(destination,true);
                 return source.copy_to(src_rect,destination,location);
             }
         };
@@ -429,7 +429,7 @@ namespace gfx {
                 uint16_t x2=srcr.x1;
                 uint16_t y2=srcr.y1;
                 // suspend if we can
-                suspend_token<Destination> stok(destination);
+                suspend_token_internal<Destination> stok(destination);
                 for(typename rect16::value_type y=dstr.y1;y<=dstr.y2;++y) {
                     for(typename rect16::value_type x=dstr.x1;x<=dstr.x2;++x) {
                         typename Source::pixel_type px;
@@ -473,7 +473,7 @@ namespace gfx {
                 if(gfx_result::success!=r)
                     return r;
                 // suspend if we can
-                suspend_token<Destination> stok(destination);
+                suspend_token_internal<Destination> stok(destination);
                 for(typename rect16::value_type y=dstr.y1;y<=dstr.y2;++y) {
                     for(typename rect16::value_type x=dstr.x1;x<=dstr.x2;++x) {
                         typename Source::pixel_type px;
@@ -514,7 +514,7 @@ namespace gfx {
                 uint16_t x2=srcr.x1;
                 uint16_t y2=srcr.y1;
                 // suspend if we can
-                suspend_token<Destination> stok(destination,true);
+                suspend_token_internal<Destination> stok(destination,true);
                 for(typename rect16::value_type y=dstr.y1;y<=dstr.y2;++y) {
                     for(typename rect16::value_type x=dstr.x1;x<=dstr.x2;++x) {
                         typename Source::pixel_type px;
@@ -554,7 +554,7 @@ namespace gfx {
                 uint16_t x2=0;
                 uint16_t y2=0;
                 // suspend if we can
-                suspend_token<Destination> stok(destination,true);
+                suspend_token_internal<Destination> stok(destination,true);
                 gfx_result r = destination.begin_batch_async(dstr);
                 if(gfx_result::success!=r)
                     return r;
@@ -631,7 +631,7 @@ namespace gfx {
             if(dstr.x2>dr.x2) dstr.x2=dr.x2;
             if(dstr.y2>dr.y2) dstr.y2=dr.y2;
             // suspend if we can
-            suspend_token<Destination> stok(destination,async);
+            suspend_token_internal<Destination> stok(destination,async);
             if(transparent_color==nullptr && bitmap_flags::resize!=options) {
                 gfx_result r;
                 if(async)
@@ -783,7 +783,7 @@ namespace gfx {
                 loc.y+=source_rect.top();
                 rect16 r = rect16(loc,dim);
                 // suspend if we can
-                suspend_token<Destination> stok(destination,async);
+                suspend_token_internal<Destination> stok(destination,async);
                 if(async)
                     return draw_bmp_caps_helper<Destination,Source,Destination::caps::copy_from,Source::caps::copy_to, Destination::caps::blt,Source::caps::blt,Destination::caps::async>::do_draw(destination,source, r,dr.top_left());
                 else
@@ -951,7 +951,7 @@ namespace gfx {
             x = 0;
             y = ry;
             // suspend if we can
-            suspend_token<Destination> stok(destination,async);
+            suspend_token_internal<Destination> stok(destination,async);
             
             // Initial decision parameter of region 1
             d1 = (ry * ry)
@@ -1093,7 +1093,7 @@ namespace gfx {
             dx = 2 * ry * ry * x;
             dy = 2 * rx * rx * y;
             // suspend if we can
-            suspend_token<Destination> stok(destination,async);
+            suspend_token_internal<Destination> stok(destination,async);
             // For region 1
             while (dx < dy+y_adj) {
                 if(oy!=y) {
@@ -1369,7 +1369,7 @@ namespace gfx {
         struct draw_filled_rect_helper<Destination,PixelType,true> {
             static gfx_result do_draw(Destination& destination,const rect16& rect,PixelType color,bool async) {
                 // suspend if we can
-                suspend_token<Destination> stok(destination,async);
+                suspend_token_internal<Destination> stok(destination,async);
                 if(!async) return draw_filled_rect_helper<Destination,PixelType,false>::do_draw(destination,rect,color,false);
                 typename Destination::pixel_type dpx;
                 // TODO: recode to use an async read when finally implemented
@@ -1408,7 +1408,7 @@ namespace gfx {
         struct draw_filled_rect_helper<Destination,PixelType,false> {
             static gfx_result do_draw(Destination& destination,const rect16& rect,PixelType color,bool async) {
                 // suspend if we can
-                suspend_token<Destination> stok(destination,async);
+                suspend_token_internal<Destination> stok(destination,async);
                 typename Destination::pixel_type dpx;
                 // TODO: recode to use an async read when finally implemented
                 using thas_alpha=typename PixelType::template has_channel_names<channel_name::A>;
@@ -1479,7 +1479,7 @@ namespace gfx {
                     return gfx_result::success;
                 rect16 dr = (rect16)sr.crop((srect16)destination.bounds());
                 // suspend if we can
-                suspend_token<Destination> stok(destination,async);
+                suspend_token_internal<Destination> stok(destination,async);
                 gfx_result r = destination.begin_batch(dr);
                 if(gfx_result::success!=r)
                     return r;
@@ -1518,7 +1518,7 @@ namespace gfx {
                 size_t wb = (fc.width()+7)/8;
                 const uint8_t* p = fc.data();
                 // suspend if we can
-                suspend_token<Destination> stok(destination,async);
+                suspend_token_internal<Destination> stok(destination,async);
                 for(size_t j=0;j<font.height();++j) {
                     bits::int_max m = 1 << (fc.width()-1);
                     bits::int_max accum=0;
@@ -1573,7 +1573,7 @@ namespace gfx {
                     return gfx_result::success;
                 rect16 dr = (rect16)sr.crop((srect16)destination.bounds());
                 // suspend if we can
-                suspend_token<Destination> stok(destination,async);
+                suspend_token_internal<Destination> stok(destination,async);
                 gfx_result r = (async)?destination.begin_batch_async(dr):destination.begin_batch(dr);
                 if(gfx_result::success!=r)
                     return r;
@@ -1612,7 +1612,7 @@ namespace gfx {
                 size_t wb = (fc.width()+7)/8;
                 const uint8_t* p = fc.data();
                 // suspend if we can
-                suspend_token<Destination> stok(destination,async);
+                suspend_token_internal<Destination> stok(destination,async);
                 for(size_t j=0;j<font.height();++j) {
                     bits::int_max m = 1 << (fc.width()-1);
                     bits::int_max accum=0;
@@ -1680,7 +1680,7 @@ namespace gfx {
             x=ox=r.x1;
             y=oy=r.y1;
             // suspend if we can
-            suspend_token<Destination> stok(destination,async);
+            suspend_token_internal<Destination> stok(destination,async);
             if(dx>=dy)
             {
                 e=(2*dy)-dx;
@@ -1734,7 +1734,7 @@ namespace gfx {
         static gfx_result rectangle_impl(Destination& destination, const srect16& rect,PixelType color,srect16* clip,bool async) {
             gfx_result r;
             // suspend if we can
-            suspend_token<Destination> stok(destination,async);
+            suspend_token_internal<Destination> stok(destination,async);
             // top or bottom
             r=line_impl(destination,srect16(rect.x1,rect.y1,rect.x2,rect.y1),color,clip,async);
             if(r!=gfx_result::success)
@@ -1750,6 +1750,106 @@ namespace gfx {
             // bottom or top
             return line_impl(destination,srect16(rect.x1,rect.y2,rect.x2,rect.y2),color,clip,async);
         }
+        static bool get_poly_rect(const spoint16* path,size_t path_size,srect16* result) {
+            if(0==path_size) return false;
+            *result = srect16(*path,*path);
+            ++path;
+            while(--path_size) {
+                if(path->x<result->x1) {
+                    result->x1=path->x;
+                } else if(path->x>result->x2) {
+                    result->x2=path->x;
+                }
+                if(path->y<result->y1) {
+                    result->y1=path->y;
+                } else if(path->y>result->y2) {
+                    result->y2=path->y;
+                }
+                ++path;
+            }
+            return true;
+        }
+        static bool intersects_poly(spoint16 pt,const spoint16* path,size_t path_size) {
+            size_t j = path_size - 1;
+            bool c = false;
+            for(size_t i =0; i<path_size;++i) {
+                if((pt.x == path[i].x) && (pt.y == path[i].y)) {
+                    // point is a corner
+                    return true;
+                }
+                if ((path[i].y > pt.y) != (path[j].y > pt.y)) {
+                    const int slope = (pt.x-path[i].x)*(path[j].y-path[i].y)-(path[j].x-path[i].x)*(pt.y-path[i].y);
+                    if(0==slope) {
+                        // point is on boundary
+                        return true;
+                    }
+                    if ((slope < 0) != (path[j].y < path[i].y)) {
+                        c = !c;
+                    }
+                }
+                j = i;
+            }
+            return c;
+        }
+            
+        template<typename Destination,typename PixelType>
+        static gfx_result polygon_impl(Destination& destination, const spath16& path, PixelType color,srect16* clip,bool async) {
+            gfx_result r;
+            const spoint16* p = path.begin();
+            // suspend if we can
+            suspend_token_internal<Destination> stok(destination,async);
+            size_t path_size = path.size();
+            while(path_size--) {
+                const spoint16 p1 = *p;
+                ++p;
+                const spoint16 p2  = *p;
+                const srect16 sr(p1,p2);
+                r=line_impl(destination,sr,color,clip,async);
+                if(gfx_result::success!=r) {
+                    return r;
+                }
+            }
+            return line_impl(destination,srect16((*p),(*(path.begin()))),color,clip,async);
+        }
+        template<typename Destination,typename PixelType>
+        static gfx_result filled_polygon_impl(Destination& destination, const spath16& path, PixelType color,srect16* clip,bool async) {
+            gfx_result r;
+            if(0==path.size()) { 
+                return gfx_result::success;
+            }
+            srect16 pr=path.bounds();
+            if(nullptr!=clip) {
+                pr=pr.crop(*clip);
+            }
+            // suspend if we can
+            suspend_token_internal<Destination> stok(destination,async);
+            for(int y = pr.y1;y<=pr.y2;++y) {
+                int run_start = -1;
+                for(int x = pr.x1;x<=pr.x2;++x) {
+                    const spoint16 pt(x,y);
+                    if(path.intersects(pt,true)) {
+                        if(-1==run_start) {
+                            run_start = x;
+                        }
+                    } else {
+                        if(-1!=run_start) {
+                            r=line_impl(destination,srect16(run_start,y,x-1,y),color,clip,async);
+                            if(gfx_result::success!=r) {
+                                return r;
+                            }
+                            run_start = -1;
+                        }
+                    }
+                }
+                if(-1!=run_start) {
+                    r=line_impl(destination,srect16(run_start,y,pr.x2,y),color,clip,async);
+                    if(gfx_result::success!=r) {
+                        return r;
+                    }
+                }
+            }
+            return gfx_result::success;
+        }
         template<typename Destination,typename PixelType>
         static gfx_result rounded_rectangle_impl(Destination& destination,const srect16& rect,float ratio, PixelType color,srect16* clip,bool async) {
             // TODO: This can be sped up by copying the ellipse algorithm and modifying it slightly.
@@ -1760,7 +1860,7 @@ namespace gfx {
             int rw = (sr.width()*fx+.5);
             int rh = (sr.height()*fy+.5);
             // suspend if we can
-            suspend_token<Destination> stok(destination,async);
+            suspend_token_internal<Destination> stok(destination,async);
             // top
             r=line_impl(destination,srect16(sr.x1+rw,sr.y1,sr.x2-rw,sr.y1),color,clip,async);
             if(gfx_result::success!=r)
@@ -1798,7 +1898,7 @@ namespace gfx {
             int rw = (sr.width()*fx+.5);
             int rh = (sr.height()*fy+.5);
             // suspend if we can
-            suspend_token<Destination> stok(destination,async);
+            suspend_token_internal<Destination> stok(destination,async);
             // top
             r=filled_rectangle_impl(destination,srect16(sr.x1+rw,sr.y1,sr.x2-rw,sr.y1+rh-1),color,clip,async);
             if(gfx_result::success!=r) 
@@ -1846,7 +1946,7 @@ namespace gfx {
             if(0==*sz) return gfx_result::success;
             font_char fc = font[*sz];
             // suspend if we can
-            suspend_token<Destination> stok(destination,async);
+            suspend_token_internal<Destination> stok(destination,async);
             while(*sz) {
                 switch(*sz) {
                     case '\r':
@@ -2069,6 +2169,26 @@ namespace gfx {
         inline static gfx_result filled_rounded_rectangle_async(Destination& destination,const srect16& rect,const float ratio, PixelType color,srect16* clip=nullptr)  {
             return filled_rounded_rectangle_impl(destination,rect,ratio,color,clip,true);
         }
+        // draws a polygon with the specified path and color, with an optional clipping rectangle
+        template<typename Destination,typename PixelType>
+        inline static gfx_result polygon(Destination& destination,const spath16& path, PixelType color,srect16* clip=nullptr)  {
+            return polygon_impl(destination,path,color,clip,false);
+        }
+        // draws a polygon with the specified path and color, with an optional clipping rectangle
+        template<typename Destination,typename PixelType>
+        inline static gfx_result polygon_async(Destination& destination,const spath16& path, PixelType color,srect16* clip=nullptr)  {
+            return polygon_impl(destination,path,color,clip,true);
+        }
+        // draws a filled polygon with the specified path and color, with an optional clipping rectangle
+        template<typename Destination,typename PixelType>
+        inline static gfx_result filled_polygon(Destination& destination,const spath16& path, PixelType color,srect16* clip=nullptr)  {
+            return filled_polygon_impl(destination,path,color,clip,false);
+        }
+        // draws a filled polygon with the specified path and color, with an optional clipping rectangle
+        template<typename Destination,typename PixelType>
+        inline static gfx_result filled_polygon_async(Destination& destination,const spath16& path,size_t path_size, PixelType color,srect16* clip=nullptr)  {
+            return filled_polygon_impl(destination,path,color,clip,true);
+        }
         // draws a portion of a bitmap or display buffer to the specified rectangle with an optional clipping rentangle
         template<typename Destination,typename Source>
         static inline gfx_result bitmap(Destination& destination,const srect16& dest_rect,Source& source,const rect16& source_rect,bitmap_flags options=bitmap_flags::crop,const typename Source::pixel_type* transparent_color=nullptr, srect16* clip=nullptr) {
@@ -2133,9 +2253,87 @@ namespace gfx {
         template<typename Destination>
         static gfx_result resume_async(Destination& destination,bool force=false) {
             return suspend_caps_helper<Destination,Destination::caps::suspend,Destination::caps::async>::resume_async(destination,force);
-        }
-        
+        }  
     };
-    
+    template<typename Destination>
+    struct suspend_token final {
+        Destination* destination;
+        bool async;
+        inline suspend_token(Destination& dest,bool async=false) : destination(&dest),async(async) {
+            if(async) {
+                draw::suspend_async(*destination);
+                return;
+            }
+            draw::suspend(*destination);
+        }
+        inline suspend_token(const suspend_token& rhs) {
+            destination = rhs.destination;
+            if(async) {
+                draw::suspend_async(*destination);
+                return;
+            }
+            draw::suspend(*destination);
+        }
+        inline suspend_token& operator=(const suspend_token& rhs) {
+            destination = rhs.destination;
+            if(nullptr!=destination) {
+                if(async) {
+                    draw::suspend_async(*destination);
+                    return *this;
+                }
+                draw::suspend(*destination);
+            }
+            return *this;
+        }
+        inline suspend_token(const suspend_token&& rhs) : destination(rhs.destination),async(rhs.async) {
+            rhs.destination = nullptr;
+        }
+        inline suspend_token& operator=(suspend_token&& rhs) {
+            destination = rhs.destination;
+            async = rhs.async;
+            rhs.destination = nullptr;
+            return *this;
+        }
+        inline ~suspend_token() {
+            if(nullptr!=destination) {
+                if(async) {
+                    draw::resume_async(*destination);
+                    return;
+                }
+                draw::resume(*destination);
+            }
+        }    
+    };
+    // changes the target's pixel type to an intermediary pixel type and back again. Useful for downsampling or converting to grayscale
+    template<typename TargetType,typename PixelType> 
+    gfx_result resample(TargetType& target) {
+        // suspend if supported
+        suspend_token<TargetType> sustok(target);
+        size16 dim = target.dimensions();
+        point16 pt;
+        gfx_result r;
+        for(pt.y = 0;pt.y<dim.width;++pt.y) {
+            for(pt.x=0;pt.x<dim.height;++pt.x) {
+                typename TargetType::pixel_type px;
+                r=target.point(pt,&px);
+                if(gfx_result::success!=r) {
+                    return r;
+                }
+                PixelType dpx;
+                if(!convert(px,&dpx)) {
+                    return gfx_result::not_supported;
+                }
+                if(!convert(dpx,&px)) {
+                    return gfx_result::not_supported;
+                }
+                r = target.point(pt,px);
+                if(r!=gfx_result::success) {
+                    return r;
+                }
+            }
+        }
+        return gfx_result::success;
+    }
+
 }
 #endif

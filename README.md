@@ -52,6 +52,8 @@ I wanted a graphics library that was faster and better than what I had found for
 
 GFX on the other hand, isn't tied to anything. It can draw anywhere, on any platform. It's basically standard C++, and things like line drawing and font drawing algorithms. Without a driver, it can only draw to in memory bitmaps, but once you add a driver to the mix, you can draw directly onto displays the same way you do to bitmaps.
 
+`Disclaimer: `The documentation that ships with the downloaded code is always at least one iteration out of date compared to this article, and compared to what's on github. That shouldn't matter, since this article *is* the documentation so if you got it from here, you're hip to the latest. However, if this bugs you, get it from Github instead. Unfortunately, it's just a lot more work for me to sync everything back and then repackage and reupload to make it in sync.
+
 **Update:** Some minor bugfixes, SPI drivers are refactored to use a common base, more drivers are now added, and one click configuration for generic ESP32 boards is now available
 
 **Update 2:** Included support for the LilyGo TTGO board, as well as the green tab 128x128 1.44" ST7735 display (though other green tab models may work too they have not been tested)
@@ -68,41 +70,12 @@ GFX on the other hand, isn't tied to anything. It can draw anywhere, on any plat
 
 **Update 8:** Some API changes, added `large_bitmap<>` support and edged a little closer to adaptive indexed color support. I also used the large bitmap for the frame buffer in the demos, and changed that code to be easier to understand at the cost of raw pixel throughput.
 
+**Update 9:** Added polygon and path support, and cleaned up the API here and there a bit
+
 ### Building this Mess
 
-You'll need Visual Studio Code with the Platform IO extension installed. You'll need an ESP32 with a connected ILI9341 LCD display an SSD1306 display, or other display depending on the demo.
+You can use Clang or GCC with -std=C++14 or -std=C++17 to build. However, for something that actually has drivers and demos with it, you'll want to go here https://github.com/codewitch-honey-crisis/gfx_demo
 
-I recommend the [Espressif ESP-WROVER-KIT](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/hw-reference/esp32/get-started-wrover-kit.html) development board which has an integrated ILI9341 display and several other pre-wired peripherals, plus an integrated debugger and a superior USB to serial bridge with faster upload speeds. They can be harder to find than a standard ESP32 devboard, but I found them at JAMECO and Mouser for about \$40 USD. They're well worth the investment if you do ESP32 development. The integrated debugger, though very slow compared to a PC, is faster than you can get with an external JTAG probe attached to a standard WROVER devboard.
-
-Most of you however, will be using one or more of the "generic-esp32" configurations. At the bottom of the screen in the blue bar of VS Code, there is a configuration switcher. It should be set at Default to start, but you can change it by clicking on default. A list of many configurations will drop down from the top of the screen. From there, you can choose which generic-esp32 setup you have, based on the display attached to it. 
-
-In order to wire all this up, refer to *wiring\_guide.txt* which has display wirings for SPI and I2C displays. Keep in mind some display vendors name their pins with non-standard names. For example, on some displays `MOSI` might be labled as `DIN` or `A0`. You make have to do some googling to find out the particulars for your device.
-
-Before you can run it, you must Upload Filesystem Image under the Platform IO sidebar - Tasks.
-
-**Note**: The Platform IO IDE is kind of cantankerous sometimes. The first time you open the project, you'll probably need to go to the Platform IO icon on the left side - it looks like an alien. Click it to open up the sidebar and look under *Quick Access|Miscellaneous* for *Platform IO Core CLI*. Click it, and then when you get a prompt type `pio run` to force it to download necessary components and build. You shouldn't need to do this again, unless you start getting errors again while trying to build. Also, for some reason, whenever you switch a configuration you have to go and refresh (the little circle-arrow next to "PROJECT TASKS") before it will take.
-
-Currently, the following configurations should work:
-
--   esp-wrover-kit
-
--   esp32-ILI9341
-
--   esp32-ST7789
-
--   esp32-ST7735
-
--   esp32-SSD1306
-
--   esp32-SSD1351
-
--   esp32-TTGO
-
--   esp32-MAX7219\* 
-
-The demos are not all the same despite GFX capabilities being pretty much the same for each display. The reason is that there are no asynchronous operations for I2C devices, and because some of the displays simply aren't big enough to show the jpgs or they are monochrome like the SSD1306, so the JPG would look a mess.
-
-\*MAX7219 CS pin is 15, not 5. Driver is experimental and multiple rows of segments does not work, but multiple segments in a single row works.
 
 Concepts
 --------
@@ -145,7 +118,7 @@ When you declare a pixel format, it becomes part of the type signature for anyth
 
 Due to this, the more pixel formats you have, the greater your code size will be.
 
-### Alpha Blending
+#### Alpha Blending
 
 If you create pixels with an alpha channel, it will be respected on supported destinations. Not all devices support the necessary features to enable this. It's also a performance killer, with no way to make it faster without hardware support, which isn't currently available for any supported device.
 
@@ -155,7 +128,7 @@ Drawing elements are simply things that can be drawn, like lines and circles.
 
 #### Primitives
 
-Drawing primitives include lines, points, rectangles, arcs, and ellipses each except the first two in filled and unfilled varieties. Most take bounding rectangles to define their extents, and for some such as arcs and lines, orientation of the rectangle will alter where or how the element is drawn.
+Drawing primitives include lines, points, rectangles, arcs, ellipses  and polygons each except the first two in filled and unfilled varieties. Most take bounding rectangles to define their extents, and for some such as arcs and lines, orientation of the rectangle will alter where or how the element is drawn.
 
 #### Draw Sources
 
@@ -220,7 +193,7 @@ Use namespace *gfx* to access GFX.
 
 -   **gfx\_core.hpp** - access to basic common types like `gfx_result`. Not usually necessary to explicitly include.
 -   **gfx\_pixel.hpp** - access to the `pixel<>` type template. Not usually necessary to explicitly include.
--   **gfx\_positioning.hpp** - access to point, size, and rect types and templates. Not usually necessary to explicitly include.
+-   **gfx\_positioning.hpp** - access to point, size, rect and path types and templates. Not usually necessary to explicitly include.
 -   `gfx_bitmap.hpp` - access to the `bitmap<>` type template.
 -   `gfx_drawing.hpp` - access to `draw`, the main facilities of GFX. Include this to use GFX.
 -   `gfx_color.hpp` - access to the predefined colors through the `color<>` template, for **C++17** or better compilers. Include this if needed.
@@ -248,9 +221,7 @@ Images do not use resources directly except for some bookkeeping during loading.
 Let's dive into some code. The following draws a classic effect around the four edges of the screen in four different colors, with "ESP32 GFX Demo" in the center of the screen:
 
 C++
-
-
-``` {#pre588163 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+``` {#pre48666 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
 draw::filled_rectangle(lcd,(srect16)lcd.bounds(),lcd_color::white);
 const font& f = Bm437_ATI_9x16_FON;
 const char* text = "ESP32 GFX Demo";
@@ -289,9 +260,7 @@ Compare the performance of line drawing with GFX to other libraries. You'll be p
 Let's try it again - or at least something similar - this time using double buffering on a supporting target, like an SSD1306 display. Note that `suspend<>()` and `resume<>()` can be called regardless of the draw destination, but they will report `gfx::gfx_result::not_supported` on targets that are not double buffered:
 
 C++
-
-
-``` {#pre53281 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+``` {#pre701495 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
 draw::filled_rectangle(lcd,(srect16)lcd.bounds(),lcd_color::black);
 const font& f = Bm437_Acer_VGA_8x8_FON;
 const char* text = "ESP32 GFX";
@@ -322,14 +291,34 @@ for(int i = 1;i<100;i+=10) {
 
 Other than some minor differences, mostly because we're working with a much smaller display that is monochrome, it's the same code as before with one major difference - the presence of `suspend<>()` and `resume<>()` calls. Once suspend is called, further draws aren't displayed until resume is called. The calls should balance, such that to resume a display you must call resume the same number of times that you call suspend. This allows you to have subroutines which suspend and resume their own draws without messing up your code. GFX in fact, uses suspend and resume on supporting devices as it draws individual elements. The main reason you have it is so you can extend the scope across several drawing operations.
 
+Since adding polygon support, I suppose an example of that will be helpful. Here it is in practice:
+
+C++
+``` {#pre832323 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+// draw a polygon (a triangle in this case)
+// find the origin:
+const spoint16 porg = srect16(0,0,31,31)
+                        .center_horizontal((srect16)lcd.bounds())
+                            .offset(0,
+                                lcd.dimensions().height-32)
+                                    .top_left();
+// draw a 32x32 triangle by creating a path
+spoint16 path_points[] = {spoint16(0,31),spoint16(15,0),spoint16(31,31)};
+spath16 path(3,path_points);
+// offset it so it starts at the origin
+path.offset_inplace(porg.x,porg.y);
+// draw it
+draw::filled_polygon(lcd,path,lcd_color::coral);
+```
+
+This will draw a small triangle horizontally centered at the bottom of the screen. The most difficult bit was finding the origin, but even that's not hard, if you break down the creation of `porg` call by call.
+
 #### A Pixel For Any Situation
 
 You can define pixels by using the `pixel<>` template, which takes one or more `channel_traits<>` as arguments, themselves taking a name, a bit depth, and optional minimum, maximum, and scale. The channel names are predefined, and combinations of channel names make up *known color models*. Known color models are models that can be converted to and from an RGB color model, essentially. Currently they include RGB, Y'UV, YbCbCr, and grayscale. Declare pixels in order to create bitmaps in different formats or to declare color pixels for use with your particular display driver's native format. In the rare case you need to define one manually, you can do something like this:
 
 C++
-
-
-``` {#pre651792 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+``` {#pre420004 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
 // declare a 16-bit RGB pixel
 using rgb565 = pixel<channel_traits<channel_name::R,5>,
                     channel_traits<channel_name::G,6>,
@@ -339,8 +328,7 @@ using rgb565 = pixel<channel_traits<channel_name::R,5>,
 That declares a pixel with 3 channels, each of `uint8_t`: `R:5`, `G:6`, and `B:5`. Note that after the colon is how many effective bits it has. The `uint8_t` type is only for representing each pixel channel in value space in your code. In binary space, like laid out in an in memory bitmap, the pixel takes 16 bits, not 24. This defines a standard 16-bit pixel you typically find on color display adapters for IoT platforms. RGB is one of the known color models so there is a shorthand for declaring an RGB pixel type of any bit depth:
 
 C++
-
-``` {#pre445033 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+``` {#pre210878 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
 using rgb565 = rgb_pixel<16>; // declare a 16-bit RGB pixel
 ```
 
@@ -349,6 +337,34 @@ This will divide the bits evenly among the channels, with remaining bits going o
 Pixels are mainly used to represent colors, and to define the binary layout of a bitmap or framebuffer. A bitmap is a template that is typed by its pixel type. Ergo, bitmaps with different pixel types are different types themselves.
 
 The pixels have a rich API which allow you to read and write individual channels by name or index, and get a dizzying array of metadata about the pixels which you should hopefully never need.
+
+Most of the time you'll just need to read pixel values from a draw source, or get them from a standard color value. However, sometimes you may need to set the pixel colors yourself. 
+
+Each pixel is composed of the channels you declared, and the channels may be accessed by "name" (`channel_name` enumeration) or by index. The values can be retrieved or set using `channel<>()` accessors for the native integer value and `channelr<>()` for real/floating point values scaled to between zero and one. Often times you need to set or get the channel programmatically based on some other compile time constant and the compiler will complain because it can't verify that the channel actually exists. In order to avoid this you can use `channel_unchecked<>()` which accesses the channel without compile time verification. If the channel does not exist, setting and getting does nothing. If you need to translate between real and integer values for a channel you can use the channel's `::scale` and `::scaler` values.
+
+C++
+
+``` {#pre924070 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+// declare a 24-bit rgb pixel
+rgb_pixel<24> rgb888;
+
+// set channel by index
+rgb888.channel<0>(255); // max
+// set channel by name
+rgb888.channel<channel_name::G>(127);
+// set channel real value
+rgb888.channelr<2>(1.0); // max
+
+// get red as an int type
+uint8_t r = rgb888.channel<channel_name::R>();
+// get green as a real type
+float g = rgb888.channelr<channel_name::G>();
+// get blue as an int type
+uint8_t b = rgb888.channel<channel_name::B>();
+
+// get the pixel value in big endian form
+uint32_t v = rgb888.value();
+```
 
 In addition to this, there is a battery of standard color definitions provided in a couple of headers - one for C++14 and a better alternative for C++17, named *gfx\_color\_cpp14.hpp* and *gfx\_color.hpp*, respectively.
 
@@ -361,8 +377,7 @@ Pixels that have `channel_name::A` are said to have an alpha channel. In this c
 Here's an example of using it in the wild:
 
 C++
-
-``` {#pre347446 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+``` {#pre443366 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
 using bmpa_type = rgba_pixel<32>;
 using bmpa_color = color<bmpa_type>;
 
@@ -417,6 +432,12 @@ We've been using rectangles above a lot. As I've said, you have signed and unsig
 
 Some functions that take a destination rectangle will use it as a hint about the orientation of what it is going to draw. `draw::arc<>()` is one such method. `draw::bitmap<>()` is another. You can use the `flip_XXXX()` methods to change the orientation of a rectangle, and the `orientation()` accessor to retrieve the orientation as flags. Most drawing operations - even lines and ellipses - use rectangles as their input parameters due to their flexibility. Get used to using them, as there's a lot of functionality packed into that two coordinate structure.
 
+#### Plotting a Course with Paths
+
+Paths are simply a series of points, but they get interesting in terms of what we can do with them. We can find the bounding rectangle of a series of points, and determine if something intersects it, whether it represents a simple line segment series, or a polygon. You supply the buffer, for efficiency's sake, but then types like spath16 wrap it with an API that allows for offsetting\*, intersection determination, and bounding.
+
+\* offsets are only supported in-place due to overhead of allocating a copy of a path, which I want to avoid doing casually.
+
 #### Bitmaps, Bitmaps and More Bitmaps
 
 It can help to think of a bitmap as a variable that holds pixel data.
@@ -434,8 +455,7 @@ I like to declare my fixed size bitmap buffers in the global scope (under a name
 Anyway, first we have to declare our buffer. I was very careful to make my objects `constexpr` enabled so you could do things like the following:
 
 C++
-
-``` {#pre348427 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+``` {#pre492605 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
 using bmp_type = bitmap<rgb_pixel<16>>;
 // the following is for convenience:
 using bmp_color = color<typename bmp_type::pixel_type>; // needs GFX color header
@@ -444,8 +464,7 @@ using bmp_color = color<typename bmp_type::pixel_type>; // needs GFX color heade
 followed by:
 
 C++
-
-``` {#pre254885 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+``` {#pre478378 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
 constexpr static const size16 bmp_size(16,16);
 uint8_t bmp_buf[bmp_type::sizeof_buffer(bmp_size)];
 ```
@@ -455,8 +474,7 @@ To be honest, the first time I wrote code like that, I was surprised it compiled
 Now that we have all that, wrapping it with a bitmap is trivial:
 
 C++
-
-``` {#pre684719 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+``` {#pre241057 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
 bmp_type bmp(bmp_size,bmp_buf);
 // you'll probably want to do this, but not necessary if 
 // you're redrawing the entire bmp anyway:
@@ -466,8 +484,7 @@ bmp.clear(bmp.bounds()); // zero the bmp memory
 Now you can call `draw` methods passing `bmp` as the destination:
 
 C++
-
-``` {#pre516987 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+``` {#pre166194 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
  // draw a happy face
 
 // bounding info for the face
@@ -528,8 +545,7 @@ What size is worthwhile? It depends. The idea is you want to be sending part of 
 The code looks approximately like this under the ESP-IDF at least:
 
 C++
-
-``` {#pre829136 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+``` {#pre415626 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
 uint16_t *lines[2];
 //Allocate memory for the pixel buffers
 for (int i=0; i<2; i++) {
@@ -588,8 +604,7 @@ These methods aren't as effective. The lack of blocking doesn't make up for the 
 Loading images is a matter of creating a stream over the input, like a file, and then passing that to an image loader function along with a callback (I prefer to use an anonymous method/lambda for this) that handles the progressive loading. You'll be called back multiple times, each time with a portion of the image as a bitmap, along with a location where it belongs within the image, and any state you passed along to the load function. Note that to reduce overhead, a state variable is used to pass state instead of using a functor like `std::function`. You can use a "flat" lambda that decays to a simple function pointer, and then pass your class pointer in as the `state` argument, to be reconstituted inside your callback. Often times, you won't even need a state argument because everything you're after, such as the display itself, is available globally:
 
 C++
-
-``` {#pre554653 .lang-cplusplus style="margin-top:0;" data-language="C++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+``` {#pre807588 .lang-cplusplus style="margin-top:0;" data-language="C++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
 file_stream fs("/spiffs/image.jpg");
 jpeg_image::load(&fs,[](const typename jpeg_image::region_type& region,
                         point16 location,
@@ -616,24 +631,21 @@ Let's talk about the first method - embedding:
 First, generate a header file from a font file using fontgen under the *tools* folder of the GFX library:
 
 C++
-
-``` {#pre986639 .lang-cplusplus style="margin-top:0;" data-language="C++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+``` {#pre133082 .lang-cplusplus style="margin-top:0;" data-language="C++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
 ~$ fontgen myfont.fon > myfont.hpp
 ```
 
 Now you can include that in your code:
 
 C++
-
-``` {#pre284808 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+``` {#pre205455 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
 #include "myfont.hpp"
 ```
 
 This allows you to reference the font like this:
 
 C++
-
-``` {#pre342699 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+``` {#pre667725 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
 const font& f = myfont_fon;
 const char* text = "Hello world!";
 srect16 text_rect = f.measure_text((ssize16)lcd.dimensions(),
@@ -648,8 +660,7 @@ draw::text(lcd,
 The second way to access a font is by loading a *.FON* file from a stream, which stores the font around on the heap rather than embedded as a `static` `const` array in your code, just replace the first line of code above with this:
 
 C++
-
-``` {#pre48749 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+``` {#pre575185 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
 io::file_stream fs("/spiffs/myfon.fon");
 if(!fs.caps().read) {
     printf("Font file not found.\r\n");
@@ -751,4 +762,5 @@ History
 -   24<sup>th</sup> May, 2021 - Fixed build errors on some demos
 -   27<sup>th</sup> May, 2021 - Added alpha blending support
 -   29<sup>th</sup> May, 2021 - Added `large_bitmap<>` support, API changes, demo changes
+-   31<sup>st</sup> May, 2021 - API cleanup and added paths and polygon support
 

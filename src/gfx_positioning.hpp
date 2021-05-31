@@ -5,7 +5,7 @@ namespace gfx {
     PACK
     // represents a pointx with 16-bit integer coordinates
     template <typename T>
-    struct PACKED pointx {
+    struct PACKED pointx final {
         using type = pointx<T>;
         using value_type = T;
         // the x coordinate
@@ -38,7 +38,7 @@ namespace gfx {
     struct rectx;
     // represents a size with 16-bit integer coordinates
     template <typename T>
-    struct PACKED sizex {
+    struct PACKED sizex final {
         using type = sizex<T>;
         using value_type = T;
         // the width
@@ -74,7 +74,7 @@ namespace gfx {
     };
     // represents a rectangle with 16-bit integer coordinates
     template <typename T>
-    struct PACKED rectx
+    struct PACKED rectx final
     {
         using type =rectx<T>;
         using value_type = T;
@@ -88,11 +88,18 @@ namespace gfx {
         T y2;
         // constructs a new instance
         inline rectx() {}
+        inline rectx(const rectx& rhs)=default;
+        inline rectx& operator=(const rectx& rhs)=default;
+        inline rectx(rectx&& rhs)=default;
+        inline rectx& operator=(rectx&& rhs)=default;
         // constructs a new instance with the specified coordinates
         constexpr inline rectx(T x1, T y1, T x2, T y2) : x1(x1), y1(y1), x2(x2), y2(y2) {
         }
         // constructs a new instance with the specified location and size
         constexpr inline rectx(pointx<T> location, sizex<T> size) : x1(location.x), y1(location.y), x2(location.x + size.width - 1), y2(location.y + size.height - 1) {
+        }
+        // constructs a new instance with the specified points
+        constexpr inline rectx(pointx<T> point1, pointx<T> point2) : x1(point1.x), y1(point1.y), x2(point2.x), y2(point2.y) {
         }
         // constructs a new instance with the specified center and distance from the center to a side. This is useful for constructing circles out of bounding rectangles.
         constexpr inline rectx(pointx<T> center, typename sizex<T>::value_type distance) : 
@@ -198,6 +205,13 @@ namespace gfx {
         constexpr inline rectx<T> offset(typename bits::signedx<T> x,typename bits::signedx<T> y) const {
             return rectx<T>(x1+x,y1+y,x2+x,y2+y);
         }
+        // offsets in-place the rectangle by the specified amounts.
+        constexpr inline void offset_inplace(typename bits::signedx<T> x,typename bits::signedx<T> y) {
+            x1+=x;
+            y1+=y;
+            x2+=x;
+            y2+=y;
+        }
         constexpr inline rectx<T> center_horizontal(const rectx<T>& bounds) const {
             return offset((bounds.width()-width())/2,0);
         }
@@ -207,9 +221,31 @@ namespace gfx {
         constexpr inline rectx<T> center(const rectx<T>& bounds) const {
             return offset((bounds.width()-width())/2,(bounds.height()-height())/2);
         }
+        constexpr inline void center_horizontal_inplace(const rectx<T>& bounds) {
+            offset_inplace((bounds.width()-width())/2,0);
+        }
+        constexpr inline rectx<T> center_vertical_inplace(const rectx<T>& bounds) {
+            return offset_inplace(0,(bounds.height()-height())/2);
+        }
+        constexpr inline rectx<T> center_inplace(const rectx<T>& bounds) {
+            return offset_inplace((bounds.width()-width())/2,(bounds.height()-height())/2);
+        }
         // normalizes a rectangle, such that x1<=x2 and y1<=y2
         constexpr inline rectx<T> normalize() const {
             return rectx<T>(location(),dimensions());
+        }
+        // normalizes a rectangle in-place, such that x1<=x2 and y1<=y2
+        constexpr inline void normalize_inplace() const {
+            pointx<T> pt1 = this->point1();
+            pointx<T> pt2 = this->point2();
+            if(pt1.x>pt2.x) {
+                x1=pt2.x;
+                x2=pt1.x;
+            } 
+            if(pt1.y>pt2.y) {
+                y1=pt2.y;
+                y2=pt1.y;
+            }
         }
         // indicates whether or not the rectangle is flipped along the horizontal or vertical axes.
         constexpr rect_orientation orientation() const {
@@ -313,14 +349,122 @@ namespace gfx {
     constexpr rectx<T> sizex<T>::bounds() const {
         return rectx<T>(pointx<T>(0,0),*this);
     }
+    template <typename T>
+    struct PACKED pathx final
+    {
+        using type = pathx<T>;
+        using value_type = T;
+        using point_type = pointx<T>;
+        class accessor final {
+            friend pathx;
+            point_type* const pt;
+            constexpr inline accessor(point_type* pt) : pt(pt) {
+            }
+            accessor(const accessor& rhs)=delete;
+            accessor& operator=(const accessor& rhs)=delete;
+            constexpr inline accessor(accessor&& rhs)=default;
+            constexpr inline accessor& operator=(accessor&& rhs)=default;
+        public:
+            constexpr operator point_type() const {
+                return *pt;
+            }
+            constexpr accessor& operator=(const point_type& rhs) {
+                *pt = rhs;
+                return *this;
+            }
+        };
+    private:
+        const size_t m_size;
+        point_type* const m_points;
+    public:
+        constexpr inline pathx(size_t size,point_type* points) : m_size(size),m_points(points) {
+
+        }
+        constexpr inline size_t size() const {
+            return m_size;
+        }
+        constexpr inline point_type* begin() {
+            return m_points;
+        }
+        constexpr inline const point_type* begin() const {
+            return m_points;
+        }
+        constexpr inline const point_type* end() const {
+            return m_points+m_size;
+        }
+        constexpr inline accessor operator[](size_t index) {
+            return accessor(&m_points[index]);
+        }
+        constexpr inline const accessor operator[](size_t index) const {
+            return accessor(&m_points[index]);
+        }
+        rectx<value_type> bounds() const {
+            using rect_type = rectx<value_type>;
+            if(0==m_size) return rect_type(point_type(0,0),sizex<value_type>(0,0));
+            rect_type result(*m_points,*m_points);
+            const point_type* path = m_points + 1;
+            size_t path_size = m_size;
+            while(--path_size) {
+                if(path->x<result.x1) {
+                    result.x1=path->x;
+                } else if(path->x>result.x2) {
+                    result.x2=path->x;
+                }
+                if(path->y<result.y1) {
+                    result.y1=path->y;
+                } else if(path->y>result.y2) {
+                    result.y2=path->y;
+                }
+                ++path;
+            }
+            return result;
+        }
+        inline sizex<value_type> dimensions() const {
+            if(0==m_size) return sizex<value_type>(0,0);
+            return bounds().dimensions();
+        }
+        // performs an inplace offset on point
+        void offset_inplace(bits::signedx<value_type> x,bits::signedx<value_type> y) {
+            for(size_t i = 0;i<m_size;++i) {
+                m_points[i]=m_points[i].offset(x,y);
+            }
+        }
+        // indicates whether a point intersects this path or polygon
+        bool intersects(point_type location,bool polygon = false) const {
+            if(0==m_size) return false;
+            size_t j = m_size - 1;
+            bool c = false;
+            for(size_t i =0; i<m_size;++i) {
+                if((location.x == m_points[i].x) && (location.y == m_points[i].y)) {
+                    // point is a corner
+                    return true;
+                }
+                if ((m_points[i].y > location.y) != (m_points[j].y > location.y)) {
+                    const int slope = (location.x-m_points[i].x)*(m_points[j].y-m_points[i].y)-(m_points[j].x-m_points[i].x)*(location.y-m_points[i].y);
+                    if(0==slope) {
+                        // point is on boundary
+                        return true;
+                    }
+                    if ((slope < 0) != (m_points[j].y < m_points[i].y)) {
+                        c = !c;
+                    }
+                }
+                j = i;
+            }
+            return c && polygon;
+        }
+
+    };
     RESTORE_PACK
     
     using spoint16 = pointx<int16_t>;
     using ssize16 = sizex<int16_t>;
     using srect16 = rectx<int16_t>;
+    using spath16 = pathx<int16_t>;
 
     using point16 = pointx<uint16_t>;
     using size16 = sizex<uint16_t>;
     using rect16 = rectx<uint16_t>;
+    using path16 = pathx<uint16_t>;
 }
 #endif

@@ -50,11 +50,7 @@ namespace gfx {
 
         template<typename Source,typename Destination,bool AllowBlt=true>
         struct bmp_copy_to_helper {
-            static inline gfx_result copy_to(const Source& src,const rect16& src_rect,Destination& dst,point16 location) {
-                if(!src_rect.intersects(src.bounds())) return gfx_result::success;
-                rect16 srcr = src_rect.crop(src.bounds());
-                rect16 dstr= rect16(location,srcr.dimensions()).crop(dst.bounds());
-                srcr=rect16(srcr.location(),dstr.dimensions());
+            static inline gfx_result copy_to(const Source& src,const rect16& srcr,Destination& dst,const rect16& dstr) {
                 size_t dy=0,dye=dstr.height();
                 size_t dx,dxe = dstr.width();
                 gfx_result r = helpers::suspend_helper<Destination,Destination::caps::suspend>::suspend(dst);
@@ -105,13 +101,7 @@ namespace gfx {
         // out of bounds regions are cropped
         template<typename Source>
         struct bmp_copy_to_helper<Source,Source,true> {
-            static gfx_result copy_to(const Source& src,const rect16& src_rect,Source& dst,point16 location) {
-                if(nullptr==src.begin() || nullptr==dst.begin())
-                    return gfx_result::out_of_memory;
-                if(!src_rect.intersects(src.bounds())) return gfx_result::success;
-                rect16 srcr = src_rect.crop(src.bounds());
-                rect16 dstr= rect16(location,srcr.dimensions()).crop(dst.bounds());
-                srcr=rect16(srcr.location(),dstr.dimensions());
+            static gfx_result copy_to(const Source& src,const rect16& srcr,Source& dst,const rect16& dstr) {
                 size_t dy=0,dye=dstr.height();
                 size_t dxe = dstr.width();
                 if(Source::pixel_type::byte_aligned) {
@@ -403,9 +393,14 @@ namespace gfx {
         }
         template<typename Destination>
         inline gfx_result copy_to(const rect16& src_rect,Destination& dst,point16 location) const {
-            return helpers::bmp_copy_to_helper<type,Destination,!(pixel_type::template has_channel_names<channel_name::A>::value)>::copy_to(*this,src_rect,dst,location);
+            if(nullptr==begin() || nullptr==dst.begin())
+                return gfx_result::out_of_memory;
+            if(!src_rect.intersects(bounds())) return gfx_result::success;
+            rect16 srcr = src_rect.crop(bounds());
+            rect16 dstr= rect16(location,srcr.dimensions()).crop(dst.bounds());
+            srcr=rect16(srcr.location(),dstr.dimensions());
+            return helpers::bmp_copy_to_helper<type,Destination,!(pixel_type::template has_channel_names<channel_name::A>::value)>::copy_to(*this,srcr,dst,dstr);
         }
-        
         // computes the minimum required size for a bitmap buffer, in bytes
         constexpr inline static size_t sizeof_buffer(size16 size) {
             return (size.width*size.height*pixel_type::bit_depth+7)/8;
@@ -439,10 +434,11 @@ namespace gfx {
             m_deallocate(m_segments);
             m_segments = nullptr;
         }
+
     public:
         using type = large_bitmap<PixelType>;
         using pixel_type = PixelType;
-        using caps = gfx_caps<false,false,false,false,false,true,false>;
+        using caps = gfx_caps<false,false,false,false,false,false,true>;
         using segment_type = bitmap<pixel_type>;
         large_bitmap(size16 dimensions,uint16_t segment_height, void*(allocate)(size_t)=::malloc,void(deallocate)(void*)=::free) 
             : m_dimensions(dimensions),m_segment_height(segment_height),m_deallocate(deallocate)
@@ -577,40 +573,7 @@ namespace gfx {
             return fill(bounds,p);
         }
     };
-    template<typename Destination,typename Source> gfx_result convert(Destination& destination,const Source& source) {
-        size16 dim = source.bounds().crop(destination.bounds()).dimensions();
-        point16 pt;
-        gfx_result r;
-        for(pt.y = 0;pt.y<dim.width;++pt.y) {
-            for(pt.x=0;pt.x<dim.height;++pt.x) {
-                typename Source::pixel_type px;
-                r=source.point(pt,&px);
-                if(gfx_result::success!=r) {
-                    return r;
-                }
-                typename Destination::pixel_type dpx;
-                using thas_alpha=typename Source::pixel_type::template has_channel_names<channel_name::A>;
-                if(thas_alpha::value) {
-                    typename Destination::pixel_type bgpx;
-                    gfx_result r=destination.point(pt,&bgpx);
-                    if(gfx_result::success!=r) {
-                        return r;
-                    }
-                    if(!convert(px,&dpx,&bgpx)) {
-                        return gfx_result::not_supported;
-                    }
-                } else {
-                    if(!convert(px,&dpx))
-                        return gfx_result::not_supported;
-                }
-                r = destination.point(pt,dpx);
-                if(r!=gfx_result::success) {
-                    return r;
-                }
-            }
-        }
-        return gfx_result::success;
-    }
+    
 
     
 }

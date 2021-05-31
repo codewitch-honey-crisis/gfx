@@ -25,7 +25,7 @@ namespace gfx {
         };
         template<typename Destination,bool Batch>
         struct batch_helper {
-            inline static gfx_result begin_batch(Destination& dst,rect16& rect) {
+            inline static gfx_result begin_batch(Destination& dst,const rect16& rect) {
                 return gfx_result::success;
             }
             inline static gfx_result write_batch(Destination& dst, point16 location, typename Destination::pixel_type color) {
@@ -393,7 +393,7 @@ namespace gfx {
         }
         template<typename Destination>
         inline gfx_result copy_to(const rect16& src_rect,Destination& dst,point16 location) const {
-            if(nullptr==begin() || nullptr==dst.begin())
+            if(nullptr==begin())
                 return gfx_result::out_of_memory;
             if(!src_rect.intersects(bounds())) return gfx_result::success;
             rect16 srcr = src_rect.crop(bounds());

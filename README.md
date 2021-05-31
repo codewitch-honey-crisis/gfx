@@ -606,7 +606,7 @@ Loading images is a matter of creating a stream over the input, like a file, and
 C++
 ``` {#pre807588 .lang-cplusplus style="margin-top:0;" data-language="C++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
 file_stream fs("/spiffs/image.jpg");
-jpeg_image::load(&fs,[](const typename jpeg_image::region_type& region,
+jpeg_image::load(&fs,[](typename jpeg_image::region_type& region,
                         point16 location,
                         void* state){
     return draw::bitmap(lcd, // lcd is available globally

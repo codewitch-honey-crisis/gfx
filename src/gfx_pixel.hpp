@@ -508,13 +508,13 @@ namespace gfx {
         // retrieves the floating point channel value by index
         template<size_t Index>
         constexpr inline auto channelr_unchecked() const {
-            using ch = channel_by_index<Index>;
+            using ch = channel_by_index_unchecked<Index>;
             return channel_unchecked<Index>()*ch::scaler;
         }
         // sets the floating point channel value by index
         template<size_t Index>
         constexpr inline void channelr_unchecked(typename channel_by_index<Index>::real_type value) {
-            using ch = channel_by_index<Index>;
+            using ch = channel_by_index_unchecked<Index>;
             channel_unchecked<Index>(value*ch::scale+.5);
         }
         // retrieves the integer channel value by name
@@ -677,6 +677,7 @@ namespace gfx {
         const bool ris_bw_candidate2 = tris_bw_candidate::value;
         using is_rhs_rgb = typename PixelTypeRhs::template has_channel_names<channel_name::R,channel_name::G,channel_name::B>;
         using is_rhs_yuv = typename PixelTypeRhs::template has_channel_names<channel_name::Y,channel_name::U,channel_name::V>;
+        using is_rhs_ycbcr = typename PixelTypeRhs::template has_channel_names<channel_name::Y,channel_name::Cb,channel_name::Cr>;
         //using is_rhs_ycbcr = typename PixelTypeRhs::template has_channel_names<channel_name::Y,channel_name::Cb,channel_name::Cr>;
         // TODO: Add code for determining other additional color models here
 
@@ -745,7 +746,43 @@ namespace gfx {
                 helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexV::value>(native_value,cV);
                 
                 good = true;
-            } else if(ris_bw_candidate && ris_bw_candidate2) {
+            } else if(is_rhs_ycbcr::value && PixelTypeRhs::channels<5) {
+                    // TODO: Verify this works. Difficult because it's lossy
+                    // destination is YCbCr color model
+                    using trindexY = typename PixelTypeRhs::template channel_index_by_name<channel_name::Y>;
+                    using trchY = typename PixelTypeRhs::template channel_by_index_unchecked<trindexY::value>;
+                    
+                    using trindexCb = typename PixelTypeRhs::template channel_index_by_name<channel_name::Cb>;
+                    using trchCb = typename PixelTypeRhs::template channel_by_index_unchecked<trindexCb::value>;
+                
+                    using trindexCr = typename PixelTypeRhs::template channel_index_by_name<channel_name::Cr>;
+                    using trchCr = typename PixelTypeRhs::template channel_by_index_unchecked<trindexCr::value>;
+                    const auto cR = source.template channelr_unchecked<chiR>();
+                    const auto cG = source.template channelr_unchecked<chiG>();
+                    const auto cB = source.template channelr_unchecked<chiB>();
+                    // for BT.601 spec:
+                    const double a = .299,
+                                b=.587,
+                                c=.114,
+                                d=1.772,
+                                e=1.402;
+                    
+                    const double y  = a * cR + b * cG + c * cB;
+                    const double cb = (cB - y) / d+.5;
+                    const double cr = (cR - y) / e+.5;
+                    
+                    const typename trchY::int_type cY =helpers::clamp(typename trchY::int_type(y*trchY::scale+.5),trchY::min,trchY::max);
+                    const typename trchCb::int_type cCb = helpers::clamp(typename trchY::int_type((cb*trchCb::scale+.5)),trchCb::min,trchCb::max);
+                    const typename trchCr::int_type cCr = helpers::clamp(typename trchY::int_type((cr*trchCr::scale+.5)),trchCr::min,trchCr::max);
+                    
+                    helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexY::value>(native_value,cY);
+                    helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexCb::value>(native_value,cCb);
+                    helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexCr::value>(native_value,cCr);
+                    
+                    good = true;
+            }
+            
+            if(ris_bw_candidate && ris_bw_candidate2) {
                 // destination is grayscale or monochrome
                 using trindexL = typename PixelTypeRhs::template channel_index_by_name<channel_name::L>;
                 using trchL = typename PixelTypeRhs::template channel_by_index_unchecked<trindexL::value>;
@@ -888,15 +925,15 @@ namespace gfx {
         } else if(is_ycbcr::value && PixelTypeLhs::channels<5) {
             // source color model is YCbCr
             using tindexY = typename PixelTypeLhs::template channel_index_by_name<channel_name::Y>;
-            using tchY = typename PixelTypeLhs::template channel_by_index_unchecked<tindexY::value>;
+            //using tchY = typename PixelTypeLhs::template channel_by_index_unchecked<tindexY::value>;
             const size_t chiY = tindexY::value;
                 
             using tindexCb = typename PixelTypeLhs::template channel_index_by_name<channel_name::Cb>;
-            using tchCb = typename PixelTypeLhs::template channel_by_index_unchecked<tindexCb::value>;
+            //using tchCb = typename PixelTypeLhs::template channel_by_index_unchecked<tindexCb::value>;
             const size_t chiCb = tindexCb::value;
 
             using tindexCr = typename PixelTypeLhs::template channel_index_by_name<channel_name::Cr>;
-            using tchCr = typename PixelTypeLhs::template channel_by_index_unchecked<tindexCr::value>;
+            //using tchCr = typename PixelTypeLhs::template channel_by_index_unchecked<tindexCr::value>;
             const size_t chiCr = tindexCr::value;
 
             if(is_rhs_rgb::value && PixelTypeRhs::channels<5) {
@@ -911,18 +948,20 @@ namespace gfx {
                 using trindexB = typename PixelTypeRhs::template channel_index_by_name<channel_name::B>;
                 using trchB = typename PixelTypeRhs::template channel_by_index_unchecked<trindexB::value>;
                 
-                auto chY = helpers::clamp((int)(source.template channel_unchecked<chiY>()*(tchY::scale/255.0)),0,255);
-                auto chCb = helpers::clamp((int)(source.template channel_unchecked<chiCb>()*(tchCb::scale/255.0)),0,255);
-                auto chCr = helpers::clamp((int)(source.template channel_unchecked<chiCr>()*(tchCr::scale/255.0)),0,255);
-                auto cnR = (uint8_t)helpers::clamp((int)(chY + ((int)(1.402 * CVACC) * chCr) / CVACC),0,255);
-                auto cnG = (uint8_t)helpers::clamp((int)(chY - ((int)(0.344 * CVACC) * chCb + (int)(0.714 * CVACC) * chCr) / CVACC),0,255);
-                auto cnB = (uint8_t)helpers::clamp((int)(chY + ((int)(1.772 * CVACC) * chCb) / CVACC),0,255);
+                const auto chY = uint8_t(source.template channelr_unchecked<chiY>()*255);
+                const auto chCb = uint8_t(source.template channelr_unchecked<chiCb>()*255);
+                const auto chCr = uint8_t(source.template channelr_unchecked<chiCr>()*255);
+                const int cBA = chCb-128;
+                const int cRA = chCr-128;
+                const auto cnR = (uint8_t)helpers::clamp((int)(chY + ((int)(1.402 * CVACC) * cRA) / (float)CVACC),0,255);
+                const auto cnG = (uint8_t)helpers::clamp((int)(chY - ((int)(0.344 * CVACC) * cBA + (int)(0.714 * CVACC) * cRA) / (float)CVACC),0,255);
+                const auto cnB = (uint8_t)helpers::clamp((int)(chY + ((int)(1.772 * CVACC) * cBA) / (float)CVACC),0,255);
                 
-                auto r = typename trchR::int_type(cnR*(trchR::scale/255.0));
+                const auto r = typename trchR::int_type(cnR*(trchR::scale/255.0));
                 helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexR::value>(native_value,r);
-                auto g = typename trchG::int_type(cnG*(trchG::scale/255.0));
+                const auto g = typename trchG::int_type(cnG*(trchG::scale/255.0));
                 helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexG::value>(native_value,g);
-                auto b = typename trchB::int_type(cnB*(trchB::scale/255.0));
+                const auto b = typename trchB::int_type(cnB*(trchB::scale/255.0));
                 helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexB::value>(native_value,b);
                 good = true;                    
             }

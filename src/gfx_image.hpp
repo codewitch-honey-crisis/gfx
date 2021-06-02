@@ -5,7 +5,7 @@
 #include "gfx_positioning.hpp"
 #include "gfx_bitmap.hpp"
 #include "stream.hpp"
-#define HTCW_JPEG_AS_RGB
+//#define HTCW_JPEG_AS_RGB
 // Jpg decompression code ported from TJpgDec. The original
 // copyright notice is below:
 /*----------------------------------------------------------------------------/
@@ -578,9 +578,12 @@ namespace gfx {
                     *ycbcr24++ = /* B */ BYTECLIP(yy + ((int)(1.772 * CVACC) * cb) / CVACC);
 
                     #else
+                    /*if(yy>255||yy<0||cb>255||cb<0||cr>255||cr<0) {
+                        printf("yy=%d, cb=%d, cr=%d\r\n",yy,cb,cr);
+                    }*/
                     *ycbcr24++ = /* Y  */ BYTECLIP(yy);
-                    *ycbcr24++ = /* Cb */ BYTECLIP(cb);
-                    *ycbcr24++ = /* Cr */  BYTECLIP(cr);
+                    *ycbcr24++ = /* Cb */ BYTECLIP(cb+128);
+                    *ycbcr24++ = /* Cr */  BYTECLIP(cr+128);
                     #endif
                     
                     

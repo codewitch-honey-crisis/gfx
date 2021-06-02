@@ -13,6 +13,7 @@
 /----------------------------------------------------------------------------*/
 
 namespace gfx {
+    using stream = io::stream;
     struct jpeg_image final {
         #ifdef HTCW_JPEG_AS_RGB
         using pixel_type = rgb_pixel<24>;
@@ -21,7 +22,7 @@ namespace gfx {
         #endif
         using region_type = bitmap<pixel_type>;
         // region is not const so we can do in place filtering
-        typedef gfx_result(*callback)(region_type& region,point16 location,void* state);
+        typedef gfx_result(*callback)(size16 dimensions, region_type& region,point16 location,void* state);
     private:
         // this private section is all ported from tjpgd.c
         // TJpgDec - Tiny JPEG Decompressor include file               (C)ChaN, 2020
@@ -966,7 +967,7 @@ namespace gfx {
             JpegDev *jd = (JpegDev *)decoder->device;
             //jd->result=gfx_result::success;
             region_type r(size16(rect->right-rect->left+1,rect->bottom-rect->top+1),bitmap);
-            jd->result=jd->out(r,point16(rect->left,rect->top),jd->state);
+            jd->result=jd->out(size16(decoder->width,decoder->height), r,point16(rect->left,rect->top),jd->state);
             return (gfx_result::success!=jd->result)?0:1;
         }
 
@@ -1062,5 +1063,6 @@ namespace gfx {
 		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
     #endif
+    
 }
 #endif

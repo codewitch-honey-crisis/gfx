@@ -18,7 +18,7 @@ void dump_bitmap(const BitmapType& bmp) {
         for(int x = 0;x<bmp.dimensions().width;++x) {
             typename BitmapType::pixel_type px;
             bmp.point(point16(x,y),&px);
-            const auto px2 = convert<BitmapType::pixel_type,gsc4>(px);
+            const auto px2 = convert<typename BitmapType::pixel_type,gsc4>(px);
             size_t i =px2.template channel<0>();
             printf("%c",col_table[i]);
             
@@ -101,7 +101,7 @@ int main(int argc, char** argv) {
     spoint16 shrink(-bounds.width()/8,-bounds.height()/8);
     for(size_t i = 0;i<count;++i) {
         // draw the bitmap
-        draw::bitmap(bmp2,r,bmp,ubounds,bitmap_flags::resize);
+        draw::bitmap(bmp2,r,bmp,ubounds,bitmap_resize::resize_bilinear);
         // move the rect, flip and shrink it
         r=r.offset(r.width(),0);
         r=r.inflate(shrink.x,shrink.y);

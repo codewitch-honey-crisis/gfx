@@ -1,16 +1,302 @@
 #ifndef HTCW_GFX_DRAWING_HPP
 #define HTCW_GFX_DRAWING_HPP
 #include "bits.hpp"
+#include <math.h>
 #include "gfx_core.hpp"
 #include "gfx_pixel.hpp"
 #include "gfx_positioning.hpp"
 #include "gfx_font.hpp"
 namespace gfx {
     
-    enum struct bitmap_flags {
+    enum struct bitmap_resize {
         crop = 0,
-        resize = 1
+        resize_fast = 1,
+        resize_bilinear = 2,
+        resize_bicubic = 3
     };
+    namespace helpers {
+        // adapted from Alan Wolfe's blog https://blog.demofox.org/2015/08/15/resizing-images-with-bicubic-interpolation/
+        /*
+        Unless otherwise noted, all content of this website is licensed under the MIT license below (https://opensource.org/licenses/MIT):
+        Copyright 2019 Alan Wolfe
+        Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the “Software”), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+        The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+        THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+        */
+        // t is a value that goes from 0 to 1 to interpolate in a C1 continuous way across uniformly sampled data points.
+        // when t is 0, this will return B.  When t is 1, this will return C.  Inbetween values will return an interpolation
+        // between B and C.  A and B are used to calculate slopes at the edges.
+        double cubic_hermite (double A, double B, double C, double D, double t)
+        {
+            double a = -A / 2.0f + (3.0f*B) / 2.0f - (3.0f*C) / 2.0f + D / 2.0f;
+            double b = A - (5.0f*B) / 2.0f + 2.0f*C - D / 2.0f;
+            double c = -A / 2.0f + C / 2.0f;
+            double d = B;
+        
+            return a*t*t*t + b*t*t + c*t + d;
+        }
+
+        bool clamp_point16(point16& pt,const rect16& bounds) {
+            bool result=false;
+            if(pt.x<bounds.x1) {
+                result = true;
+                pt.x = bounds.x1;
+            } else if(pt.x>bounds.x2) {
+                result = true;
+                pt.x = bounds.x2;
+            }
+            if(pt.y<bounds.y1) {
+                result = true;
+                pt.y = bounds.y1;
+            } else if(pt.y>bounds.y2) {
+                result = true;
+                pt.y = bounds.y2;
+            }
+            return result;
+        }
+        template<typename Source>
+        gfx_result sample_nearest (const Source& source, const rect16& src_rect, float u, float v,typename Source::pixel_type* out_pixel) {
+            // calculate coordinates
+            
+            point16 pt(uint16_t(u * src_rect.width()+src_rect.left()),
+                uint16_t(v * src_rect.height()+src_rect.top()));
+
+            clamp_point16(pt,src_rect);
+            // return pixel
+            return source.point(pt,out_pixel);
+            
+        }
+        template<typename Source>
+        gfx_result sample_bilinear (const Source& source, const rect16& src_rect, float u, float v,typename Source::pixel_type* out_pixel) {
+            using pixel_type = typename Source::pixel_type;
+            // calculate coordinates -> also need to offset by half a pixel to keep image from shifting down and left half a pixel
+            float x = (u * src_rect.width()) - 0.5f+src_rect.left();
+            int xint = int(x);
+            float xfract = x - floor(x);
+        
+            float y = (v * src_rect.height()) - 0.5f+src_rect.top();
+            int yint = int(y);
+            float yfract = y - floor(y);
+            gfx_result r;
+            // get pixels
+            
+            point16 pt00(xint+0,yint+0);
+            point16 pt10(xint+1,yint+0);
+            point16 pt01(xint+0,yint+1);
+            point16 pt11(xint+1,yint+1);
+            pixel_type px00,px10,px01,px11;
+            clamp_point16(pt00,src_rect);
+            clamp_point16(pt10,src_rect);
+            clamp_point16(pt01,src_rect);
+            clamp_point16(pt11,src_rect);
+            r=source.point(pt00,&px00);
+            if(gfx_result::success!=r) {
+                return r;
+            }
+            r=source.point(pt10,&px10);
+            if(gfx_result::success!=r) {
+                return r;
+            }
+            r=source.point(pt01,&px01);
+            if(gfx_result::success!=r) {
+                return r;
+            }
+            r=source.point(pt11,&px11);
+            if(gfx_result::success!=r) {
+                return r;
+            }
+            // interpolate bi-linearly!
+            pixel_type col0;
+            if(!px00.blend(px10,xfract,&col0)) {
+                return gfx_result::not_supported;
+            }
+            pixel_type col1;
+            if(!px01.blend(px11,xfract,&col1)) {
+                return gfx_result::not_supported;
+            }
+            if(!col0.blend(col1,yfract,out_pixel)) {
+                return gfx_result::not_supported;
+            }
+            return gfx_result::success;
+        }
+        template<typename Source>
+        gfx_result sample_bicubic (const Source& source, const rect16& src_rect, float u, float v,typename Source::pixel_type* out_pixel) {
+            using pixel_type = typename Source::pixel_type;
+            using rgba_type = rgba_pixel<HTCW_MAX_WORD>;
+            // calculate coordinates -> also need to offset by half a pixel to keep image from shifting down and left half a pixel
+            float x = (u * src_rect.width()) - 0.5+src_rect.left();
+            int xint = int(x);
+            float xfract = x - floor(x);
+        
+            float y = (v * src_rect.height()) - 0.5+src_rect.top();
+            int yint = int(y);
+            float yfract = y - floor(y);
+
+            gfx_result r;
+
+            point16 pt00(xint-1,yint-1),pt10(xint+0,yint-1),pt20(xint+1,yint-1),pt30(xint+2,yint-1),
+                    pt01(xint-1,yint+0),pt11(xint+0,yint+0),pt21(xint+1,yint+0),pt31(xint+2,yint+0),
+                    pt02(xint-1,yint+1),pt12(xint+0,yint+1),pt22(xint+1,yint+1),pt32(xint+2,yint+1),
+                    pt03(xint-1,yint+2),pt13(xint+0,yint+2),pt23(xint+1,yint+2),pt33(xint+2,yint+2);
+                    
+            pixel_type px00,px10,px20,px30,
+                    px01,px11,px21,px31,
+                    px02,px12,px22,px32,
+                    px03,px13,px23,px33;
+            rgba_type cpx00,cpx10,cpx20,cpx30,
+                    cpx01,cpx11,cpx21,cpx31,
+                    cpx02,cpx12,cpx22,cpx32,
+                    cpx03,cpx13,cpx23,cpx33;
+            
+            rgba_type rpx;
+            
+            double d0,d1,d2,d3;
+            
+            // interpolate bi-cubically!
+
+            // 1st row
+            clamp_point16(pt00,src_rect);clamp_point16(pt10,src_rect);clamp_point16(pt20,src_rect);clamp_point16(pt30,src_rect);
+            r = source.point(pt00,&px00); if(gfx_result::success!=r) return r;
+            r = source.point(pt10,&px10); if(gfx_result::success!=r) return r;
+            r = source.point(pt20,&px20); if(gfx_result::success!=r) return r;
+            r = source.point(pt30,&px30); if(gfx_result::success!=r) return r;
+            if(!convert(px00,&cpx00)) return gfx_result::not_supported;
+            if(!convert(px10,&cpx10)) return gfx_result::not_supported;
+            if(!convert(px20,&cpx20)) return gfx_result::not_supported;
+            if(!convert(px30,&cpx30)) return gfx_result::not_supported;
+
+            // 2nd row
+            clamp_point16(pt01,src_rect);clamp_point16(pt11,src_rect);clamp_point16(pt21,src_rect);clamp_point16(pt31,src_rect);
+            r = source.point(pt01,&px01); if(gfx_result::success!=r) return r;
+            r = source.point(pt11,&px11); if(gfx_result::success!=r) return r;
+            r = source.point(pt21,&px21); if(gfx_result::success!=r) return r;
+            r = source.point(pt31,&px31); if(gfx_result::success!=r) return r;
+            if(!convert(px01,&cpx01)) return gfx_result::not_supported;
+            if(!convert(px11,&cpx11)) return gfx_result::not_supported;
+            if(!convert(px21,&cpx21)) return gfx_result::not_supported;
+            if(!convert(px31,&cpx31)) return gfx_result::not_supported;
+
+            // 3rd row
+            clamp_point16(pt02,src_rect);clamp_point16(pt12,src_rect);clamp_point16(pt22,src_rect);clamp_point16(pt32,src_rect);
+            r = source.point(pt02,&px02); if(gfx_result::success!=r) return r;
+            r = source.point(pt12,&px12); if(gfx_result::success!=r) return r;
+            r = source.point(pt22,&px22); if(gfx_result::success!=r) return r;
+            r = source.point(pt32,&px32); if(gfx_result::success!=r) return r;
+            if(!convert(px02,&cpx02)) return gfx_result::not_supported;
+            if(!convert(px12,&cpx12)) return gfx_result::not_supported;
+            if(!convert(px22,&cpx22)) return gfx_result::not_supported;
+            if(!convert(px32,&cpx32)) return gfx_result::not_supported;
+
+            // 4th row
+            clamp_point16(pt03,src_rect);clamp_point16(pt13,src_rect);clamp_point16(pt23,src_rect);clamp_point16(pt33,src_rect);
+            r = source.point(pt03,&px03); if(gfx_result::success!=r) return r;
+            r = source.point(pt13,&px13); if(gfx_result::success!=r) return r;
+            r = source.point(pt23,&px23); if(gfx_result::success!=r) return r;
+            r = source.point(pt33,&px33); if(gfx_result::success!=r) return r;
+            if(!convert(px03,&cpx03)) return gfx_result::not_supported;
+            if(!convert(px13,&cpx13)) return gfx_result::not_supported;
+            if(!convert(px23,&cpx23)) return gfx_result::not_supported;
+            if(!convert(px33,&cpx33)) return gfx_result::not_supported;
+            
+            // Clamp the values since the curve can put the value below 0 or above 1
+            const size_t chiR = rgba_type::channel_index_by_name<channel_name::R>::value;
+            d0 = cubic_hermite(cpx00.template channelr_unchecked<chiR>(),
+                            cpx10.template channelr_unchecked<chiR>(),
+                            cpx20.template channelr_unchecked<chiR>(),
+                            cpx30.template channelr_unchecked<chiR>(),
+                            xfract);
+            d1 = cubic_hermite(cpx01.template channelr_unchecked<chiR>(),
+                            cpx11.template channelr_unchecked<chiR>(),
+                            cpx21.template channelr_unchecked<chiR>(),
+                            cpx31.template channelr_unchecked<chiR>(),
+                            xfract);
+            d2 = cubic_hermite(cpx02.template channelr_unchecked<chiR>(),
+                            cpx12.template channelr_unchecked<chiR>(),
+                            cpx22.template channelr_unchecked<chiR>(),
+                            cpx32.template channelr_unchecked<chiR>(),
+                            xfract);
+            d3 = cubic_hermite(cpx03.template channelr_unchecked<chiR>(),
+                            cpx13.template channelr_unchecked<chiR>(),
+                            cpx23.template channelr_unchecked<chiR>(),
+                            cpx33.template channelr_unchecked<chiR>(),
+                            xfract);
+            rpx.channelr<channel_name::R>(helpers::clamp(cubic_hermite(d0,d1,d2,d3,yfract),0.0,1.0));
+            
+            const size_t chiG = rgba_type::channel_index_by_name<channel_name::G>::value;
+            d0 = cubic_hermite(cpx00.template channelr_unchecked<chiG>(),
+                            cpx10.template channelr_unchecked<chiG>(),
+                            cpx20.template channelr_unchecked<chiG>(),
+                            cpx30.template channelr_unchecked<chiG>(),
+                            xfract);
+            d1 = cubic_hermite(cpx01.template channelr_unchecked<chiG>(),
+                            cpx11.template channelr_unchecked<chiG>(),
+                            cpx21.template channelr_unchecked<chiG>(),
+                            cpx31.template channelr_unchecked<chiG>(),
+                            xfract);
+            d2 = cubic_hermite(cpx02.template channelr_unchecked<chiG>(),
+                            cpx12.template channelr_unchecked<chiG>(),
+                            cpx22.template channelr_unchecked<chiG>(),
+                            cpx32.template channelr_unchecked<chiG>(),
+                            xfract);
+            d3 = cubic_hermite(cpx03.template channelr_unchecked<chiG>(),
+                            cpx13.template channelr_unchecked<chiG>(),
+                            cpx23.template channelr_unchecked<chiG>(),
+                            cpx33.template channelr_unchecked<chiG>(),
+                            xfract);
+            rpx.channelr<channel_name::G>(helpers::clamp(cubic_hermite(d0,d1,d2,d3,yfract),0.0,1.0));
+            
+            const size_t chiB = rgba_type::channel_index_by_name<channel_name::B>::value;
+            d0 = cubic_hermite(cpx00.template channelr_unchecked<chiB>(),
+                            cpx10.template channelr_unchecked<chiB>(),
+                            cpx20.template channelr_unchecked<chiB>(),
+                            cpx30.template channelr_unchecked<chiB>(),
+                            xfract);
+            d1 = cubic_hermite(cpx01.template channelr_unchecked<chiB>(),
+                            cpx11.template channelr_unchecked<chiB>(),
+                            cpx21.template channelr_unchecked<chiB>(),
+                            cpx31.template channelr_unchecked<chiB>(),
+                            xfract);
+            d2 = cubic_hermite(cpx02.template channelr_unchecked<chiB>(),
+                            cpx12.template channelr_unchecked<chiB>(),
+                            cpx22.template channelr_unchecked<chiB>(),
+                            cpx32.template channelr_unchecked<chiB>(),
+                            xfract);
+            d3 = cubic_hermite(cpx03.template channelr_unchecked<chiB>(),
+                            cpx13.template channelr_unchecked<chiB>(),
+                            cpx23.template channelr_unchecked<chiB>(),
+                            cpx33.template channelr_unchecked<chiB>(),
+                            xfract);
+            rpx.channelr<channel_name::B>(helpers::clamp(cubic_hermite(d0,d1,d2,d3,yfract),0.0,1.0));
+            
+            const size_t chiA = rgba_type::channel_index_by_name<channel_name::A>::value;
+            if(-1<chiA) {
+                const size_t chiA = rgba_type::channel_index_by_name<channel_name::A>::value;
+                d0 = cubic_hermite(cpx00.template channelr_unchecked<chiA>(),
+                                cpx10.template channelr_unchecked<chiA>(),
+                                cpx20.template channelr_unchecked<chiA>(),
+                                cpx30.template channelr_unchecked<chiA>(),
+                                xfract);
+                d1 = cubic_hermite(cpx01.template channelr_unchecked<chiA>(),
+                                cpx11.template channelr_unchecked<chiA>(),
+                                cpx21.template channelr_unchecked<chiA>(),
+                                cpx31.template channelr_unchecked<chiA>(),
+                                xfract);
+                d2 = cubic_hermite(cpx02.template channelr_unchecked<chiA>(),
+                                cpx12.template channelr_unchecked<chiA>(),
+                                cpx22.template channelr_unchecked<chiA>(),
+                                cpx32.template channelr_unchecked<chiA>(),
+                                xfract);
+                d3 = cubic_hermite(cpx03.template channelr_unchecked<chiA>(),
+                                cpx13.template channelr_unchecked<chiA>(),
+                                cpx23.template channelr_unchecked<chiA>(),
+                                cpx33.template channelr_unchecked<chiA>(),
+                                xfract);
+                rpx.channelr<channel_name::A>(helpers::clamp(cubic_hermite(d0,d1,d2,d3,yfract),0.0,1.0));
+            }
+            if(!convert(rpx,out_pixel)) return gfx_result::not_supported;
+            return gfx_result::success;
+        }
+    }
     // provides drawing primitives over a bitmap or compatible type 
     struct draw {
 
@@ -51,7 +337,72 @@ namespace gfx {
                 draw::resume(destination);
             }    
         };
-                                                        
+        template<typename Destination,bool Batch,bool Async> 
+        struct batcher {
+            inline static gfx_result begin_batch(Destination& destination,const rect16& bounds,bool async) {
+                return gfx_result::success;
+            }
+            inline static gfx_result write_batch(Destination& destination,point16 location,typename Destination::pixel_type pixel,bool async) {
+                return destination.point(location,pixel);
+            }
+            inline static gfx_result commit_batch(Destination& destination,bool async) {
+                return gfx_result::success;
+            }
+        };
+        template<typename Destination> 
+        struct batcher<Destination,false,true> {
+            inline static gfx_result begin_batch(Destination& destination,const rect16& bounds,bool async) {
+                return gfx_result::success;
+            }
+            inline static gfx_result write_batch(Destination& destination,point16 location,typename Destination::pixel_type pixel,bool async) {
+                if(async) {
+                    return destination.point_async(location,pixel);
+                } else {
+                    return destination.point(location,pixel);
+                }
+            }
+            inline static gfx_result commit_batch(Destination& destination,bool async) {
+                return gfx_result::success;
+            }
+        };
+        template<typename Destination> 
+        struct batcher<Destination,true,false> {
+            inline static gfx_result begin_batch(Destination& destination,const rect16& bounds,bool async) {
+                return destination.begin_batch(bounds);
+            }
+            inline static gfx_result write_batch(Destination& destination,point16 location,typename Destination::pixel_type pixel,bool async) {
+                return destination.write_batch(pixel);
+            }
+            inline static gfx_result commit_batch(Destination& destination,bool async) {
+                return destination.commit_batch();
+            }
+        };
+        template<typename Destination> 
+        struct batcher<Destination,true,true> {
+            inline static gfx_result begin_batch(Destination& destination,const rect16& bounds,bool async) {
+                if(async) {
+                    return destination.begin_batch_async(bounds);
+                } else {
+                    return destination.begin_batch(bounds);
+                }
+            }
+            inline static gfx_result write_batch(Destination& destination,point16 location,typename Destination::pixel_type pixel,bool async) {
+                if(async) {
+                    return destination.write_batch_async(pixel);
+                } else {
+                    return destination.write_batch(pixel);
+                }
+            }
+            inline static gfx_result commit_batch(Destination& destination,bool async) {
+                if(async) {
+                    return destination.commit_batch_async();
+                } else {
+                    return destination.commit_batch();
+                }
+                
+            }
+        };
+        
         template<typename Destination,typename Source,bool CopyFrom,bool CopyTo,bool BltDst,bool BltSrc,bool Async> 
         struct draw_bmp_caps_helper {
             
@@ -590,167 +941,161 @@ namespace gfx {
             }
         };
         template<typename Destination,typename Source>
-        static gfx_result draw_bitmap_impl(Destination& destination, const srect16& dest_rect, Source& source, const rect16& source_rect,bitmap_flags options,const typename Source::pixel_type* transparent_color, srect16* clip,bool async) {
+        static gfx_result draw_bitmap_impl(Destination& destination, const srect16& dest_rect, Source& source, const rect16& source_rect,bitmap_resize resize_type,const typename Source::pixel_type* transparent_color, srect16* clip,bool async) {
+            using batch=batcher<Destination,Destination::caps::batch,Destination::caps::async>;
             gfx_result r;
-            rect16 dr;
-            if(!translate_adjust(dest_rect,&dr))
-                return gfx_result::success; // whole thing is offscreen
-            // get the scale
-            float sx = dest_rect.width()/(float)source_rect.width();
-            float sy = dest_rect.height()/(float)source_rect.height();
-            int o = (int)dest_rect.orientation();
-            point16 loc(0,0);
-            rect16 ccr;
+            rect16 srcr=source_rect.normalize().crop(source.bounds());
+            srect16 dsr=dest_rect.crop((srect16)destination.bounds()).normalize();
             if(nullptr!=clip) {
-                if(!translate_adjust(*clip,&ccr))
-                    return gfx_result::success; // clip rect is off screen
-                dr = dr.crop(ccr);
+                dsr=dsr.crop(*clip);
             }
-            dr = dr.normalize();
-            size16 dim(dr.width(),dr.height());
-            if(dim.width>source_rect.width())
-                dim.width = source_rect.width();
-            if(dim.height>source_rect.height())
-                dim.height = source_rect.height();
-            auto x2=dest_rect.left();
-            auto y2=dest_rect.top();
-            if(0>x2) {
-                loc.x = -x2;
-                if(nullptr==clip)
-                    dim.width+=dest_rect.x1;
-            }
-            if(0>y2) {
-                loc.y = -y2;
-                if(nullptr==clip)
-                    dim.height+=y2;
-            }
-            loc.x+=source_rect.left();
-            loc.y+=source_rect.top();
-            rect16 srcr = rect16(loc,dim);
-            rect16 dstr(dr.x1,dr.y1,srcr.width()*sx+.5+dr.x1,srcr.height()*sy+.5+dr.y1);
-            if(dstr.x2>dr.x2) dstr.x2=dr.x2;
-            if(dstr.y2>dr.y2) dstr.y2=dr.y2;
+            rect16 ddr = (rect16)dsr;
+            int o = (int)dest_rect.orientation();
+            const int w = dest_rect.width(),h=dest_rect.height();
+
             // suspend if we can
             suspend_token_internal<Destination> stok(destination,async);
-            if(transparent_color==nullptr && bitmap_flags::resize!=options) {
-                gfx_result r;
-                if(async)
-                    r=draw_bmp_batch_caps_helper<Destination,Source,Destination::caps::batch,Destination::caps::async>::do_draw(destination,dstr,source,srcr,o);
-                else
-                    r=draw_bmp_batch_caps_helper<Destination,Source,Destination::caps::batch,false>::do_draw(destination,dstr,source,srcr,o);
-                if(gfx_result::success!=r)
+
+            using thas_alpha = typename Source::pixel_type::template has_channel_names<channel_name::A>;
+            const bool has_alpha = thas_alpha::value;
+            if(!has_alpha && transparent_color==nullptr) {
+                r=batch::begin_batch(destination,ddr,async);
+                if(gfx_result::success!=r) {
                     return r;
-               
-            } else {
-                
-                if((int)rect_orientation::flipped_horizontal==(o&(int)rect_orientation::flipped_horizontal)) {
-                    dstr=dstr.flip_horizontal();
                 }
-                if((int)rect_orientation::flipped_vertical==(o&(int)rect_orientation::flipped_vertical)) {
-                    dstr=dstr.flip_vertical();
-                }
-                if(bitmap_flags::crop==options) {
-                    int o = (int)dest_rect.orientation();
-                    point16 ps;
-                    for(ps.y=srcr.y1;ps.y<=srcr.y2;++ps.y) {
-                        for(ps.x=srcr.x1;ps.x<=srcr.x2;++ps.x) {
-                            uint16_t px = ps.x;
-                            uint16_t py = ps.y;
-                            if((int)rect_orientation::flipped_horizontal==((int)rect_orientation::flipped_horizontal&o)) {
-                                px=source_rect.width()-px-1;
+            }
+            if(bitmap_resize::crop==resize_type) {
+                for(int y = 0;y<h;++y) {
+                    const int yy = y+dest_rect.top();
+                    int syy= ((int)rect_orientation::flipped_vertical==((int)rect_orientation::flipped_vertical&o))?(h-y-1)+source_rect.top():y+source_rect.top();
+                    if(yy<dsr.y1)
+                        continue;
+                    else if(yy>dsr.y2)
+                        break;
+                    for(int x = 0;x<w;++x) {
+                        const int xx = x+dest_rect.left();
+                        int sxx = ((int)rect_orientation::flipped_horizontal==((int)rect_orientation::flipped_horizontal&o))?(w-x-1)+source_rect.left():x+source_rect.left();
+                        if(xx<dsr.x1)
+                            continue;
+                        else if(xx>dsr.x2)
+                            break;
+                        point16 spt(sxx,syy);
+                        typename Source::pixel_type px;
+                        if(source_rect.intersects(spt)) {
+                            r=source.point(spt,&px);
+                            if(gfx_result::success!=r) {
+                                return r;
                             }
-                            if((int)rect_orientation::flipped_vertical==((int)rect_orientation::flipped_vertical&o)) {
-                                py=source_rect.height()-py-1;
+                        }
+                        if(!has_alpha && transparent_color==nullptr) {
+                            typename Destination::pixel_type dpx;
+                            if(!convert(px,&dpx)) {
+                                return gfx_result::not_supported;
                             }
-                            point16 p(px+dstr.left(),py+dstr.top());
-                            if(dstr.intersects(p)) {
-                                typename Source::pixel_type px;
-                                r= source.point(ps,&px);
-                                if(gfx_result::success!=r)
-                                    return r;
-                                if(nullptr==transparent_color || transparent_color->native_value!=px.native_value) {
-                                    typename Destination::pixel_type px2=convert<typename Source::pixel_type,typename Destination::pixel_type>(px);
-                                    r=destination.point(p,px2);
-                                    if(gfx_result::success!=r)
-                                        return r;
-                                }
+                            r=batch::write_batch(destination,spt,dpx,async);
+                            if(gfx_result::success!=r) {
+                                return r;
+                            }
+                        } else if(nullptr==transparent_color || transparent_color->native_value!=px.native_value) {
+                            // already clipped, hence nullptr
+                            r=point_impl(destination,(spoint16)spt,px,nullptr,async);
+                            if(gfx_result::success!=r) {
+                                return r;
                             }
                         }
                     }
-                } else {
-                    // TODO: Modify this to write the destination left to right top to bottom
-                    // and then use batching to speed up writes
-                    // do resizing
-                    int o = (int)dest_rect.orientation();
-                    uint32_t x_ratio = (uint32_t)((dest_rect.width()<<16)/source_rect.width()) +1;
-                    uint32_t y_ratio = (uint32_t)((dest_rect.height()<<16)/source_rect.height()) +1;
-                    bool growX = dest_rect.width()>source_rect.width(),
-                        growY = dest_rect.height()>source_rect.height();
-                    point16 p(-1,-1);
-                    point16 ps;
-                    srcr = source_rect.normalize();
-                    for(ps.y=srcr.y1;ps.y<=srcr.y2;++ps.y) {
-                        for(ps.x=srcr.x1;ps.x<=srcr.x2;++ps.x) {
-                            uint16_t px = ps.x;
-                            uint16_t py = ps.y;
-                            if((int)rect_orientation::flipped_horizontal==((int)rect_orientation::flipped_horizontal&o)) {
-                                px=source_rect.width()-px-1;
-                            }
-                            if((int)rect_orientation::flipped_vertical==((int)rect_orientation::flipped_vertical&o)) {
-                                py=source_rect.height()-py-1;
-                            }
-                            uint16_t ux(((px*x_ratio)>>16));
-                            
-                            uint16_t uy(((py*y_ratio)>>16));
-                            ux+=dstr.left();
-                            uy+=dstr.top();
-                            if(ux!=p.x || uy!=p.y) {
-                                typename Source::pixel_type px;
-                                r= source.point(ps,&px);
-                                if(gfx_result::success!=r)
-                                    return r;
-                                if(nullptr==transparent_color || transparent_color->native_value!=px.native_value) {
-                                    p=point16(ux,uy);
-                                    typename Destination::pixel_type px2=convert<typename Source::pixel_type,typename Destination::pixel_type>(px);
-                                    if(!(growX || growY)) {
-                                        r=destination.point(p,px2);
-                                        if(gfx_result::success!=r)
-                                            return r;
-                                    } else {
-                                        uint16_t w = x_ratio>>16,h=y_ratio>>16;
-                                        r=destination.fill(rect16(p,size16(w,h)),px2);
-                                        if(gfx_result::success!=r)
-                                            return r;
-                                    }
-                                }
-                            }
-                        }    
+                }
+            } else { // resize
+                for (int y = 0; y < dest_rect.height(); ++y) {
+                    int yy = y+dest_rect.top();
+                    if(yy<dsr.y1)
+                        continue;
+                    else if(yy>dsr.y2)
+                        break;
+                
+                    float v = float(y) / float(dest_rect.height() - 1);
+                    if((int)rect_orientation::flipped_vertical==((int)rect_orientation::flipped_vertical&o)) {
+                        v=1.0-v;
                     }
+                    for (int x = 0; x < dest_rect.width(); ++x) {
+                        int xx = x+dest_rect.left();
+                        if(xx<dsr.x1) {
+                            continue;
+                        } else if(xx>dsr.x2)
+                            break;
+                        spoint16 spt(xx,yy);
+                        float u = float(x) / float(dest_rect.width() - 1);
+                        if((int)rect_orientation::flipped_horizontal==((int)rect_orientation::flipped_horizontal&o)) {
+                            u=1.0-u;
+                        }
+                        typename Source::pixel_type sampx;
+                       
+                        switch(resize_type) {
+                            case bitmap_resize::resize_bicubic:
+                                r=helpers::sample_bicubic(source,srcr,u,v,&sampx);
+                                if(gfx_result::success!=r) {
+                                    return r;
+                                }
+                                break;
+                            case bitmap_resize::resize_bilinear:
+                                r=helpers::sample_bilinear(source,srcr,u,v,&sampx);
+                                if(gfx_result::success!=r) {
+                                    return r;
+                                }
+                                break;
+                            default:
+                                r=helpers::sample_nearest(source,srcr,u,v,&sampx);
+                                if(gfx_result::success!=r) {
+                                    return r;
+                                }
+                                break;
+                        }
+                        if(!has_alpha && nullptr==transparent_color) {
+                            typename Destination::pixel_type px;
+                            if(!convert(sampx,&px)) {
+                                return gfx_result::not_supported;
+                            }
+                            r=batch::write_batch(destination,(point16)spt,px,async);
+                        } else if(nullptr==transparent_color || transparent_color->native_value!=sampx.native_value) {
+                            // already clipped, hence nullptr
+                            r=draw::point_impl(destination,spt,sampx,nullptr,async);
+                            if(gfx_result::success!=r) {
+                                return r;
+                            }
+                        }
+                    }
+                }
+            }
+            if(!has_alpha && transparent_color==nullptr) {
+                r=batch::commit_batch(destination,async);
+                if(gfx_result::success!=r) {
+                    return r;
                 }
             }
             return gfx_result::success;
         }
+        
         template<typename Destination,typename Source,typename DestinationPixelType,typename SourcePixelType>
         struct bmp_helper {
-            inline static gfx_result draw_bitmap(Destination& destination, const srect16& dest_rect, Source& source, const rect16& source_rect,bitmap_flags options,const typename Source::pixel_type* transparent_color, srect16* clip,bool async) {
-                return draw_bitmap_impl(destination,dest_rect,source,source_rect,options,transparent_color,clip,async);
+            inline static gfx_result draw_bitmap(Destination& destination, const srect16& dest_rect, Source& source, const rect16& source_rect,bitmap_resize resize_type,const typename Source::pixel_type* transparent_color, srect16* clip,bool async) {
+                return draw_bitmap_impl(destination,dest_rect,source,source_rect,resize_type,transparent_color,clip,async);
             }
         };
         
         template<typename Destination,typename Source,typename PixelType>
         struct bmp_helper<Destination,Source,PixelType,PixelType> {
-            static gfx_result draw_bitmap(Destination& destination, const srect16& dest_rect, Source& source, const rect16& source_rect,bitmap_flags options, const typename Source::pixel_type* transparent_color,srect16* clip,bool async) {
+            static gfx_result draw_bitmap(Destination& destination, const srect16& dest_rect, Source& source, const rect16& source_rect,bitmap_resize resize_type, const typename Source::pixel_type* transparent_color,srect16* clip,bool async) {
                 const bool optimized = (Destination::caps::blt && Source::caps::blt) || (Destination::caps::copy_from || Source::caps::copy_to);
                 
                 // disqualify fast blting
                 if(!optimized || transparent_color!=nullptr || dest_rect.x1>dest_rect.x2 || 
                     dest_rect.y1>dest_rect.y2 || 
-                    ((int)bitmap_flags::resize==((int)options&(int)bitmap_flags::resize)&&
+                    ((bitmap_resize::crop!=resize_type)&&
                         (dest_rect.width()!=source_rect.width()||
                         dest_rect.height()!=source_rect.height())
                         )
                     ) {
-                    return draw_bitmap_impl(destination,dest_rect,source,source_rect,options,transparent_color,clip,async);
+                    return draw_bitmap_impl(destination,dest_rect,source,source_rect,resize_type,transparent_color,clip,async);
                     
                 }
                 rect16 dr;
@@ -2191,15 +2536,15 @@ namespace gfx {
         }
         // draws a portion of a bitmap or display buffer to the specified rectangle with an optional clipping rentangle
         template<typename Destination,typename Source>
-        static inline gfx_result bitmap(Destination& destination,const srect16& dest_rect,Source& source,const rect16& source_rect,bitmap_flags options=bitmap_flags::crop,const typename Source::pixel_type* transparent_color=nullptr, srect16* clip=nullptr) {
+        static inline gfx_result bitmap(Destination& destination,const srect16& dest_rect,Source& source,const rect16& source_rect,bitmap_resize resize_type=bitmap_resize::crop,const typename Source::pixel_type* transparent_color=nullptr, srect16* clip=nullptr) {
             return bmp_helper<Destination,Source,typename Destination::pixel_type,typename Source::pixel_type>
-                ::draw_bitmap(destination,dest_rect,source,source_rect,options,transparent_color,clip,false);
+                ::draw_bitmap(destination,dest_rect,source,source_rect,resize_type,transparent_color,clip,false);
         }        
         // asynchronously draws a portion of a bitmap or display buffer to the specified rectangle with an optional clipping rentangle
         template<typename Destination,typename Source>
-        static inline gfx_result bitmap_async(Destination& destination,const srect16& dest_rect,Source& source,const rect16& source_rect,bitmap_flags options=bitmap_flags::crop,const typename Source::pixel_type* transparent_color=nullptr,srect16* clip=nullptr) {
+        static inline gfx_result bitmap_async(Destination& destination,const srect16& dest_rect,Source& source,const rect16& source_rect,bitmap_resize resize_type=bitmap_resize::crop, const typename Source::pixel_type* transparent_color=nullptr,srect16* clip=nullptr) {
             return bmp_helper<Destination,Source,typename Destination::pixel_type,typename Source::pixel_type>
-                ::draw_bitmap(destination,dest_rect,source,source_rect,options,transparent_color,clip,true);
+                ::draw_bitmap(destination,dest_rect,source,source_rect,resize_type,transparent_color,clip,true);
         }        
         // draws text to the specified destination rectangle with the specified font and colors and optional clipping rectangle
         template<typename Destination,typename PixelType>
@@ -2334,6 +2679,5 @@ namespace gfx {
         }
         return gfx_result::success;
     }
-
 }
 #endif

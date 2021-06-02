@@ -505,6 +505,18 @@ namespace gfx {
             using ch = channel_by_index<Index>;
             channel<Index>(value*ch::scale+.5);
         }
+        // retrieves the floating point channel value by index
+        template<size_t Index>
+        constexpr inline auto channelr_unchecked() const {
+            using ch = channel_by_index<Index>;
+            return channel_unchecked<Index>()*ch::scaler;
+        }
+        // sets the floating point channel value by index
+        template<size_t Index>
+        constexpr inline void channelr_unchecked(typename channel_by_index<Index>::real_type value) {
+            using ch = channel_by_index<Index>;
+            channel_unchecked<Index>(value*ch::scale+.5);
+        }
         // retrieves the integer channel value by name
         template<typename Name>
         constexpr inline auto channel() const {

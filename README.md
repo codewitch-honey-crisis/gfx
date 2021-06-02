@@ -116,7 +116,7 @@ Include *gfx\_color\_cpp14.hpp* (C++14 spec) or *gfx\_color.hpp* (C++17 spec) fo
 
 Pixels in GFX may take any form you can imagine, up to your machine's maximum word size. They can have as many as one channel per bit, and will take on any binary footprint you specify. If you want a 3 bit RGB pixel, you can easily make one, and then create bitmaps in that format - where there are 3 pixels every 9 bytes. You'll never have to worry whether or not this library can support your display driver or file format's pixel and color model. With GFX, you can define the binary footprint and channels of your pixels, and then extend GFX to support additional color models other than the 4 it supports simply by telling it how to convert to and from RGB\*.
 
-\*YCbCr is currently bugged. It doesn't quite convert to RGB properly, or from RGB at all. Indexed pixel formats are partially accounted for, but there is no CLUT/palette support yet.
+\*Indexed pixel formats are partially accounted for, but there is no CLUT/palette support yet.
 
 When you declare a pixel format, it becomes part of the type signature for anything that uses it. For example, a bitmap that uses a 24-bit pixel format is a different type than one that uses a 16-bit pixel format.
 

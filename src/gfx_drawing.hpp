@@ -407,7 +407,7 @@ namespace gfx {
         struct draw_bmp_caps_helper {
             
         };
-         
+        
         template<typename Destination,typename Source> 
         struct draw_bmp_caps_helper<Destination,Source,true,false,true,true,false> {
             inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
@@ -432,6 +432,7 @@ namespace gfx {
                 return source.copy_to_async(src_rect,destination,location);
             }
         };
+        
         template<typename Destination,typename Source> 
         struct draw_bmp_caps_helper<Destination,Source,true,false,false,true,true> {
             inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
@@ -446,6 +447,7 @@ namespace gfx {
             inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
                 // suspend if we can
                 suspend_token_internal<Destination> stok(destination,true);
+                
                 return destination.copy_from_async(src_rect,source,location);
                 //return copy_from_impl_helper<Destination,Source,Destination::caps::batch,Destination::caps::async>::do_draw(destintion,src_rect,source,location);
             }
@@ -964,6 +966,7 @@ namespace gfx {
         };
         template<typename Destination,typename Source>
         static gfx_result draw_bitmap_impl(Destination& destination, const srect16& dest_rect, Source& source, const rect16& source_rect,bitmap_resize resize_type,const typename Source::pixel_type* transparent_color, srect16* clip,bool async) {
+            
             using batch=batcher<Destination,Destination::caps::batch,Destination::caps::async>;
             gfx_result r;
             rect16 srcr=source_rect.normalize().crop(source.bounds());
@@ -1123,6 +1126,7 @@ namespace gfx {
                     return draw_bitmap_impl(destination,dest_rect,source,source_rect,resize_type,transparent_color,clip,async);
                     
                 }
+                
                 rect16 dr;
                 if(!translate_adjust(dest_rect,&dr))
                     return gfx_result::success; // whole thing is offscreen
@@ -1154,10 +1158,12 @@ namespace gfx {
                 rect16 r = rect16(loc,dim);
                 // suspend if we can
                 suspend_token_internal<Destination> stok(destination,async);
+                //printf("draw_bmp_caps_helper<Destination,Source,%s,%s,%s,%s,%s>\r\n",Destination::caps::copy_from?"true":"false",Source::caps::copy_to?"true":"false",Destination::caps::blt?"true":"false",Source::caps::blt?"true":"false",Destination::caps::async?"true":"false");
                 if(async)
                     return draw_bmp_caps_helper<Destination,Source,Destination::caps::copy_from,Source::caps::copy_to, Destination::caps::blt,Source::caps::blt,Destination::caps::async>::do_draw(destination,source, r,dr.top_left());
                 else
                     return draw_bmp_caps_helper<Destination,Source,Destination::caps::copy_from,Source::caps::copy_to,Destination::caps::blt,Source::caps::blt,false>::do_draw(destination,source, r,dr.top_left());
+                    
             }
         };
         // Defining region codes

@@ -438,7 +438,7 @@ namespace gfx {
     public:
         using type = large_bitmap<PixelType>;
         using pixel_type = PixelType;
-        using caps = gfx_caps<false,false,false,false,false,false,true>;
+        using caps = gfx_caps< false,false,false,false,false,true,false>;
         using segment_type = bitmap<pixel_type>;
         large_bitmap(size16 dimensions,uint16_t segment_height, void*(allocate)(size_t)=::malloc,void(deallocate)(void*)=::free) 
             : m_dimensions(dimensions),m_segment_height(segment_height),m_deallocate(deallocate)
@@ -483,6 +483,7 @@ namespace gfx {
             rhs.m_segments = nullptr;
         }
         type& operator=(type&& rhs) {
+            deinit(0);
             m_dimensions=rhs.m_dimensions;
             m_segment_height=rhs.m_segment_height;
             m_segments=rhs.m_segments;
@@ -550,12 +551,14 @@ namespace gfx {
                 return r;
             }
             rf.y1=0;
-            size_t i = 1;
-            for(;b.y2>=i*m_segment_height;++i) {
+            rf.y2=m_segment_height-1;
+            size_t i = segment+1;
+            for(int y=b.y1+m_segment_height;y<=b.y2;y+=m_segment_height) {
                 gfx_result r=m_segments[i].fill(rf,color);
                 if(gfx_result::success!=r) {
                     return r;
                 }   
+                ++i;
             }
             // see if there's any remainder to fill
             const uint16_t yy2 = (b.y2+b.y1);

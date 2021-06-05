@@ -74,19 +74,17 @@ GFX on the other hand, isn't tied to anything. It can draw anywhere, on any plat
 
 **Update 10:** Fixed several build errors with the last update. Mea culpa.
 
-**Update 11:** Added bilinear and bicubic resampling for `draw::bitmap<>()` resizing options, and fixed the nearest neighbor drawing. Also improved the performance of the drawing during resize (though bicubic could stand to be optimized to use ints instead of floats). Added image `dimensions` to `jpeg_image::load()`'s callback. If you got this build and it's not drawing bitmaps properly (you'll notice garbage in parts of the demo) download this again. There was a build break briefly at around midnight GMT-8/PST.
+**Update 11:** Added bilinear and bicubic resampling for `draw::bitmap<>()` resizing options, and fixed the nearest neighbor drawing. Also improved the performance of the drawing during resize (though bicubic could stand to be optimized to use ints instead of floats). Added image `dimensions` to `jpeg_image::load()`'s callback.
 
-### Building this Mess
-
-You can use Clang or GCC with -std=C++14 or -std=C++17 to build. However, for something that actually has drivers and demos with it, you'll want to go here https://github.com/codewitch-honey-crisis/gfx_demo
+**Update 12:** Easy of use update. I've compiled all of the includes into a single includable header, and I've added `draw::image<>()` which deals with the progressive loading so you don't need to do it yourself.
 
 
 Concepts
 --------
 
-### Draw Sources and Destinations
+Below is a high level summary. For more detailed information, I've been producing a series which [begins at the link](https://www.codeproject.com/Articles/5304372/GFX-In-Depth-Part-1-Drawing-Fundamentals).
 
-Include *gfx\_drawing.hpp*
+### Draw Sources and Destinations
 
 GFX introduces the idea of draw sources and destinations. These are vaguely or loosely defined types that expose a set of members that allow GFX to bind to them to perform drawing operations. The set of members they expose varies based on their capabilities, and GFX adapts to call them in the most efficient manner that the target supports for the given operation. The drawing functions in GFX take destinations, and some operations such as copying bitmapped pixel data or otherwise reading pixel information take sources.
 
@@ -95,8 +93,6 @@ The code size is related to how many different types of sources and destinations
 Draw sources and destinations include in memory bitmaps and display drivers, but you can potentially craft your own. We'll be getting into how later.
 
 #### Bitmaps
-
-Include *gfx\_bitmap.hpp* to use bitmaps
 
 Bitmaps are sort of all-purpose draw source/destinations. They basically allow you to hold drawn data around in memory, which you can then draw somewhere else. Bitmaps do not hold their own memory. This is because not all memory is created equal. On some platforms for example, in order to enable a bitmap to be sent to the driver, the bitmap data must be stored in DMA capable RAM. The other reason is so you can recycle buffers. When you're done with a bitmap you can reuse the memory for another bitmap (as long as it's big enough) without deallocating or reallocating. The disadvantage is a small amount of increased code complexity wherein you must determine the size you need for the bitmap, and then allocate the memory for it yourself, and possibly freeing it yourself later.
 
@@ -109,10 +105,6 @@ Drivers are a typically a more limited draw destination, but may have performanc
 You can implement your own draw sources and destinations by simply writing a class with the appropriate members.
 
 ### Pixel Types
-
-Include *gfx\_pixel.hpp* - usually not necessary as it's included in almost everything else
-
-Include *gfx\_color\_cpp14.hpp* (C++14 spec) or *gfx\_color.hpp* (C++17 spec) for access to predefined colors in any pixel format.
 
 Pixels in GFX may take any form you can imagine, up to your machine's maximum word size. They can have as many as one channel per bit, and will take on any binary footprint you specify. If you want a 3 bit RGB pixel, you can easily make one, and then create bitmaps in that format - where there are 3 pixels every 9 bytes. You'll never have to worry whether or not this library can support your display driver or file format's pixel and color model. With GFX, you can define the binary footprint and channels of your pixels, and then extend GFX to support additional color models other than the 4 it supports simply by telling it how to convert to and from RGB\*.
 
@@ -149,8 +141,6 @@ When fonts are drawn, very basic terminal control characters like tab, carriage 
 In addition to loading and providing basic information about fonts, the `font` class also allows you to measure how much space a particular region of text will require in that font.
 
 ### Images
-
-Include *gfx\_image.hpp* for access to images
 
 Images include things like JPEGs, which is currently the only format this library supports, although PNG will be included very soon.
 
@@ -191,18 +181,24 @@ Drawing bitmaps asynchronously is really the only time you're going to see throu
 Using the GFX API
 -----------------
 
+Include *gfx.hpp* (C++17) or *gfx\_cpp14.hpp* (C++14) to access GFX. Including both will choose whichever is first, so don't include both. Pick which one you need depending on the C++ standard you are targeting.
+
+For the ESP-IDF toolchain under platform IO I've only been able to get it to target up to C++14. The gcc compiler they use under Windows isn't new enough to support the newer standard. The C++17 version is slightly more efficient in terms of how the predefined colors function, and might actually be more efficient due to more `constexpr` resolution. Still, there's not any difference in actually using them.
+
 Use namespace *gfx* to access GFX.
 
 ### Headers
 
--   **gfx\_core.hpp** - access to basic common types like `gfx_result`. Not usually necessary to explicitly include.
--   **gfx\_pixel.hpp** - access to the `pixel<>` type template. Not usually necessary to explicitly include.
--   **gfx\_positioning.hpp** - access to point, size, rect and path types and templates. Not usually necessary to explicitly include.
--   `gfx_bitmap.hpp` - access to the `bitmap<>` type template.
--   `gfx_drawing.hpp` - access to `draw`, the main facilities of GFX. Include this to use GFX.
--   `gfx_color.hpp` - access to the predefined colors through the `color<>` template, for **C++17** or better compilers. Include this if needed.
--   `gfx_color_cpp14.hpp` - access to the predefined colors through the `color<>` template, for **C++14** compilers. Include this if needed. Do not include both.
--   `gfx_image.hpp` - access to `jpeg_image` used for loading JPEG images. Include this if necessary.
+It is not necessary to explicitly include any of these, though if you're writing driver code you can include a subset to reduce compile times a little.
+
+-   **gfx\_core.hpp** - access to basic common types like `gfx_result`.
+-   **gfx\_pixel.hpp** - access to the `pixel<>` type template.
+-   **gfx\_positioning.hpp** - access to point, size, rect and path types and templates.
+-   **gfx\_bitmap.hpp** - access to the `bitmap<>` type template.
+-   **gfx\_drawing.hpp** - access to `draw`, the main facilities of GFX.
+-   **gfx\_color.hpp** - access to the predefined colors through the `color<>` template, for **C++17** or better compilers.
+-   **gfx\_color\_cpp14.hpp** - access to the predefined colors through the `color<>` template, for **C++14** compilers.
+-   **gfx\_image.hpp** - access to `jpeg_image` used for loading JPEG images.
 
  
 
@@ -225,7 +221,8 @@ Images do not use resources directly except for some bookkeeping during loading.
 Let's dive into some code. The following draws a classic effect around the four edges of the screen in four different colors, with "ESP32 GFX Demo" in the center of the screen:
 
 C++
-``` {#pre648361 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+
+``` {#pre373905 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
 draw::filled_rectangle(lcd,(srect16)lcd.bounds(),lcd_color::white);
 const font& f = Bm437_ATI_9x16_FON;
 const char* text = "ESP32 GFX Demo";
@@ -264,7 +261,8 @@ Compare the performance of line drawing with GFX to other libraries. You'll be p
 Let's try it again - or at least something similar - this time using double buffering on a supporting target, like an SSD1306 display. Note that `suspend<>()` and `resume<>()` can be called regardless of the draw destination, but they will report `gfx::gfx_result::not_supported` on targets that are not double buffered:
 
 C++
-``` {#pre810641 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+
+``` {#pre732749 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
 draw::filled_rectangle(lcd,(srect16)lcd.bounds(),lcd_color::black);
 const font& f = Bm437_Acer_VGA_8x8_FON;
 const char* text = "ESP32 GFX";
@@ -298,7 +296,8 @@ Other than some minor differences, mostly because we're working with a much smal
 Since adding polygon support, I suppose an example of that will be helpful. Here it is in practice:
 
 C++
-``` {#pre956893 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+
+``` {#pre26605 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
 // draw a polygon (a triangle in this case)
 // find the origin:
 const spoint16 porg = srect16(0,0,31,31)
@@ -322,7 +321,8 @@ This will draw a small triangle horizontally centered at the bottom of the scree
 You can define pixels by using the `pixel<>` template, which takes one or more `channel_traits<>` as arguments, themselves taking a name, a bit depth, and optional minimum, maximum, and scale. The channel names are predefined, and combinations of channel names make up *known color models*. Known color models are models that can be converted to and from an RGB color model, essentially. Currently they include RGB, Y'UV, YbCbCr, and grayscale. Declare pixels in order to create bitmaps in different formats or to declare color pixels for use with your particular display driver's native format. In the rare case you need to define one manually, you can do something like this:
 
 C++
-``` {#pre259849 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+
+``` {#pre383947 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
 // declare a 16-bit RGB pixel
 using rgb565 = pixel<channel_traits<channel_name::R,5>,
                     channel_traits<channel_name::G,6>,
@@ -332,7 +332,8 @@ using rgb565 = pixel<channel_traits<channel_name::R,5>,
 That declares a pixel with 3 channels, each of `uint8_t`: `R:5`, `G:6`, and `B:5`. Note that after the colon is how many effective bits it has. The `uint8_t` type is only for representing each pixel channel in value space in your code. In binary space, like laid out in an in memory bitmap, the pixel takes 16 bits, not 24. This defines a standard 16-bit pixel you typically find on color display adapters for IoT platforms. RGB is one of the known color models so there is a shorthand for declaring an RGB pixel type of any bit depth:
 
 C++
-``` {#pre384519 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+
+``` {#pre824195 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
 using rgb565 = rgb_pixel<16>; // declare a 16-bit RGB pixel
 ```
 
@@ -347,7 +348,8 @@ Most of the time you'll just need to read pixel values from a draw source, or ge
 Each pixel is composed of the channels you declared, and the channels may be accessed by "name" (`channel_name` enumeration) or by index. The values can be retrieved or set using `channel<>()` accessors for the native integer value and `channelr<>()` for real/floating point values scaled to between zero and one. Often times you need to set or get the channel programmatically based on some other compile time constant and the compiler will complain because it can't verify that the channel actually exists. In order to avoid this you can use `channel_unchecked<>()` which accesses the channel without compile time verification. If the channel does not exist, setting and getting does nothing. If you need to translate between real and integer values for a channel you can use the channel's `::scale` and `::scaler` values.
 
 C++
-``` {#pre858225 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+
+``` {#pre106769 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
 // declare a 24-bit rgb pixel
 rgb_pixel<24> rgb888;
 
@@ -380,7 +382,8 @@ Pixels that have `channel_name::A` are said to have an alpha channel. In this c
 Here's an example of using it in the wild:
 
 C++
-``` {#pre212182 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+
+``` {#pre617323 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
 using bmpa_type = rgba_pixel<32>;
 using bmpa_color = color<bmpa_type>;
 
@@ -458,7 +461,8 @@ I like to declare my fixed size bitmap buffers in the global scope (under a name
 Anyway, first we have to declare our buffer. I was very careful to make my objects `constexpr` enabled so you could do things like the following:
 
 C++
-``` {#pre831000 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+
+``` {#pre929095 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
 using bmp_type = bitmap<rgb_pixel<16>>;
 // the following is for convenience:
 using bmp_color = color<typename bmp_type::pixel_type>; // needs GFX color header
@@ -467,7 +471,8 @@ using bmp_color = color<typename bmp_type::pixel_type>; // needs GFX color heade
 followed by:
 
 C++
-``` {#pre112319 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+
+``` {#pre737437 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
 constexpr static const size16 bmp_size(16,16);
 uint8_t bmp_buf[bmp_type::sizeof_buffer(bmp_size)];
 ```
@@ -477,7 +482,8 @@ To be honest, the first time I wrote code like that, I was surprised it compiled
 Now that we have all that, wrapping it with a bitmap is trivial:
 
 C++
-``` {#pre302925 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+
+``` {#pre47957 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
 bmp_type bmp(bmp_size,bmp_buf);
 // you'll probably want to do this, but not necessary if 
 // you're redrawing the entire bmp anyway:
@@ -487,7 +493,8 @@ bmp.clear(bmp.bounds()); // zero the bmp memory
 Now you can call `draw` methods passing `bmp` as the destination:
 
 C++
-``` {#pre971011 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+
+``` {#pre300369 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
  // draw a happy face
 
 // bounding info for the face
@@ -548,7 +555,8 @@ What size is worthwhile? It depends. The idea is you want to be sending part of 
 The code looks approximately like this under the ESP-IDF at least:
 
 C++
-``` {#pre885979 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+
+``` {#pre113090 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
 uint16_t *lines[2];
 //Allocate memory for the pixel buffers
 for (int i=0; i<2; i++) {
@@ -604,10 +612,28 @@ These methods aren't as effective. The lack of blocking doesn't make up for the 
 
 #### Loading Images
 
-Loading images is a matter of creating a stream over the input, like a file, and then passing that to an image loader function along with a callback (I prefer to use an anonymous method/lambda for this) that handles the progressive loading. You'll be called back multiple times, each time with a portion of the image as a bitmap, along with a location where it belongs within the image, and any state you passed along to the load function. Note that to reduce overhead, a state variable is used to pass state instead of using a functor like `std::function`. You can use a "flat" lambda that decays to a simple function pointer, and then pass your class pointer in as the `state` argument, to be reconstituted inside your callback. Often times, you won't even need a state argument because everything you're after, such as the display itself, is available globally:
+ 
+
+There are two ways to get an image from a JPG stream (other formats are coming). Both require creating a stream over the input, like a file, and then using it with one of two methods:
+
+The first, and easiest method is to use `draw::image<>()` which allows you to position the image on the destination and crop a portion of the image. There is an option for resizing but it's not currently supported. It's actually really difficult to do progressively so I'm not sure when it will be. Currently if you try to pass something other than `bitmap_resize::crop` it will return `gfx_result::not_supported`. 
+
+Below `lcd` represents our target on which to draw the image:
 
 C++
-``` {#pre924284 .lang-cplusplus style="margin-top:0;" data-language="C++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+
+``` {#pre110069 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+file_stream fs("/spiffs/image.jpg");
+draw::image(lcd,(srect16)lcd.bounds(),&fs,rect16(0,0,-1,-1));
+```
+
+Note above since we don't know the size of the bitmap we can pass 0xFFFF or -1 for the extents and the source rectangle extents will end up based on the image size since the source rectangle is cropped to fit the image.
+
+The second way of loading an image is passing the stream to an image loader function along with a callback (I prefer to use an anonymous method/lambda for this) that handles the progressive loading. You'll be called back multiple times, each time with a portion of the image as a bitmap, along with a location where it belongs within the image, and any state you passed along to the load function. Note that to reduce overhead, a state variable is used to pass state instead of using a functor like `std::function`. You can use a "flat" lambda that decays to a simple function pointer, and then pass your class pointer in as the `state` argument, to be reconstituted inside your callback. Often times, you won't even need a state argument because everything you're after, such as the display itself, is available globally:
+
+C++
+
+``` {#pre29628 .lang-cplusplus style="margin-top:0;" data-language="C++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
 file_stream fs("/spiffs/image.jpg");
 jpeg_image::load(&fs,[](size16 dimensions,
                         typename jpeg_image::region_type& region,
@@ -635,21 +661,24 @@ Let's talk about the first method - embedding:
 First, generate a header file from a font file using fontgen under the *tools* folder of the GFX library:
 
 C++
-``` {#pre942017 .lang-cplusplus style="margin-top:0;" data-language="C++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+
+``` {#pre402410 .lang-cplusplus style="margin-top:0;" data-language="C++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
 ~$ fontgen myfont.fon > myfont.hpp
 ```
 
 Now you can include that in your code:
 
 C++
-``` {#pre34859 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+
+``` {#pre266379 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
 #include "myfont.hpp"
 ```
 
 This allows you to reference the font like this:
 
 C++
-``` {#pre326234 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+
+``` {#pre63233 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
 const font& f = myfont_fon;
 const char* text = "Hello world!";
 srect16 text_rect = f.measure_text((ssize16)lcd.dimensions(),
@@ -664,7 +693,8 @@ draw::text(lcd,
 The second way to access a font is by loading a *.FON* file from a stream, which stores the font around on the heap rather than embedded as a `static` `const` array in your code, just replace the first line of code above with this:
 
 C++
-``` {#pre172435 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+
+``` {#pre162183 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
 io::file_stream fs("/spiffs/myfon.fon");
 if(!fs.caps().read) {
     printf("Font file not found.\r\n");
@@ -685,7 +715,7 @@ Drivers and other things may be draw destinations and may also be draw sources. 
 
 The first member is a public `using caps = gfx::gfx_caps<...>;` alias that will be used to determine what kinds of features your driver supports. If, for example, you indicate batching support, GFX will attempt to call methods like `write_batch()` on your driver. If you indicate support for a feature without implementing the corresponding methods, that's a compile error:
 
--   `caps` - Indicates the capabilities of the target, which consist of these members:
+-   **`caps`** - Indicates the capabilities of the target, which consist of these members:
     -   **blt** - the target supports accessing its memory as raw data using `begin()` and its memory must be laid out contiguously from left to right, top to bottom in the corresponding `pixel_format`.
     -   **async** - the target supports asynchronous versions of its methods. GFX will call the methods suffixed with `_async()` when asynchronous operations are requested by the caller. If it doesn't support all of them, but rather only some of them, then the implementer should delegate from the unsupported `_async()` operations to the synchronous ones for the methods where there is no asynchronous counterpart.
     -   **batch** - the target supports batching write operations and is expected to expose `begin_batch()`, `write_batch()`, and `commit_batch()`.
@@ -769,3 +799,5 @@ History
 -   31<sup>st</sup> May, 2021 - API cleanup and added paths and polygon support
 -   31<sup>st</sup> May, 2021 - Fixed several build errors
 -   1<sup>st</sup> June, 2021 - Added/fixed bitmap resize options and added dimensions to image callback
+-   5<sup>th</sup> June, 2021 - Added single header file, and easier to use image loading. cleaned up positioning api a bit. bugfix in declarions of clipping rect parameters on `draw::`
+

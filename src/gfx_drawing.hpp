@@ -2301,7 +2301,7 @@ namespace gfx {
             return arc_impl(destination,srect16(spoint16(sr.x2-rw,sr.y2-rh),ssize16(rw+1,rh)).flip_all(),color,clip,true,async);
         }
         template<typename Destination>
-        static gfx_result jpeg_impl(Destination& destination, const srect16& destination_rect, io::stream* source_stream, const rect16& source_rect,bitmap_resize resize_type, srect16* clip,bool async) {
+        static gfx_result image_impl(Destination& destination, const srect16& destination_rect, stream* source_stream, const rect16& source_rect,bitmap_resize resize_type, srect16* clip,bool async) {
                 struct load_context {
                     Destination& destination;
                     srect16 dst_rect;
@@ -2715,13 +2715,15 @@ namespace gfx {
             srect16* clip=nullptr) {
             return text_impl(destination,dest_rect,text,font,color,backcolor,transparent_background,tab_width,clip,true);
         }
+        // draws an image from the specified stream to the specified destination rectangle with the an optional clipping rectangle
         template<typename Destination>
-        static inline gfx_result jpeg(Destination& destination, const srect16& destination_rect, io::stream* source_stream, const rect16& source_rect,bitmap_resize resize_type=bitmap_resize::crop, srect16* clip=nullptr) {
-            return jpeg_impl(destination,destination_rect,source_stream,source_rect,resize_type,clip,false);
+        static inline gfx_result image(Destination& destination, const srect16& destination_rect, stream* source_stream, const rect16& source_rect,bitmap_resize resize_type=bitmap_resize::crop, srect16* clip=nullptr) {
+            return image_impl(destination,destination_rect,source_stream,source_rect,resize_type,clip,false);
         }
+        // asynchronously draws an image from the specified stream to the specified destination rectangle with the an optional clipping rectangle
         template<typename Destination>
-        static inline gfx_result jpeg_async(Destination& destination, const srect16& destination_rect, io::stream* source_stream, const rect16& source_rect,bitmap_resize resize_type=bitmap_resize::crop, srect16* clip=nullptr) {
-            return jpeg_impl(destination,destination_rect,source_stream,source_rect,resize_type,clip,true);
+        static inline gfx_result image_async(Destination& destination, const srect16& destination_rect, stream* source_stream, const rect16& source_rect,bitmap_resize resize_type=bitmap_resize::crop, srect16* clip=nullptr) {
+            return image_impl(destination,destination_rect,source_stream,source_rect,resize_type,clip,true);
         }
         // waits for all asynchronous operations on the destination to complete
         template<typename Destination>

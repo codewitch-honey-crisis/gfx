@@ -14,6 +14,11 @@
 
 namespace gfx {
     using stream = io::stream;
+    using seek_origin = io::seek_origin;
+    using stream_caps = io::stream_caps;
+    using file_stream = io::file_stream;
+    using buffer_stream = io::buffer_stream;
+    
     struct jpeg_image final {
         #ifdef HTCW_JPEG_AS_RGB
         using pixel_type = rgb_pixel<24>;
@@ -914,7 +919,7 @@ namespace gfx {
         }
         // the following are bindings for GFX to tjpgd:
         typedef struct {
-            io::stream* stream;
+            stream* input_stream;
             callback out;
             void* state;
             gfx_result result;
@@ -948,16 +953,16 @@ namespace gfx {
                 JpegDev *jd = (JpegDev *)decoder->device;
                 
                 if (buf != nullptr) {
-                    len=jd->stream->read(buf,len);
+                    len=jd->input_stream->read(buf,len);
                 } else {
                     // TODO: If this seeks past the end of the streem it's not detected right now
-                    if(jd->stream->caps().seek)
-                        jd->stream->seek(len,io::seek_origin::current);
+                    if(jd->input_stream->caps().seek)
+                        jd->input_stream->seek(len,seek_origin::current);
                     else {
                         // TODO: can make this at least a little faster by reading chunks
                         unsigned int count = len;
                         while(0<count--) {
-                            jd->stream->read<uint8_t>();
+                            jd->input_stream->read<uint8_t>();
                         }
                     }
                 }
@@ -976,7 +981,7 @@ namespace gfx {
 
     public:
         
-        static gfx_result load(io::stream* input,callback out_func,void* state=nullptr) {
+        static gfx_result load(stream* input,callback out_func,void* state=nullptr) {
             if(nullptr==input)
                 return gfx_result::invalid_argument;
             if(nullptr==out_func)
@@ -992,7 +997,7 @@ namespace gfx {
             }
 
             //Populate fields of the JpegDev struct.
-            jd.stream=input;
+            jd.input_stream=input;
             jd.state = state;
             jd.out = out_func;
             jd.result = gfx_result::success;

@@ -169,6 +169,10 @@ namespace bits {
         }
         return 0;
     }
+    namespace helpers {
+        class dummy_unsigned {};
+        class dummy_signed {};
+    }
     template <size_t BitWidth> class int_helper {};
     template <> struct int_helper<8> { using type = int8_t; };
     template <> struct int_helper<16> { using type = int16_t; };
@@ -194,9 +198,9 @@ namespace bits {
 #endif
     template<size_t Width> using realx = typename real_helper<Width>::type;
     using real_max = typename real_helper<HTCW_MAX_WORD>::type;
-    template <typename T> struct signed_helper {};
-    template <> struct signed_helper<float> { using type = float; };
-    template <> struct signed_helper<double> { using type = double; };
+    template <typename T> struct signed_helper { using type=helpers::dummy_signed;};
+    //template <> struct signed_helper<float> { using type = float; };
+    //template <> struct signed_helper<double> { using type = double; };
     template <> struct signed_helper<int8_t> { using type = int8_t; };
     template <> struct signed_helper<uint8_t> { using type = int8_t; };
     template <> struct signed_helper<int16_t> { using type = int16_t; };
@@ -209,9 +213,9 @@ namespace bits {
 #endif
     template<typename T> using signedx = typename signed_helper<T>::type;
 
-    template <typename T> struct unsigned_helper {};
-    template <> struct unsigned_helper<float> { using type = float; };
-    template <> struct unsigned_helper<double> { using type = double; };
+    template <typename T> struct unsigned_helper { using type=helpers::dummy_unsigned;};
+    //template <> struct unsigned_helper<float> { using type = float; };
+    //template <> struct unsigned_helper<double> { using type = double; };
     template <> struct unsigned_helper<int8_t> { using type = uint8_t; };
     template <> struct unsigned_helper<uint8_t> { using type = uint8_t; };
     template <> struct unsigned_helper<int16_t> { using type = uint16_t; };

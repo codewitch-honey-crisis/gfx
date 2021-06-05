@@ -6,7 +6,7 @@ namespace gfx {
     // represents a pointx with 16-bit integer coordinates
     template <typename T>
     struct PACKED pointx final {
-        using type = pointx<T>;
+        using type = pointx;
         using value_type = T;
         // the x coordinate
         T x;
@@ -23,15 +23,15 @@ namespace gfx {
         constexpr inline explicit operator pointx<bits::unsignedx<value_type>>() const {
             return pointx<bits::unsignedx<value_type>>(bits::unsignedx<value_type>(x),bits::unsignedx<value_type>(y));
         }
-        constexpr inline type offset(bits::signedx<value_type> x, bits::signedx<value_type> y) const {
+        constexpr inline pointx offset(bits::signedx<value_type> x, bits::signedx<value_type> y) const {
             return type(this->x+x,this->y+y);
         }
-        
+        constexpr inline void offset_inplace(bits::signedx<value_type> x, bits::signedx<value_type> y) {
+            this->x+=x;
+            this->y+=y;
+        }
         constexpr inline bool operator==(const type& rhs) const { 
             return x==rhs.x && y==rhs.y;   
-        }
-        constexpr inline type offset(bits::signedx<value_type> x,bits::signedx<value_type> y) {
-            return type(this->x+x,this->y+y);
         }
     };
     template <typename T>
@@ -39,7 +39,7 @@ namespace gfx {
     // represents a size with 16-bit integer coordinates
     template <typename T>
     struct PACKED sizex final {
-        using type = sizex<T>;
+        using type = sizex;
         using value_type = T;
         // the width
         T width;
@@ -51,8 +51,8 @@ namespace gfx {
         constexpr inline sizex(T width, T height) : width(width), height(height) {
         }
         // increases or decreases the width and height by the specified amounts.
-        constexpr sizex<T> inflate(typename bits::signedx<T> width,typename bits::signedx<T> height) const {
-            return sizex<T>(width+this->width,height+this->height);
+        constexpr sizex inflate(typename bits::signedx<T> width,typename bits::signedx<T> height) const {
+            return sizex(width+this->width,height+this->height);
         }
         constexpr inline rectx<T> bounds() const;
         constexpr explicit operator sizex<bits::signedx<value_type>>() const {
@@ -61,7 +61,7 @@ namespace gfx {
         constexpr explicit operator sizex<bits::unsignedx<value_type>>() const {
             return sizex<bits::unsignedx<value_type>>(bits::unsignedx<value_type>(width),bits::unsignedx<value_type>(height));
         }
-        constexpr inline bool operator==(const type& rhs) const { 
+        constexpr inline bool operator==(const sizex& rhs) const { 
             return width==rhs.width && height==rhs.height;   
         }
         
@@ -76,7 +76,7 @@ namespace gfx {
     template <typename T>
     struct PACKED rectx final
     {
-        using type =rectx<T>;
+        using type =rectx;
         using value_type = T;
         // the x1 coordinate
         T x1;
@@ -178,32 +178,58 @@ namespace gfx {
                     pointx.y<=bottom();
         }
         // indicates whether or not the specified rectangle intersects with this rectangle
-        constexpr bool intersects(const rectx<T>& rect) const {
-            return rect.intersects(top_left()) || 
-                rect.intersects(bottom_right()) ||
-                intersects(rect.top_left()) || 
-                intersects(rect.bottom_right());
+        constexpr bool intersects(const rectx& rect) const {
+            return (left() <= rect.right() && right()>= rect.left() &&
+                top() <= rect.bottom() && bottom() >= rect.top() ); 
         }
         // increases or decreases the x and y bounds by the specified amounts. The rectangle is anchored on the center, and the effective width and height increases or decreases by twice the value of x or y.
-        constexpr rectx<T> inflate(typename bits::signedx<T> x,typename bits::signedx<T> y) const {
+        constexpr rectx inflate(typename bits::signedx<T> x,typename bits::signedx<T> y) const {
             switch((int)orientation()) {
                 case (int)rect_orientation::flipped_horizontal:
-                    return rectx<T>(x1-x,y1-y,x2+x,y2+y);
+                    return rectx(x1-x,y1-y,x2+x,y2+y);
                 case (int)rect_orientation::flipped_vertical:
-                    return rectx<T>(x1-x,y1+y,x2+x,y2-y);
+                    return rectx(x1-x,y1+y,x2+x,y2-y);
                 case (int)((int)rect_orientation::flipped_vertical|(int)rect_orientation::flipped_horizontal):
-                    return rectx<T>(x1+x,y1+y,x2-x,y2-y);
+                    return rectx(x1+x,y1+y,x2-x,y2-y);
                 
             }
             return rectx<T>(x1-x,y1-y,x2+x,y2+y);
+        }
+        // increases or decreases the x and y bounds by the specified amounts. The rectangle is anchored on the center, and the effective width and height increases or decreases by twice the value of x or y.
+        constexpr void inflate_inplace(typename bits::signedx<T> x,typename bits::signedx<T> y) {
+            switch((int)orientation()) {
+                case (int)rect_orientation::flipped_horizontal:
+                    x1-=x;
+                    y1=-y;
+                    x2+=x;
+                    y2+=y;
+                    return;
+                case (int)rect_orientation::flipped_vertical:
+                    x1-=x;
+                    y1+=y;
+                    x2+=x;
+                    y2-=y;
+                    return;
+                case (int)((int)rect_orientation::flipped_vertical|(int)rect_orientation::flipped_horizontal):
+                    x1+=x;
+                    y1+=y;
+                    x2-=x;
+                    y2-=y;
+                    return;
+                
+            }
+            x1-=x;
+            y1-=y;
+            x2+=x;
+            y2+=y;
         }
         // indicates the aspect ratio of the rectangle
         constexpr inline float aspect_ratio() {
             return width()/(float)height();
         }
         // offsets the rectangle by the specified amounts.
-        constexpr inline rectx<T> offset(typename bits::signedx<T> x,typename bits::signedx<T> y) const {
-            return rectx<T>(x1+x,y1+y,x2+x,y2+y);
+        constexpr inline rectx offset(typename bits::signedx<T> x,typename bits::signedx<T> y) const {
+            return rectx(x1+x,y1+y,x2+x,y2+y);
         }
         // offsets in-place the rectangle by the specified amounts.
         constexpr inline void offset_inplace(typename bits::signedx<T> x,typename bits::signedx<T> y) {
@@ -212,30 +238,30 @@ namespace gfx {
             x2+=x;
             y2+=y;
         }
-        constexpr inline rectx<T> center_horizontal(const rectx<T>& bounds) const {
+        constexpr inline rectx center_horizontal(const rectx& bounds) const {
             return offset((bounds.width()-width())/2,0);
         }
-        constexpr inline rectx<T> center_vertical(const rectx<T>& bounds) const {
+        constexpr inline rectx center_vertical(const rectx& bounds) const {
             return offset(0,(bounds.height()-height())/2);
         }
-        constexpr inline rectx<T> center(const rectx<T>& bounds) const {
+        constexpr inline rectx center(const rectx& bounds) const {
             return offset((bounds.width()-width())/2,(bounds.height()-height())/2);
         }
-        constexpr inline void center_horizontal_inplace(const rectx<T>& bounds) {
+        constexpr inline void center_horizontal_inplace(const rectx& bounds) {
             offset_inplace((bounds.width()-width())/2,0);
         }
-        constexpr inline rectx<T> center_vertical_inplace(const rectx<T>& bounds) {
+        constexpr inline rectx center_vertical_inplace(const rectx& bounds) {
             return offset_inplace(0,(bounds.height()-height())/2);
         }
-        constexpr inline rectx<T> center_inplace(const rectx<T>& bounds) {
+        constexpr inline rectx center_inplace(const rectx& bounds) {
             return offset_inplace((bounds.width()-width())/2,(bounds.height()-height())/2);
         }
         // normalizes a rectangle, such that x1<=x2 and y1<=y2
-        constexpr inline rectx<T> normalize() const {
-            return rectx<T>(location(),dimensions());
+        constexpr inline rectx normalize() const {
+            return rectx(location(),dimensions());
         }
         // normalizes a rectangle in-place, such that x1<=x2 and y1<=y2
-        constexpr inline void normalize_inplace() const {
+        constexpr inline void normalize_inplace() {
             pointx<T> pt1 = this->point1();
             pointx<T> pt2 = this->point2();
             if(pt1.x>pt2.x) {
@@ -257,17 +283,17 @@ namespace gfx {
             return (rect_orientation)result;
         }
         // crops a copy of the rectangle by bounds
-        constexpr rectx<T> crop(const rectx<T>& bounds) const {
+        constexpr rectx crop(const rectx<T>& bounds) const {
             if(x1<=x2) {
                 if(y1<=y2) {
-                    return rectx<T>(
+                    return rectx(
                             x1<bounds.left()?bounds.left():x1,
                             y1<bounds.top()?bounds.top():y1,
                             x2>bounds.right()?bounds.right():x2,
                             y2>bounds.bottom()?bounds.bottom():y2
                         );            
                 } else {
-                    return rectx<T>(
+                    return rectx(
                             x1<bounds.left()?bounds.left():x1,
                             y2<bounds.top()?bounds.top():y2,
                             x2>bounds.right()?bounds.right():x2,
@@ -276,14 +302,14 @@ namespace gfx {
                 }
             } else {
                 if(y1<=y2) {
-                    return rectx<T>(
+                    return rectx(
                             x2<bounds.left()?bounds.left():x2,
                             y1<bounds.top()?bounds.top():y1,
                             x1>bounds.right()?bounds.right():x1,
                             y2>bounds.bottom()?bounds.bottom():y2
                         );            
                 } else {
-                    return rectx<T>(
+                    return rectx(
                             x2<bounds.left()?bounds.left():x2,
                             y2<bounds.top()?bounds.top():y2,
                             x1>bounds.right()?bounds.right():x1,
@@ -293,40 +319,40 @@ namespace gfx {
             }
         }
         // indicates if this rectangle entirely contains the other rectangle
-        constexpr bool contains(const rectx<T>& other) const {
+        constexpr bool contains(const rectx& other) const {
             return intersects(other.point1()) &&
                 intersects(other.point2());
         }
-        constexpr inline rectx<T> flip_horizontal() const {
+        constexpr inline rectx flip_horizontal() const {
             return rectx<T>(x2,y1,x1,y2);
         }
-        constexpr inline rectx<T> flip_vertical() const {
+        constexpr inline rectx flip_vertical() const {
             return rectx<T>(x1,y2,x2,y1);
         }
-        constexpr inline rectx<T> flip_all() const {
+        constexpr inline rectx flip_all() const {
             return rectx<T>(x2,y2,x1,y1);
         }
         // splits a rectangle by another rectangle, returning between 0 and 4 rectangles as a result
-        constexpr size_t split(rectx<T>& split_rect,size_t out_count, rectx<T>* out_rects) const {
+        constexpr size_t split(rectx& split_rect,size_t out_count, rectx* out_rects) const {
             if(0==out_count || !intersects(split_rect)) return 0;
             size_t result = 0;
             if(split_rect.top()>top()) {
-                *(out_rects++)=rectx<T>(left(),top(),right(),split_rect.top()-1);
+                *(out_rects++)=rectx(left(),top(),right(),split_rect.top()-1);
                 ++result;
             }
             if(result==out_count) return result;
             if(split_rect.left()>left()) {
-                *(out_rects++)=rectx<T>(left(),split_rect.top(),split_rect.left()-1,split_rect.bottom());
+                *(out_rects++)=rectx(left(),split_rect.top(),split_rect.left()-1,split_rect.bottom());
                 ++result;
             }
             if(result==out_count) return result;
             if(split_rect.right()>right()) {
-                *(out_rects++)=rectx<T>(split_rect.right(),split_rect.top(),right(),split_rect.bottom());
+                *(out_rects++)=rectx(split_rect.right(),split_rect.top(),right(),split_rect.bottom());
                 ++result;
             }
             if(result==out_count) return result;
             if(split_rect.bottom()<bottom()) {
-                *(out_rects++)=rectx<T>(left(),split_rect.bottom()+1,right(),bottom());
+                *(out_rects++)=rectx(left(),split_rect.bottom()+1,right(),bottom());
                 ++result;
             }
             return result;
@@ -339,7 +365,7 @@ namespace gfx {
             using t = bits::unsignedx<value_type>;
             return rectx<bits::unsignedx<value_type>>(t(x1),t(y1),t(x2),t(y2));
         }
-        constexpr inline bool operator==(const type& rhs) const { 
+        constexpr inline bool operator==(const rectx& rhs) const { 
             return x1==rhs.x1 && y1==rhs.y1 &&
                 x2==rhs.x2 && y2==rhs.y2;
         }

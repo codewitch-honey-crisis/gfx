@@ -1336,7 +1336,7 @@ namespace gfx {
                 + (0.25 * rx * rx);
             dx = 2 * ry * ry * x;
             dy = 2 * rx * rx * y;
-            int_type oy=-1;
+            int_type oy=-1,ox=-1;
             // For region 1
             while (dx < dy+y_adj) {
                 if(filled) {
@@ -1349,7 +1349,7 @@ namespace gfx {
                             return r;
                     }
                 } else {
-                    if(oy!=y) {
+                   if(oy!=y || ox!=x) {
                         // Print points based on 4-way symmetry
                         r=point_impl(destination,spoint16(x + xc+x_adj, y + yc+y_adj),color,clip,async);
                         if(r!=gfx_result::success)
@@ -1365,6 +1365,7 @@ namespace gfx {
                             return r;
                     }
                 }
+                ox=x;
                 oy=y;
                 // Checking and updating value of
                 // decision parameter based on algorithm
@@ -1462,7 +1463,7 @@ namespace gfx {
             float dx, dy, d1, d2, x, y;
             x = 0;
             y = ry;
-            int_type oy=-1;
+            int_type oy=-1,ox=-1;
             // Initial decision parameter of region 1
             d1 = (ry * ry)
                 - (rx * rx * ry)
@@ -1473,8 +1474,8 @@ namespace gfx {
             suspend_token_internal<Destination> stok(destination,async);
             // For region 1
             while (dx < dy+y_adj) {
-                if(oy!=y) {
-                    if(filled) {
+                if(filled) {
+                    if(oy!=y) {
                         switch(orient) {
                             case 0: //x1<=x2,y1<=y2
                                 r=line_impl(destination,srect16(-x + xc, -y + yc, xc+x_adj, -y + yc),color,clip,async);        
@@ -1497,7 +1498,9 @@ namespace gfx {
                                     return r;
                                 break;
                         }
-                    } else {
+                    }
+                } else {
+                    if(oy!=y||ox!=x) {
                         switch(orient) {
                             case 0: //x1<=x2,y1<=y2
                                 r=point_impl(destination,spoint16(-x + xc, -y + yc),color,clip,async);
@@ -1538,6 +1541,7 @@ namespace gfx {
                         }  
                     }
                 }
+                ox=x;
                 oy=y;
                 // Checking and updating value of
                 // decision parameter based on algorithm

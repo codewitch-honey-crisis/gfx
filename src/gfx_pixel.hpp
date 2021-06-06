@@ -545,10 +545,10 @@ namespace gfx {
             return sqrt(helpers::pixel_diff_impl<type,0,ChannelTraits...>::diff_sum(*this,rhs));
         }
         // blends two pixels. ratio is between zero and one. larger ratio numbers favor this pixel
-        constexpr bool blend(type rhs,double ratio,type* out_pixel) {
+        constexpr gfx_result blend(type rhs,double ratio,type* out_pixel) {
             if(has_channel_names<channel_name::R,channel_name::G,channel_name::B>::value && channels<5) {
                 if(nullptr==out_pixel)
-                    return false;
+                    return gfx_result::invalid_argument;
                 if(ratio>1.0) ratio = 1.0;
                 if(ratio<0) ratio = 0;
                 const double rrat = 1.0-ratio;
@@ -563,18 +563,22 @@ namespace gfx {
                 using tindexB = channel_index_by_name<channel_name::B>;
                 const size_t chiB = tindexB::value;
                 out_pixel->channel_unchecked<chiB>(rhs.template channel_unchecked<chiB>()*rrat+channel_unchecked<chiB>()*ratio);
-                return true;
+                return gfx_result::success;
             }
             using tmp_pixel=pixel<channel_traits<channel_name::R,HTCW_MAX_WORD/3>,channel_traits<channel_name::G,HTCW_MAX_WORD/3+(HTCW_MAX_WORD%3)>,channel_traits<channel_name::B,HTCW_MAX_WORD/3>>;
             tmp_pixel tmp,tmp2,tmp3;
-            if(!convert(*this,&tmp)) {
-                return false;
+            gfx_result r;
+            r=convert(*this,&tmp);
+            if(gfx_result::success!=r) {
+                return r;
             }
-            if(!convert(rhs,&tmp2)) {
-                return false;
+            r=convert(rhs,&tmp2);
+            if(gfx_result::success!=r) {
+                return r;
             }
-            if(!tmp.blend(tmp2,ratio,&tmp3)) {
-                return false;
+            r=tmp.blend(tmp2,ratio,&tmp3);
+            if(gfx_result::success!=r) {
+                return r;
             }
             return convert(tmp3,out_pixel);
         }
@@ -654,9 +658,12 @@ namespace gfx {
     >;
     // converts a pixel to the destination pixel type
     template<typename PixelTypeLhs, typename PixelTypeRhs>
-    constexpr static inline bool convert(PixelTypeLhs source,PixelTypeRhs* result,const PixelTypeRhs* background=nullptr) {
-        if(nullptr==result) return false;
-        
+    constexpr static inline gfx_result convert(PixelTypeLhs source,PixelTypeRhs* result,const PixelTypeRhs* background=nullptr) {
+        if(nullptr==result) return gfx_result::invalid_argument;
+        if(helpers::is_same<PixelTypeLhs,PixelTypeRhs>::value && nullptr==background) {
+            result->native_value=source.native_value;
+            return gfx_result::success;
+        }
         bool good = false;
         PixelTypeRhs tmp;
         typename PixelTypeRhs::int_type native_value = tmp.native_value;
@@ -979,11 +986,7 @@ namespace gfx {
                     // first set the result
                     result->native_value = native_value;
                     // now blend it
-                    if(!result->blend(*background,source.template channel_unchecked<chiA>()*tchA::scaler,result)) {
-                        return false;
-                    }
-                    
-                    return true;
+                    return result->blend(*background,source.template channel_unchecked<chiA>()*tchA::scaler,result);
                 }
                 if(rhas_alpha) {
                     using trindexA = typename PixelTypeRhs::template channel_index_by_name<channel_name::A>;
@@ -1001,99 +1004,36 @@ namespace gfx {
             }
             // finally, set the result
             result->native_value = native_value;
-            return true;
+            return gfx_result::success;
         }  else {
             // if we couldn't convert directly
             // do a chain conversion
             rgba_pixel<HTCW_MAX_WORD> tmp1;
             PixelTypeRhs tmp2;
-            good = convert(source,&tmp1);
-            if(good) {
-                good = convert(tmp1,&tmp2,background);
-                if(good) {
-                    *result=tmp2;
-                    return true;
-                }
+            gfx_result rr = convert(source,&tmp1);
+            if(gfx_result::success!=rr) {
+                return rr;
             }
+            rr = convert(tmp1,&tmp2,background);
+            if(gfx_result::success!=rr) {
+                return rr;
+            }
+            *result=tmp2;
+            return gfx_result::success;
+        
+        
         }
         // TODO: Add any additional metachannel processing (like alpha above) here
-        return false;
+        return gfx_result::not_supported;
     } 
     // converts a pixel to the destination pixel type. background is optional and is for alpha blending
     template<typename PixelTypeLhs,typename PixelTypeRhs>
     constexpr inline static PixelTypeRhs convert(PixelTypeLhs lhs, const PixelTypeRhs* background=nullptr) {
         PixelTypeRhs result;
-        if(!convert(lhs,&result,background)) {
+        if(gfx_result::success!=convert(lhs,&result,background)) {
             result.native_value = 0;
         }
         return result;
-    }
-
-    // represents a palette/CLUT for indexed pixels
-    template<typename PixelType,typename MappedPixelType>
-    struct palette {
-        static_assert(PixelType::template has_channel_names<channel_name::index>::value,"Pixel must be indexed");
-        using type = palette<PixelType,MappedPixelType>;
-        using pixel_type = PixelType;
-        using mapped_pixel_type = MappedPixelType;
-    private:
-        using tindex = typename pixel_type::template channel_index_by_name<channel_name::index>;
-        using tch = typename pixel_type::template channel_by_index_unchecked<tindex::value>;
-    public:
-        constexpr static const size_t size = tch::max-tch::min+1;
-    private:
-        mapped_pixel_type m_colors[size];
-    public:
-        // maps an indexed pixel to a color value
-        gfx_result map(pixel_type pixel,mapped_pixel_type* mapped_pixel) const {
-            const size_t i = pixel.template channel_unchecked<tindex::value>()-tch::min;
-            *mapped_pixel=m_colors[i];
-            return gfx_result::success;
-        }
-        // sets an indexed pixel to a mapped color value
-        gfx_result map(pixel_type pixel,mapped_pixel_type mapped_pixel) {
-            const size_t i = pixel.template channel_unchecked<tindex::value>()-tch::min;
-            m_colors[i]=mapped_pixel;
-            return gfx_result::success;
-        }
-    };
-    // specialization for unindexed pixels
-    template<typename PixelType>
-    struct palette<PixelType,PixelType> {
-        static_assert(!PixelType::template has_channel_names<channel_name::index>::value,"Pixel must not be indexed");
-        using type = palette<PixelType,PixelType>;
-        using pixel_type = PixelType;
-        using mapped_pixel_type = PixelType;
-    public:
-        constexpr static const size_t size = 0;
-    public:
-        // maps an indexed pixel to a color value
-        inline gfx_result map(pixel_type pixel,mapped_pixel_type* mapped_pixel) const {
-            *mapped_pixel=pixel;
-            return gfx_result::success;
-        }
-        /*
-        // sets an indexed pixel to a mapped color value
-        inline gfx_result map(pixel_type pixel,mapped_pixel_type mapped_pixel) {
-            return gfx_result::not_supported;
-        }
-        */
-    };
-    // converts a (indexed) pixel to its expanded color value
-    template<typename PaletteType>
-    static gfx_result map_palette(typename PaletteType::pixel_type pixel,const PaletteType* clut,typename PaletteType::mapped_pixel_type* out_pixel) {
-        if(!PaletteType::size) {
-            PaletteType tmp;
-            return tmp.map(pixel,out_pixel);
-        }
-        return clut->map(pixel,out_pixel);
-    }
-    // converts a (indexed) pixel to its expanded color value
-    template<typename PixelType,typename MappedPixelType>
-    inline static gfx_result map_palette(PixelType pixel,const palette<PixelType,MappedPixelType>* clut,MappedPixelType* out_pixel) {
-        using palette_type = palette<PixelType,MappedPixelType>;
-        return map_palette<palette_type>(pixel,clut,out_pixel);
-    }
-    
+    }    
 }
 #endif

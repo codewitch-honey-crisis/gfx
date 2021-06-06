@@ -108,15 +108,18 @@ namespace gfx {
             }
             // interpolate bi-linearly!
             pixel_type col0;
-            if(!px00.blend(px10,xfract,&col0)) {
-                return gfx_result::not_supported;
+            r=px00.blend(px10,xfract,&col0);
+            if(gfx_result::success!=r) {
+                return r;
             }
             pixel_type col1;
-            if(!px01.blend(px11,xfract,&col1)) {
-                return gfx_result::not_supported;
+            r=px01.blend(px11,xfract,&col1);
+            if(gfx_result::success!=r) {
+                return r;
             }
-            if(!col0.blend(col1,yfract,out_pixel)) {
-                return gfx_result::not_supported;
+            r=col0.blend(col1,yfract,out_pixel);
+            if(gfx_result::success!=r) {
+                return r;
             }
             return gfx_result::success;
         }
@@ -161,10 +164,10 @@ namespace gfx {
             r = source.point(pt10,&px10); if(gfx_result::success!=r) return r;
             r = source.point(pt20,&px20); if(gfx_result::success!=r) return r;
             r = source.point(pt30,&px30); if(gfx_result::success!=r) return r;
-            if(!convert(px00,&cpx00)) return gfx_result::not_supported;
-            if(!convert(px10,&cpx10)) return gfx_result::not_supported;
-            if(!convert(px20,&cpx20)) return gfx_result::not_supported;
-            if(!convert(px30,&cpx30)) return gfx_result::not_supported;
+            r=(convert(px00,&cpx00)); if(gfx_result::success!=r) return r;
+            r=(convert(px10,&cpx10)); if(gfx_result::success!=r) return r;
+            r = (convert(px20,&cpx20)); if(gfx_result::success!=r) return r;
+            r = (convert(px30,&cpx30)); if(gfx_result::success!=r) return r;
 
             // 2nd row
             clamp_point16(pt01,src_rect);clamp_point16(pt11,src_rect);clamp_point16(pt21,src_rect);clamp_point16(pt31,src_rect);
@@ -172,10 +175,10 @@ namespace gfx {
             r = source.point(pt11,&px11); if(gfx_result::success!=r) return r;
             r = source.point(pt21,&px21); if(gfx_result::success!=r) return r;
             r = source.point(pt31,&px31); if(gfx_result::success!=r) return r;
-            if(!convert(px01,&cpx01)) return gfx_result::not_supported;
-            if(!convert(px11,&cpx11)) return gfx_result::not_supported;
-            if(!convert(px21,&cpx21)) return gfx_result::not_supported;
-            if(!convert(px31,&cpx31)) return gfx_result::not_supported;
+            r = (convert(px01,&cpx01)); if(gfx_result::success!=r) return r;
+            r = (convert(px11,&cpx11)); if(gfx_result::success!=r) return r;
+            r = (convert(px21,&cpx21)); if(gfx_result::success!=r) return r;
+            r = (convert(px31,&cpx31)); if(gfx_result::success!=r) return r;
 
             // 3rd row
             clamp_point16(pt02,src_rect);clamp_point16(pt12,src_rect);clamp_point16(pt22,src_rect);clamp_point16(pt32,src_rect);
@@ -183,10 +186,10 @@ namespace gfx {
             r = source.point(pt12,&px12); if(gfx_result::success!=r) return r;
             r = source.point(pt22,&px22); if(gfx_result::success!=r) return r;
             r = source.point(pt32,&px32); if(gfx_result::success!=r) return r;
-            if(!convert(px02,&cpx02)) return gfx_result::not_supported;
-            if(!convert(px12,&cpx12)) return gfx_result::not_supported;
-            if(!convert(px22,&cpx22)) return gfx_result::not_supported;
-            if(!convert(px32,&cpx32)) return gfx_result::not_supported;
+            r = (convert(px02,&cpx02)); if(gfx_result::success!=r) return r;
+            r = (convert(px12,&cpx12)); if(gfx_result::success!=r) return r;
+            r = (convert(px22,&cpx22)); if(gfx_result::success!=r) return r;
+            r = (convert(px32,&cpx32)); if(gfx_result::success!=r) return r;
 
             // 4th row
             clamp_point16(pt03,src_rect);clamp_point16(pt13,src_rect);clamp_point16(pt23,src_rect);clamp_point16(pt33,src_rect);
@@ -194,10 +197,10 @@ namespace gfx {
             r = source.point(pt13,&px13); if(gfx_result::success!=r) return r;
             r = source.point(pt23,&px23); if(gfx_result::success!=r) return r;
             r = source.point(pt33,&px33); if(gfx_result::success!=r) return r;
-            if(!convert(px03,&cpx03)) return gfx_result::not_supported;
-            if(!convert(px13,&cpx13)) return gfx_result::not_supported;
-            if(!convert(px23,&cpx23)) return gfx_result::not_supported;
-            if(!convert(px33,&cpx33)) return gfx_result::not_supported;
+            r = (convert(px03,&cpx03)); if(gfx_result::success!=r) return r;
+            r = (convert(px13,&cpx13)); if(gfx_result::success!=r) return r;
+            r = (convert(px23,&cpx23)); if(gfx_result::success!=r) return r;
+            r = (convert(px33,&cpx33)); if(gfx_result::success!=r) return r;
             
             // Clamp the values since the curve can put the value below 0 or above 1
             const size_t chiR = rgba_type::channel_index_by_name<channel_name::R>::value;
@@ -294,8 +297,7 @@ namespace gfx {
                                 xfract);
                 rpx.channelr<channel_name::A>(helpers::clamp(cubic_hermite(d0,d1,d2,d3,yfract),0.0,1.0));
             }
-            if(!convert(rpx,out_pixel)) return gfx_result::not_supported;
-            return gfx_result::success;
+            return convert(rpx,out_pixel);
         }
     }
     // provides drawing primitives over a bitmap or compatible type 
@@ -1021,8 +1023,10 @@ namespace gfx {
                         }
                         if(!has_alpha && nullptr==transparent_color) {
                             typename Destination::pixel_type px;
-                            if(!convert(srcpx,&px)) {
-                                return gfx_result::not_supported;
+                            
+                            r=convert(srcpx,&px);
+                            if(gfx_result::success!=r) {
+                                return r;
                             }
                             r=batch::write_batch(destination,(point16)spt,px,async);
                         } else if(nullptr==transparent_color || transparent_color->native_value!=srcpx.native_value) {
@@ -1081,8 +1085,9 @@ namespace gfx {
                         }
                         if(!has_alpha && nullptr==transparent_color) {
                             typename Destination::pixel_type px;
-                            if(!convert(sampx,&px)) {
-                                return gfx_result::not_supported;
+                            r=convert(sampx,&px);
+                            if(gfx_result::success!=r) {
+                                return r;
                             }
                             r=batch::write_batch(destination,(point16)spt,px,async);
                         } else if(nullptr==transparent_color || transparent_color->native_value!=sampx.native_value) {
@@ -1659,6 +1664,7 @@ namespace gfx {
         template<typename Destination,typename PixelType>
         struct draw_point_helper<Destination,PixelType,true> {
             static gfx_result do_draw(Destination& destination,point16 location,PixelType color,bool async) {
+                gfx_result r;
                 if(!async) return draw_point_helper<Destination,PixelType,false>::do_draw(destination,location,color,false);
                 typename Destination::pixel_type dpx;
                 // TODO: recode to use an async read when finally implemented
@@ -1677,25 +1683,35 @@ namespace gfx {
                             return gfx_result::success;
                         }
                         typename Destination::pixel_type bgpx;
-                        gfx_result r= read_point_helper<Destination,Destination::caps::read>::do_read(destination,location,&bgpx);
+                        r= read_point_helper<Destination,Destination::caps::read>::do_read(destination,location,&bgpx);
                         if(gfx_result::success!=r) {
                             return r;
                         }
-                        if(!convert(color,&dpx,&bgpx)) {
-                            return gfx_result::not_supported;
+                        r=convert(color,&dpx,&bgpx);
+                        if(gfx_result::success!=r) {
+                            return r;
                         }
-                        return destination.point_async(location,dpx);
+                        if(async) {
+                            return destination.point_async(location,dpx);
+                        } 
+                        return destination.point(location,dpx);
+                        
                     }
                 }
-                if(!convert(color,&dpx)) {
-                    return gfx_result::not_supported;
+                r=convert(color,&dpx);
+                if(gfx_result::success!=r) {
+                        return r;
                 }
-                return destination.point_async(location,dpx);
+                if(async) {
+                    return destination.point_async(location,dpx);
+                } 
+                return destination.point(location,dpx);
             }
         };
         template<typename Destination,typename PixelType>
         struct draw_point_helper<Destination,PixelType,false> {
             static gfx_result do_draw(Destination& destination,point16 location,PixelType color,bool async) {
+                gfx_result r;
                 typename Destination::pixel_type dpx;
                 // TODO: recode to use an async read when finally implemented
                 using thas_alpha=typename PixelType::template has_channel_names<channel_name::A>;
@@ -1713,18 +1729,20 @@ namespace gfx {
                             return gfx_result::success;
                         }
                         typename Destination::pixel_type bgpx;
-                        gfx_result r= read_point_helper<Destination,Destination::caps::read>::do_read(destination,location,&bgpx);
+                        r= read_point_helper<Destination,Destination::caps::read>::do_read(destination,location,&bgpx);
                         if(gfx_result::success!=r) {
                             return r;
                         }
-                        if(!convert(color,&dpx,&bgpx)) {
-                            return gfx_result::not_supported;
+                        r=convert(color,&dpx,&bgpx);
+                        if(gfx_result::success!=r) {
+                            return r;
                         }
                         return destination.point(location,dpx);
                     }
                 }
-                if(!convert(color,&dpx)) {
-                    return gfx_result::not_supported;
+                r=convert(color,&dpx);
+                if(gfx_result::success!=r) {
+                    return r;
                 }
                 return destination.point(location,dpx);
             }
@@ -1749,6 +1767,7 @@ namespace gfx {
         template<typename Destination,typename PixelType>
         struct draw_filled_rect_helper<Destination,PixelType,true> {
             static gfx_result do_draw(Destination& destination,const rect16& rect,PixelType color,bool async) {
+                gfx_result r;
                 // suspend if we can
                 suspend_token_internal<Destination> stok(destination,async);
                 if(!async) return draw_filled_rect_helper<Destination,PixelType,false>::do_draw(destination,rect,color,false);
@@ -1770,7 +1789,7 @@ namespace gfx {
                         rect16 rr = rect.normalize();
                         for(int y=rr.y1;y<=rr.y2;++y) {
                             for(int x=rr.x1;x<=rr.x2;++x) {
-                                gfx_result r=point_impl(destination,spoint16(x,y),color,nullptr,true);
+                                r=point_impl(destination,spoint16(x,y),color,nullptr,true);
                                 if(gfx_result::success!=r) {
                                     return r;
                                 }
@@ -1779,8 +1798,9 @@ namespace gfx {
                         return gfx_result::success;
                     }
                 }
-                if(!convert(color,&dpx)) {
-                    return gfx_result::not_supported;
+                r=convert(color,&dpx);
+                if(gfx_result::success!=r) {
+                    return r;
                 }
                 return destination.fill_async(rect,dpx);
             }
@@ -1788,6 +1808,7 @@ namespace gfx {
         template<typename Destination,typename PixelType>
         struct draw_filled_rect_helper<Destination,PixelType,false> {
             static gfx_result do_draw(Destination& destination,const rect16& rect,PixelType color,bool async) {
+                gfx_result r;
                 // suspend if we can
                 suspend_token_internal<Destination> stok(destination,async);
                 typename Destination::pixel_type dpx;
@@ -1808,7 +1829,7 @@ namespace gfx {
                         rect16 rr = rect.normalize();
                         for(int y=rr.y1;y<=rr.y2;++y) {
                             for(int x=rr.x1;x<=rr.x2;++x) {
-                                gfx_result r = point_impl(destination,spoint16(x,y),color,nullptr,false);
+                                r = point_impl(destination,spoint16(x,y),color,nullptr,false);
                                 if(gfx_result::success!=r) {
                                     return r;
                                 }
@@ -1818,8 +1839,9 @@ namespace gfx {
                     }
                     
                 }
-                if(!convert(color,&dpx)) {
-                    return gfx_result::not_supported;
+                r=convert(color,&dpx);
+                if(gfx_result::success!=r) {
+                    return r;
                 }
                 return destination.fill(rect,dpx);
             }

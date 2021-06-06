@@ -2,6 +2,7 @@
 #define HTCW_GFX_BITMAP
 #include "gfx_core.hpp"
 #include "gfx_pixel.hpp"
+#include "gfx_palette.hpp"
 #include "gfx_positioning.hpp"
 namespace gfx {
     namespace helpers {
@@ -76,13 +77,16 @@ namespace gfx {
                             if(gfx_result::success!=r) {
                                 return r;
                             }
-                            if(!convert(spx,&dpx,&bgpx)) {
-                                return gfx_result::not_supported;
+                            r=convert(spx,&dpx,&bgpx);
+                            if(gfx_result::success!=r) {
+                                return r;
                             }
                         } else {    
-                            if(!convert(spx,&dpx)) {
-                                return gfx_result::invalid_format;
+                            r=convert(spx,&dpx);
+                            if(gfx_result::success!=r) {
+                                return r;
                             }
+                             
                         }
                         r = helpers::batch_helper<Destination,Destination::caps::batch>::write_batch(dst,point16(dox+dx,doy+dy),dpx);
                         if(gfx_result::success!=r)
@@ -159,15 +163,17 @@ namespace gfx {
         };
     }
     // represents an in-memory bitmap
-    template<typename PixelType>
+    template<typename PixelType,typename PaletteType = palette<PixelType,PixelType>>
     class bitmap final {
         size16 m_dimensions;
+        PaletteType* m_palette;
         uint8_t* m_begin;
     public:
         // the type of the bitmap, itself
-        using type = bitmap<PixelType>;
+        using type = bitmap;
         // the type of the pixel used for the bitmap
         using pixel_type = PixelType;
+        using palette_type = PaletteType;
         using caps = gfx::gfx_caps< true,false,false,false,false,true,true>;
     private:
         gfx_result point_impl(point16 location,pixel_type rhs) {
@@ -187,10 +193,10 @@ namespace gfx {
         }
     public:
         // constructs a new bitmap with the specified size and buffer
-        bitmap(size16 dimensions,void* buffer) : m_dimensions(dimensions),m_begin((uint8_t*)buffer) {}
+        bitmap(size16 dimensions,void* buffer,palette_type* palette=nullptr) : m_dimensions(dimensions),m_palette(palette),m_begin((uint8_t*)buffer) {}
         // constructs a new bitmap with the specified width, height and buffer
-        bitmap(uint16_t width,uint16_t height,void* buffer) : m_dimensions(width,height),m_begin((uint8_t*)buffer) {}
-        bitmap() : m_dimensions(0,0),m_begin(nullptr) {
+        bitmap(uint16_t width,uint16_t height,void* buffer,palette_type* palette=nullptr) : m_dimensions(width,height),m_palette(palette),m_begin((uint8_t*)buffer) {}
+        bitmap() : m_dimensions(0,0),m_palette(nullptr),m_begin(nullptr) {
             
         }
         bitmap(const type& rhs)=default;
@@ -198,6 +204,7 @@ namespace gfx {
         bitmap(type&& rhs)=default;
         type& operator=(type&& rhs) {
             m_dimensions = rhs.m_dimensions;
+            m_palette = rhs.m_palette;
             m_begin = rhs.m_begin;
             return *this;
         }
@@ -244,8 +251,9 @@ namespace gfx {
                 if(gfx_result::success!=r) {
                     return r;
                 }
-                if(!convert(rhs,&rhs,&bgpx)) {
-                    return gfx_result::not_supported;
+                r=convert(rhs,&rhs,&bgpx);
+                if(gfx_result::success!=r) {
+                    return r;
                 }
             }
             return point_impl(location,rhs);
@@ -327,8 +335,9 @@ namespace gfx {
                             return r;
                         }
                         pixel_type dpx;
-                        if(!convert(pixel,&dpx,&bgpx)) {
-                            return gfx_result::not_supported;
+                        r=convert(pixel,&dpx,&bgpx);
+                        if(gfx_result::success!=r) {
+                            return r;
                         }        
                         r=point_impl(pt,dpx);
                         if(gfx_result::success!=r) {
@@ -401,6 +410,9 @@ namespace gfx {
             srcr=rect16(srcr.location(),dstr.dimensions());
             return helpers::bmp_copy_to_helper<type,Destination,!(pixel_type::template has_channel_names<channel_name::A>::value)>::copy_to(*this,srcr,dst,dstr);
         }
+        palette_type *palette() {
+            return m_palette;
+        }
         // computes the minimum required size for a bitmap buffer, in bytes
         constexpr inline static size_t sizeof_buffer(size16 size) {
             return (size.width*size.height*pixel_type::bit_depth+7)/8;
@@ -409,14 +421,16 @@ namespace gfx {
         constexpr inline static size_t sizeof_buffer(uint16_t width,uint16_t height) {
             return sizeof_buffer(size16(width,height));
         }
+        
         // this check is already guaranteed by asserts in the pixel itself
         // this is more so it won't compile unless PixelType is actually a pixel
         static_assert(PixelType::channels>0,"The type is not a pixel or the pixel is invalid");
     };
-    template<typename PixelType>
+    template<typename PixelType,typename PaletteType=palette<PixelType,PixelType>>
     class large_bitmap final {
         size16 m_dimensions;
         uint16_t m_segment_height;
+        PaletteType* m_palette;
         uint8_t** m_segments;
         void(*m_deallocate)(void* ptr);
         void deinit(size_t count) {
@@ -436,14 +450,14 @@ namespace gfx {
         }
 
     public:
-        using type = large_bitmap<PixelType>;
+        using type = large_bitmap;
         using pixel_type = PixelType;
+        using palette_type = PaletteType;
         using caps = gfx_caps< false,false,false,false,false,true,false>;
         using segment_type = bitmap<pixel_type>;
-        large_bitmap(size16 dimensions,uint16_t segment_height, void*(allocate)(size_t)=::malloc,void(deallocate)(void*)=::free) 
-            : m_dimensions(dimensions),m_segment_height(segment_height),m_deallocate(deallocate)
+        large_bitmap(size16 dimensions,uint16_t segment_height, palette_type* palette=nullptr, void*(allocate)(size_t)=::malloc,void(deallocate)(void*)=::free) 
+            : m_dimensions(dimensions), m_segment_height(segment_height),m_palette(palette),m_deallocate(deallocate)
         {
-            
             if(m_segment_height==0)
                 m_segment_height=1;
             if(m_segment_height>m_dimensions.height)
@@ -473,22 +487,25 @@ namespace gfx {
                 }
             }
         }
-        large_bitmap() : m_dimensions(0,0),m_segment_height(0),m_segments(nullptr) {
+        large_bitmap() : m_dimensions(0,0),m_segment_height(0),m_palette(nullptr), m_segments(nullptr) {
             
         }
         large_bitmap(const type& rhs)=delete;
         type& operator=(const type& rhs)=delete;
-        large_bitmap(type&& rhs) : m_dimensions(rhs.m_dimensions),m_segment_height(rhs.m_segment_height),m_segments(rhs.m_segments) {
+        large_bitmap(type&& rhs) : m_dimensions(rhs.m_dimensions),m_segment_height(rhs.m_segment_height),m_palette(rhs.m_palette),m_segments(rhs.m_segments) {
             rhs.m_dimensions = size16(0,0);
+            rhs.m_palette = nullptr;
             rhs.m_segment_height = 0;
             rhs.m_segments = nullptr;
         }
         type& operator=(type&& rhs) {
             deinit(0);
             m_dimensions=rhs.m_dimensions;
+            m_palette=rhs.m_palette;
             m_segment_height=rhs.m_segment_height;
             m_segments=rhs.m_segments;
             rhs.m_dimensions = size16(0,0);
+            rhs.m_palette = nullptr;
             rhs.m_segment_height = 0;
             rhs.m_segments = nullptr;
             return *this;
@@ -575,6 +592,9 @@ namespace gfx {
             pixel_type p;
             p.native_value = 0;
             return fill(bounds,p);
+        }
+        palette_type *palette() {
+            return m_palette;
         }
     };
     

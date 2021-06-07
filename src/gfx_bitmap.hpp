@@ -2,62 +2,25 @@
 #define HTCW_GFX_BITMAP
 #include "gfx_core.hpp"
 #include "gfx_pixel.hpp"
-#include "gfx_palette.hpp"
 #include "gfx_positioning.hpp"
+#include "gfx_draw_helpers.hpp"
+#include "gfx_palette.hpp"
+
+
 namespace gfx {
     namespace helpers {
-        template<typename Destination,bool Suspend>
-        struct suspend_helper {
-            inline static gfx_result suspend(Destination& dst) {
-                return gfx_result::success;
-            }
-            inline static gfx_result resume(Destination& dst) {
-                return gfx_result::success;
-            }
-        };
-        template<typename Destination>
-        struct suspend_helper<Destination,true> {
-            inline static gfx_result suspend(Destination& dst) {
-                return dst.suspend();
-            }
-            inline static gfx_result resume(Destination& dst) {
-                return dst.resume();
-            }
-        };
-        template<typename Destination,bool Batch>
-        struct batch_helper {
-            inline static gfx_result begin_batch(Destination& dst,const rect16& rect) {
-                return gfx_result::success;
-            }
-            inline static gfx_result write_batch(Destination& dst, point16 location, typename Destination::pixel_type color) {
-                return dst.point(location,color);
-            }
-            inline static gfx_result commit_batch(Destination& dst) {
-                return gfx_result::success;
-            }
-        };
-        template<typename Destination>
-        struct batch_helper<Destination,true> {
-            inline static gfx_result begin_batch(Destination& dst,rect16& rect) {
-                return dst.begin_batch(rect);
-            }
-            inline static gfx_result write_batch(Destination& dst, point16 location, typename Destination::pixel_type color) {
-                return dst.write_batch(color);
-            }
-            inline static gfx_result commit_batch(Destination& dst) {
-                return dst.commit_batch();
-            }
-        };
+
 
         template<typename Source,typename Destination,bool AllowBlt=true>
         struct bmp_copy_to_helper {
             static inline gfx_result copy_to(const Source& src,const rect16& srcr,Destination& dst,const rect16& dstr) {
                 size_t dy=0,dye=dstr.height();
                 size_t dx,dxe = dstr.width();
-                gfx_result r = helpers::suspend_helper<Destination,Destination::caps::suspend>::suspend(dst);
+                gfx_result r;
+                helpers::suspender<Destination,Destination::caps::suspend,false> sustok(dst);
                 if(gfx_result::success!=r)
                     return r;
-                r = helpers::batch_helper<Destination,Destination::caps::batch>::begin_batch(dst,dstr);
+                r = helpers::batcher<Destination,Destination::caps::batch,false>::begin_batch(dst,dstr);
                 if(gfx_result::success!=r)
                     return r;
                 int sox = srcr.left(),soy=srcr.top();
@@ -77,28 +40,26 @@ namespace gfx {
                             if(gfx_result::success!=r) {
                                 return r;
                             }
-                            r=convert(spx,&dpx,&bgpx);
+                            r=convert_palette(dst,src,spx,&dpx,&bgpx);
                             if(gfx_result::success!=r) {
                                 return r;
                             }
                         } else {    
-                            r=convert(spx,&dpx);
+                            r=convert_palette(dst,src,spx,&dpx,nullptr);
                             if(gfx_result::success!=r) {
                                 return r;
                             }
                              
                         }
-                        r = helpers::batch_helper<Destination,Destination::caps::batch>::write_batch(dst,point16(dox+dx,doy+dy),dpx);
+                        r = helpers::batcher<Destination,Destination::caps::batch,false>::write_batch(dst,point16(dox+dx,doy+dy),dpx);
                         if(gfx_result::success!=r)
                             return r;
                         ++dx;
                     }
                     ++dy;
                 }
-                r = helpers::batch_helper<Destination,Destination::caps::batch>::commit_batch(dst);
-                if(gfx_result::success!=r)
-                    return r;
-                return helpers::suspend_helper<Destination,Destination::caps::suspend>::resume(dst);
+                return helpers::batcher<Destination,Destination::caps::batch,false>::commit_batch(dst);
+                
             }
         };
         // blts a portion of this bitmap to the destination at the specified location.
@@ -163,7 +124,7 @@ namespace gfx {
         };
     }
     // represents an in-memory bitmap
-    template<typename PixelType,typename PaletteType = palette<PixelType,PixelType>>
+    template<typename PixelType,typename PaletteType /*= palette<PixelType,PixelType>*/>
     class bitmap final {
         size16 m_dimensions;
         PaletteType* m_palette;
@@ -251,7 +212,7 @@ namespace gfx {
                 if(gfx_result::success!=r) {
                     return r;
                 }
-                r=convert(rhs,&rhs,&bgpx);
+                r=convert_palette(*this,*this,rhs,&rhs,&bgpx);
                 if(gfx_result::success!=r) {
                     return r;
                 }
@@ -335,7 +296,7 @@ namespace gfx {
                             return r;
                         }
                         pixel_type dpx;
-                        r=convert(pixel,&dpx,&bgpx);
+                        r=convert_palette(*this,*this,pixel,&dpx,&bgpx);
                         if(gfx_result::success!=r) {
                             return r;
                         }        
@@ -410,7 +371,7 @@ namespace gfx {
             srcr=rect16(srcr.location(),dstr.dimensions());
             return helpers::bmp_copy_to_helper<type,Destination,!(pixel_type::template has_channel_names<channel_name::A>::value)>::copy_to(*this,srcr,dst,dstr);
         }
-        palette_type *palette() {
+        palette_type *palette() const {
             return m_palette;
         }
         // computes the minimum required size for a bitmap buffer, in bytes
@@ -454,7 +415,7 @@ namespace gfx {
         using pixel_type = PixelType;
         using palette_type = PaletteType;
         using caps = gfx_caps< false,false,false,false,false,true,false>;
-        using segment_type = bitmap<pixel_type>;
+        using segment_type = bitmap<pixel_type,palette_type>;
         large_bitmap(size16 dimensions,uint16_t segment_height, palette_type* palette=nullptr, void*(allocate)(size_t)=::malloc,void(deallocate)(void*)=::free) 
             : m_dimensions(dimensions), m_segment_height(segment_height),m_palette(palette),m_deallocate(deallocate)
         {
@@ -593,7 +554,7 @@ namespace gfx {
             p.native_value = 0;
             return fill(bounds,p);
         }
-        palette_type *palette() {
+        palette_type *palette() const {
             return m_palette;
         }
     };

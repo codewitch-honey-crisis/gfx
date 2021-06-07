@@ -2,6 +2,7 @@
 #define HTCW_GFX_IMAGE_HPP
 #include "gfx_core.hpp"
 #include "gfx_pixel.hpp"
+#include "gfx_palette.hpp"
 #include "gfx_positioning.hpp"
 #include "gfx_bitmap.hpp"
 #include "stream.hpp"
@@ -25,7 +26,7 @@ namespace gfx {
         #else
         using pixel_type = ycbcr_pixel<24>;
         #endif
-        using region_type = bitmap<pixel_type>;
+        using region_type = bitmap<pixel_type,palette<pixel_type,pixel_type>>;
         // region is not const so we can do in place filtering
         typedef gfx_result(*callback)(size16 dimensions, region_type& region,point16 location,void* state);
     private:

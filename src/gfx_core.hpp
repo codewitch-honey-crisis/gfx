@@ -22,6 +22,7 @@ namespace gfx {
         device_error,
         out_of_memory,
         invalid_format,
+        no_palette,
         unknown_error
     };
     
@@ -65,6 +66,7 @@ namespace gfx {
         constexpr static inline ValueType clamp(ValueType value,ValueType min,ValueType max) {
             return value<min?min:value>max?max:value;
         }
+        
         
     }
 }

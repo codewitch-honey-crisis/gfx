@@ -5,6 +5,8 @@
 #include "gfx_core.hpp"
 #include "gfx_pixel.hpp"
 #include "gfx_positioning.hpp"
+#include "gfx_draw_helpers.hpp"
+#include "gfx_palette.hpp"
 #include "gfx_font.hpp"
 #include "gfx_image.hpp"
 namespace gfx {
@@ -164,10 +166,11 @@ namespace gfx {
             r = source.point(pt10,&px10); if(gfx_result::success!=r) return r;
             r = source.point(pt20,&px20); if(gfx_result::success!=r) return r;
             r = source.point(pt30,&px30); if(gfx_result::success!=r) return r;
-            r=(convert(px00,&cpx00)); if(gfx_result::success!=r) return r;
-            r=(convert(px10,&cpx10)); if(gfx_result::success!=r) return r;
-            r = (convert(px20,&cpx20)); if(gfx_result::success!=r) return r;
-            r = (convert(px30,&cpx30)); if(gfx_result::success!=r) return r;
+            
+            r=(convert_palette_to(source,px00,&cpx00)); if(gfx_result::success!=r) return r;
+            r=(convert_palette_to(source,px10,&cpx10)); if(gfx_result::success!=r) return r;
+            r = (convert_palette_to(source,px20,&cpx20)); if(gfx_result::success!=r) return r;
+            r = (convert_palette_to(source,px30,&cpx30)); if(gfx_result::success!=r) return r;
 
             // 2nd row
             clamp_point16(pt01,src_rect);clamp_point16(pt11,src_rect);clamp_point16(pt21,src_rect);clamp_point16(pt31,src_rect);
@@ -175,10 +178,10 @@ namespace gfx {
             r = source.point(pt11,&px11); if(gfx_result::success!=r) return r;
             r = source.point(pt21,&px21); if(gfx_result::success!=r) return r;
             r = source.point(pt31,&px31); if(gfx_result::success!=r) return r;
-            r = (convert(px01,&cpx01)); if(gfx_result::success!=r) return r;
-            r = (convert(px11,&cpx11)); if(gfx_result::success!=r) return r;
-            r = (convert(px21,&cpx21)); if(gfx_result::success!=r) return r;
-            r = (convert(px31,&cpx31)); if(gfx_result::success!=r) return r;
+            r = (convert_palette_to(source,px01,&cpx01)); if(gfx_result::success!=r) return r;
+            r = (convert_palette_to(source,px11,&cpx11)); if(gfx_result::success!=r) return r;
+            r = (convert_palette_to(source,px21,&cpx21)); if(gfx_result::success!=r) return r;
+            r = (convert_palette_to(source,px31,&cpx31)); if(gfx_result::success!=r) return r;
 
             // 3rd row
             clamp_point16(pt02,src_rect);clamp_point16(pt12,src_rect);clamp_point16(pt22,src_rect);clamp_point16(pt32,src_rect);
@@ -186,10 +189,10 @@ namespace gfx {
             r = source.point(pt12,&px12); if(gfx_result::success!=r) return r;
             r = source.point(pt22,&px22); if(gfx_result::success!=r) return r;
             r = source.point(pt32,&px32); if(gfx_result::success!=r) return r;
-            r = (convert(px02,&cpx02)); if(gfx_result::success!=r) return r;
-            r = (convert(px12,&cpx12)); if(gfx_result::success!=r) return r;
-            r = (convert(px22,&cpx22)); if(gfx_result::success!=r) return r;
-            r = (convert(px32,&cpx32)); if(gfx_result::success!=r) return r;
+            r = (convert_palette_to(source,px02,&cpx02)); if(gfx_result::success!=r) return r;
+            r = (convert_palette_to(source,px12,&cpx12)); if(gfx_result::success!=r) return r;
+            r = (convert_palette_to(source,px22,&cpx22)); if(gfx_result::success!=r) return r;
+            r = (convert_palette_to(source,px32,&cpx32)); if(gfx_result::success!=r) return r;
 
             // 4th row
             clamp_point16(pt03,src_rect);clamp_point16(pt13,src_rect);clamp_point16(pt23,src_rect);clamp_point16(pt33,src_rect);
@@ -197,10 +200,10 @@ namespace gfx {
             r = source.point(pt13,&px13); if(gfx_result::success!=r) return r;
             r = source.point(pt23,&px23); if(gfx_result::success!=r) return r;
             r = source.point(pt33,&px33); if(gfx_result::success!=r) return r;
-            r = (convert(px03,&cpx03)); if(gfx_result::success!=r) return r;
-            r = (convert(px13,&cpx13)); if(gfx_result::success!=r) return r;
-            r = (convert(px23,&cpx23)); if(gfx_result::success!=r) return r;
-            r = (convert(px33,&cpx33)); if(gfx_result::success!=r) return r;
+            r = (convert_palette_to(source,px03,&cpx03)); if(gfx_result::success!=r) return r;
+            r = (convert_palette_to(source,px13,&cpx13)); if(gfx_result::success!=r) return r;
+            r = (convert_palette_to(source,px23,&cpx23)); if(gfx_result::success!=r) return r;
+            r = (convert_palette_to(source,px33,&cpx33)); if(gfx_result::success!=r) return r;
             
             // Clamp the values since the curve can put the value below 0 or above 1
             const size_t chiR = rgba_type::channel_index_by_name<channel_name::R>::value;
@@ -297,114 +300,13 @@ namespace gfx {
                                 xfract);
                 rpx.channelr<channel_name::A>(helpers::clamp(cubic_hermite(d0,d1,d2,d3,yfract),0.0,1.0));
             }
-            return convert(rpx,out_pixel);
+            return convert_palette_from(source,rpx,out_pixel);
         }
     }
     // provides drawing primitives over a bitmap or compatible type 
     struct draw {
 
     private:
-        template<typename Destination>
-        struct suspend_token_internal final {
-            Destination& destination;
-            const bool async;
-            inline suspend_token_internal(Destination& dest,bool async=false) : destination(dest),async(async) {
-                if(async) {
-                    draw::suspend_async(destination);
-                    return;
-                }
-                draw::suspend(destination);
-            }
-            inline suspend_token_internal(const suspend_token_internal& rhs) {
-                destination = rhs.destination;
-                if(async) {
-                    draw::suspend_async(destination);
-                    return;
-                }
-                draw::suspend(destination);
-            }
-            inline suspend_token_internal& operator=(const suspend_token_internal& rhs) {
-                destination = rhs.destination;
-                if(async) {
-                    draw::suspend_async(destination);
-                    return *this;
-                }
-                draw::suspend(destination);
-                return *this;
-            }
-            inline ~suspend_token_internal() {
-                if(async) {
-                    draw::resume_async(destination);
-                    return;
-                }
-                draw::resume(destination);
-            }    
-        };
-        template<typename Destination,bool Batch,bool Async> 
-        struct batcher {
-            inline static gfx_result begin_batch(Destination& destination,const rect16& bounds,bool async) {
-                return gfx_result::success;
-            }
-            inline static gfx_result write_batch(Destination& destination,point16 location,typename Destination::pixel_type pixel,bool async) {
-                return destination.point(location,pixel);
-            }
-            inline static gfx_result commit_batch(Destination& destination,bool async) {
-                return gfx_result::success;
-            }
-        };
-        template<typename Destination> 
-        struct batcher<Destination,false,true> {
-            inline static gfx_result begin_batch(Destination& destination,const rect16& bounds,bool async) {
-                return gfx_result::success;
-            }
-            inline static gfx_result write_batch(Destination& destination,point16 location,typename Destination::pixel_type pixel,bool async) {
-                if(async) {
-                    return destination.point_async(location,pixel);
-                } else {
-                    return destination.point(location,pixel);
-                }
-            }
-            inline static gfx_result commit_batch(Destination& destination,bool async) {
-                return gfx_result::success;
-            }
-        };
-        template<typename Destination> 
-        struct batcher<Destination,true,false> {
-            inline static gfx_result begin_batch(Destination& destination,const rect16& bounds,bool async) {
-                return destination.begin_batch(bounds);
-            }
-            inline static gfx_result write_batch(Destination& destination,point16 location,typename Destination::pixel_type pixel,bool async) {
-                return destination.write_batch(pixel);
-            }
-            inline static gfx_result commit_batch(Destination& destination,bool async) {
-                return destination.commit_batch();
-            }
-        };
-        template<typename Destination> 
-        struct batcher<Destination,true,true> {
-            inline static gfx_result begin_batch(Destination& destination,const rect16& bounds,bool async) {
-                if(async) {
-                    return destination.begin_batch_async(bounds);
-                } else {
-                    return destination.begin_batch(bounds);
-                }
-            }
-            inline static gfx_result write_batch(Destination& destination,point16 location,typename Destination::pixel_type pixel,bool async) {
-                if(async) {
-                    return destination.write_batch_async(pixel);
-                } else {
-                    return destination.write_batch(pixel);
-                }
-            }
-            inline static gfx_result commit_batch(Destination& destination,bool async) {
-                if(async) {
-                    return destination.commit_batch_async();
-                } else {
-                    return destination.commit_batch();
-                }
-                
-            }
-        };
         
         template<typename Destination,typename Source,bool CopyFrom,bool CopyTo,bool BltDst,bool BltSrc,bool Async> 
         struct draw_bmp_caps_helper {
@@ -415,7 +317,7 @@ namespace gfx {
         struct draw_bmp_caps_helper<Destination,Source,true,false,true,true,false> {
             inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
                 // suspend if we can
-                suspend_token_internal<Destination> stok(destination);
+                helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination);
                 return source.copy_to(src_rect,destination,location);
             }
         };
@@ -423,7 +325,7 @@ namespace gfx {
         struct draw_bmp_caps_helper<Destination,Source,true,false,false,true,false> {
             inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
                 // suspend if we can
-                suspend_token_internal<Destination> stok(destination);
+                helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination);
                 return destination.copy_from(src_rect,source,location);
             }
         };
@@ -431,7 +333,7 @@ namespace gfx {
         struct draw_bmp_caps_helper<Destination,Source,true,false,true,true,true> {
             inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
                 // suspend if we can
-                suspend_token_internal<Destination> stok(destination,true);
+                helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination);
                 return source.copy_to_async(src_rect,destination,location);
             }
         };
@@ -440,7 +342,7 @@ namespace gfx {
         struct draw_bmp_caps_helper<Destination,Source,true,false,false,true,true> {
             inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
                 // suspend if we can
-                suspend_token_internal<Destination> stok(destination,true);
+                helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination);
                 return destination.copy_from(src_rect,source,location);
                 //return copy_from_impl_helper<Destination,Source,Destination::caps::batch,Destination::caps::async>::do_draw(destintion,src_rect,source,location);
             }
@@ -449,7 +351,7 @@ namespace gfx {
         struct draw_bmp_caps_helper<Destination,Source,true,false,false,false,true> {
             inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
                 // suspend if we can
-                suspend_token_internal<Destination> stok(destination,true);
+                helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination);
                 
                 return destination.copy_from_async(src_rect,source,location);
                 //return copy_from_impl_helper<Destination,Source,Destination::caps::batch,Destination::caps::async>::do_draw(destintion,src_rect,source,location);
@@ -459,7 +361,7 @@ namespace gfx {
         struct draw_bmp_caps_helper<Destination,Source,true,false,false,false,false> {
             inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
                 // suspend if we can
-                suspend_token_internal<Destination> stok(destination,true);
+                helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination);
                 return destination.copy_from(src_rect,source,location);
                 //return copy_from_impl_helper<Destination,Source,Destination::caps::batch,Destination::caps::async>::do_draw(destintion,src_rect,source,location);
             }
@@ -473,7 +375,7 @@ namespace gfx {
                 const bool dhas_alpha = tdhas_alpha::value;
                 
                 // suspend if we can
-                suspend_token_internal<Destination> stok(destination);
+                helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination);
                 return copy_from_impl_helper<Destination,Source,!(has_alpha&&!dhas_alpha),false>::do_draw(destination,src_rect,source,location);
                 //return destination.copy_from(src_rect,source,location);
             }
@@ -482,7 +384,7 @@ namespace gfx {
         struct draw_bmp_caps_helper<Destination,Source,false,false,true,true,true> {
             inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
                 // suspend if we can
-                suspend_token_internal<Destination> stok(destination,true);
+                helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination,true);
                 return source.copy_to_async(src_rect,destination,location);
             }
         };
@@ -490,7 +392,7 @@ namespace gfx {
         struct draw_bmp_caps_helper<Destination,Source,false,false,true,false,false> {
             inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
                 // suspend if we can
-                suspend_token_internal<Destination> stok(destination);
+                helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination);
                 return copy_from_impl_helper<Destination,Source,false,false>::do_draw(destination,src_rect,source,location);
                 //return destination.copy_from(src_rect,source,location);
             }
@@ -504,7 +406,7 @@ namespace gfx {
                 const bool dhas_alpha = tdhas_alpha::value;
                 
                 // suspend if we can
-                suspend_token_internal<Destination> stok(destination,true);
+                helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination,true);
                 return copy_from_impl_helper<Destination,Source,!(has_alpha&&!dhas_alpha),Destination::caps::async>::do_draw(destination,src_rect,source,location);
             }
         };
@@ -517,7 +419,7 @@ namespace gfx {
                 const bool dhas_alpha = tdhas_alpha::value;
                 
                 // suspend if we can
-                suspend_token_internal<Destination> stok(destination,true);
+                helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination,true);
                 return copy_from_impl_helper<Destination,Source,!(has_alpha&&!dhas_alpha),false>::do_draw(destination,src_rect,source,location);
             }
         };
@@ -530,7 +432,7 @@ namespace gfx {
                 const bool dhas_alpha = tdhas_alpha::value;
                 
                 // suspend if we can
-                suspend_token_internal<Destination> stok(destination,true);
+                helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination,true);
                 return copy_from_impl_helper<Destination,Source,!(has_alpha&&!dhas_alpha),Destination::caps::async>::do_draw(destination,src_rect,source,location);
             }
         };
@@ -539,7 +441,7 @@ namespace gfx {
         struct draw_bmp_caps_helper<Destination,Source,true,true,true,true,false> {
             inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
                 // suspend if we can
-                suspend_token_internal<Destination> stok(destination);
+                helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination);
                 return destination.copy_from(src_rect,source,location);
             }
         };
@@ -548,7 +450,7 @@ namespace gfx {
         struct draw_bmp_caps_helper<Destination,Source,true,true,false,true,false> {
             inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
                 // suspend if we can
-                suspend_token_internal<Destination> stok(destination);
+                helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination);
                 return destination.copy_from(src_rect,source,location);
             }
         };
@@ -557,7 +459,7 @@ namespace gfx {
         struct draw_bmp_caps_helper<Destination,Source,true,true,true,true,true> {
             inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
                 // suspend if we can
-                suspend_token_internal<Destination> stok(destination,true);
+                helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination,true);
                 return destination.copy_from_async(src_rect,source,location);
             }
         };
@@ -566,7 +468,7 @@ namespace gfx {
         struct draw_bmp_caps_helper<Destination,Source,true,true,false,true,true> {
             inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
                 // suspend if we can
-                suspend_token_internal<Destination> stok(destination,true);
+                helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination,true);
                 return destination.copy_from_async(src_rect,source,location);
             }
         };
@@ -575,7 +477,7 @@ namespace gfx {
         struct draw_bmp_caps_helper<Destination,Source,false,true,false,true,false> {
             inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
                 // suspend if we can
-                suspend_token_internal<Destination> stok(destination);
+                helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination);
                 return source.copy_to(src_rect,destination,location);
             }
         };
@@ -584,7 +486,7 @@ namespace gfx {
         struct draw_bmp_caps_helper<Destination,Source,false,true,true,true,true> {
             inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
                 // suspend if we can
-                suspend_token_internal<Destination> stok(destination,true);
+                helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination,true);
                 return source.copy_to_async(src_rect,destination,location);
             }
         };
@@ -593,7 +495,7 @@ namespace gfx {
         struct draw_bmp_caps_helper<Destination,Source,false,true,false,true,true> {
             inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
                 // suspend if we can
-                suspend_token_internal<Destination> stok(destination,true);
+                helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination,true);
                 //return copy_from_impl_helper<Destination,Source,Destination::caps::batch,Destination::caps::async>::do_draw(destination,src_rect,source,location);
                 return source.copy_to_async(src_rect,destination,location);
             }
@@ -603,7 +505,7 @@ namespace gfx {
         struct draw_bmp_caps_helper<Destination,Source,false,false,false,false,true> {
             inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
                 // suspend if we can
-                suspend_token_internal<Destination> stok(destination,true);
+                helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination,true);
                 // reuse the non batch version of our batch helper since it already has this code
                 return draw_bmp_batch_caps_helper<Destination,Source,false,true>::do_draw(destination,rect16(location,src_rect.dimensions()),source,src_rect,(int)rect_orientation::normalized);
             }
@@ -613,7 +515,7 @@ namespace gfx {
         struct draw_bmp_caps_helper<Destination,Source,false,false,false,false,false> {
             inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
                 // suspend if we can
-                suspend_token_internal<Destination> stok(destination,true);
+                helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination,true);
                 // reuse the non batch version of our batch helper since it already has this code
                 return draw_bmp_batch_caps_helper<Destination,Source,false,false>::do_draw(destination,rect16(location,src_rect.dimensions()),source,src_rect,(int)rect_orientation::normalized);
             }
@@ -623,7 +525,7 @@ namespace gfx {
         struct draw_bmp_caps_helper<Destination,Source,false,true,true,true,false> {
             inline static gfx::gfx_result do_draw(Destination& destination, Source& source, const gfx::rect16& src_rect,gfx::point16 location) {
                 // suspend if we can
-                suspend_token_internal<Destination> stok(destination,true);
+                helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination,true);
                 return source.copy_to(src_rect,destination,location);
             }
         };
@@ -665,8 +567,9 @@ namespace gfx {
                         if(r!=gfx_result::success)
                             return r;
                         typename Destination::pixel_type p;
-                        if(!convert(pp,&p)) {
-                            return gfx_result::invalid_format;
+                        r=convert_palette_to(destination,src,pp,&p);
+                        if(gfx_result::success!=r) {
+                            return r;
                         }
                         r = destination.write_batch_async(p);
                         if(gfx_result::success!=r) {
@@ -704,8 +607,9 @@ namespace gfx {
                         if(r!=gfx_result::success)
                             return r;
                         typename Destination::pixel_type p;
-                        if(!convert(pp,&p)) {
-                            return gfx_result::invalid_format;
+                        r=convert_palette_to(destination,src,pp,&p);
+                        if(gfx_result::success!=r) {
+                            return r;
                         }
                         r=point_impl(destination,spoint16(dstr.x1+x,dstr.y1+y),p,nullptr,true);
                         if(gfx_result::success!=r) {
@@ -742,8 +646,9 @@ namespace gfx {
                         if(r!=gfx_result::success)
                             return r;
                         typename Destination::pixel_type p;
-                        if(!convert(pp,&p)) {
-                            return gfx_result::invalid_format;
+                        r=convert_palette_to(destination,src,pp,&p);
+                        if(gfx_result::success!=r) {
+                            return r;
                         }
                         //uint16_t pv = p.value();
                         
@@ -782,8 +687,9 @@ namespace gfx {
                         if(r!=gfx_result::success)
                             return r;
                         typename Destination::pixel_type p;
-                        if(!convert(pp,&p)) {
-                            return gfx_result::invalid_format;
+                        r=convert_palette_to(destination,src,pp,&p);
+                        if(gfx_result::success!=r) {
+                            return r;
                         }
                         r = point_impl(destination,spoint16(x,y),p,nullptr,false);
                         if(gfx_result::success!=r) {
@@ -807,7 +713,7 @@ namespace gfx {
                 uint16_t x2=srcr.x1;
                 uint16_t y2=srcr.y1;
                 // suspend if we can
-                suspend_token_internal<Destination> stok(destination);
+                helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination);
                 for(typename rect16::value_type y=dstr.y1;y<=dstr.y2;++y) {
                     for(typename rect16::value_type x=dstr.x1;x<=dstr.x2;++x) {
                         typename Source::pixel_type px;
@@ -851,7 +757,7 @@ namespace gfx {
                 if(gfx_result::success!=r)
                     return r;
                 // suspend if we can
-                suspend_token_internal<Destination> stok(destination);
+                helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination);
                 for(typename rect16::value_type y=dstr.y1;y<=dstr.y2;++y) {
                     for(typename rect16::value_type x=dstr.x1;x<=dstr.x2;++x) {
                         typename Source::pixel_type px;
@@ -892,7 +798,7 @@ namespace gfx {
                 uint16_t x2=srcr.x1;
                 uint16_t y2=srcr.y1;
                 // suspend if we can
-                suspend_token_internal<Destination> stok(destination,true);
+                helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination,true);
                 for(typename rect16::value_type y=dstr.y1;y<=dstr.y2;++y) {
                     for(typename rect16::value_type x=dstr.x1;x<=dstr.x2;++x) {
                         typename Source::pixel_type px;
@@ -932,7 +838,7 @@ namespace gfx {
                 uint16_t x2=0;
                 uint16_t y2=0;
                 // suspend if we can
-                suspend_token_internal<Destination> stok(destination,true);
+                helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination,true);
                 gfx_result r = destination.begin_batch_async(dstr);
                 if(gfx_result::success!=r)
                     return r;
@@ -970,7 +876,7 @@ namespace gfx {
         template<typename Destination,typename Source>
         static gfx_result draw_bitmap_impl(Destination& destination, const srect16& dest_rect, Source& source, const rect16& source_rect,bitmap_resize resize_type,const typename Source::pixel_type* transparent_color, const srect16* clip,bool async) {
             
-            using batch=batcher<Destination,Destination::caps::batch,Destination::caps::async>;
+            using batch=helpers::batcher<Destination,Destination::caps::batch,Destination::caps::async>;
             gfx_result r;
             rect16 srcr=source_rect.normalize().crop(source.bounds());
             srect16 dsr=dest_rect.crop((srect16)destination.bounds()).normalize();
@@ -982,7 +888,7 @@ namespace gfx {
             const int w = dest_rect.width(),h=dest_rect.height();
 
             // suspend if we can
-            suspend_token_internal<Destination> stok(destination,async);
+            helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination,async);
 
             using thas_alpha = typename Source::pixel_type::template has_channel_names<channel_name::A>;
             const bool has_alpha = thas_alpha::value;
@@ -1023,8 +929,7 @@ namespace gfx {
                         }
                         if(!has_alpha && nullptr==transparent_color) {
                             typename Destination::pixel_type px;
-                            
-                            r=convert(srcpx,&px);
+                            r=convert_palette(destination,source,srcpx,&px);
                             if(gfx_result::success!=r) {
                                 return r;
                             }
@@ -1085,7 +990,7 @@ namespace gfx {
                         }
                         if(!has_alpha && nullptr==transparent_color) {
                             typename Destination::pixel_type px;
-                            r=convert(sampx,&px);
+                            r=convert_palette(destination,source,sampx,&px);
                             if(gfx_result::success!=r) {
                                 return r;
                             }
@@ -1163,7 +1068,7 @@ namespace gfx {
                 loc.y+=source_rect.top();
                 rect16 r = rect16(loc,dim);
                 // suspend if we can
-                suspend_token_internal<Destination> stok(destination,async);
+                helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination,async);
                 //printf("draw_bmp_caps_helper<Destination,Source,%s,%s,%s,%s,%s>\r\n",Destination::caps::copy_from?"true":"false",Source::caps::copy_to?"true":"false",Destination::caps::blt?"true":"false",Source::caps::blt?"true":"false",Destination::caps::async?"true":"false");
                 if(async)
                     return draw_bmp_caps_helper<Destination,Source,Destination::caps::copy_from,Source::caps::copy_to, Destination::caps::blt,Source::caps::blt,Destination::caps::async>::do_draw(destination,source, r,dr.top_left());
@@ -1333,7 +1238,7 @@ namespace gfx {
             x = 0;
             y = ry;
             // suspend if we can
-            suspend_token_internal<Destination> stok(destination,async);
+            helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination,async);
             
             // Initial decision parameter of region 1
             d1 = (ry * ry)
@@ -1476,7 +1381,7 @@ namespace gfx {
             dx = 2 * ry * ry * x;
             dy = 2 * rx * rx * y;
             // suspend if we can
-            suspend_token_internal<Destination> stok(destination,async);
+            helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination,async);
             // For region 1
             while (dx < dy+y_adj) {
                 if(filled) {
@@ -1687,7 +1592,7 @@ namespace gfx {
                         if(gfx_result::success!=r) {
                             return r;
                         }
-                        r=convert(color,&dpx,&bgpx);
+                        r=convert_palette_to(destination, color,&dpx,&bgpx);
                         if(gfx_result::success!=r) {
                             return r;
                         }
@@ -1698,7 +1603,7 @@ namespace gfx {
                         
                     }
                 }
-                r=convert(color,&dpx);
+                r=convert_palette_to(destination,color,&dpx);
                 if(gfx_result::success!=r) {
                         return r;
                 }
@@ -1711,7 +1616,7 @@ namespace gfx {
         template<typename Destination,typename PixelType>
         struct draw_point_helper<Destination,PixelType,false> {
             static gfx_result do_draw(Destination& destination,point16 location,PixelType color,bool async) {
-                gfx_result r;
+                gfx_result r=gfx_result::success;
                 typename Destination::pixel_type dpx;
                 // TODO: recode to use an async read when finally implemented
                 using thas_alpha=typename PixelType::template has_channel_names<channel_name::A>;
@@ -1733,14 +1638,18 @@ namespace gfx {
                         if(gfx_result::success!=r) {
                             return r;
                         }
-                        r=convert(color,&dpx,&bgpx);
+                        // TODO: failing when instantiated with color as indexed pixel
+                        // it's trying to use color as indexed, to draw to a bitmap<>
+                        // with an unindexed color
+                        r=convert_palette_from(destination,color,&dpx,&bgpx);
                         if(gfx_result::success!=r) {
                             return r;
                         }
                         return destination.point(location,dpx);
                     }
                 }
-                r=convert(color,&dpx);
+                // TODO: failing when instantiated with color as indexed pixel
+                r=convert_palette_from(destination,color,&dpx);
                 if(gfx_result::success!=r) {
                     return r;
                 }
@@ -1769,7 +1678,7 @@ namespace gfx {
             static gfx_result do_draw(Destination& destination,const rect16& rect,PixelType color,bool async) {
                 gfx_result r;
                 // suspend if we can
-                suspend_token_internal<Destination> stok(destination,async);
+                helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination,async);
                 if(!async) return draw_filled_rect_helper<Destination,PixelType,false>::do_draw(destination,rect,color,false);
                 typename Destination::pixel_type dpx;
                 // TODO: recode to use an async read when finally implemented
@@ -1798,7 +1707,7 @@ namespace gfx {
                         return gfx_result::success;
                     }
                 }
-                r=convert(color,&dpx);
+                r=convert_palette_to(destination,color,&dpx);
                 if(gfx_result::success!=r) {
                     return r;
                 }
@@ -1810,7 +1719,7 @@ namespace gfx {
             static gfx_result do_draw(Destination& destination,const rect16& rect,PixelType color,bool async) {
                 gfx_result r;
                 // suspend if we can
-                suspend_token_internal<Destination> stok(destination,async);
+                helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination,async);
                 typename Destination::pixel_type dpx;
                 // TODO: recode to use an async read when finally implemented
                 using thas_alpha=typename PixelType::template has_channel_names<channel_name::A>;
@@ -1839,7 +1748,7 @@ namespace gfx {
                     }
                     
                 }
-                r=convert(color,&dpx);
+                r=convert_palette_from(destination,color,&dpx);
                 if(gfx_result::success!=r) {
                     return r;
                 }
@@ -1868,154 +1777,15 @@ namespace gfx {
                 return draw_filled_rect_helper<Destination,PixelType,Destination::caps::async>::do_draw(destination,r,color,true);
             return draw_filled_rect_helper<Destination,PixelType,false>::do_draw(destination,r,color,false);
         }
-        template<typename Destination,typename PixelType, bool Batch,bool Async>
+        template<typename Destination,typename PixelType, bool Batch>
         struct draw_font_batch_helper {
-        };
-        template<typename Destination,typename PixelType>
-        struct draw_font_batch_helper<Destination,PixelType,true,false> {
-            static gfx_result do_draw(Destination& destination,const font& font,const font_char& fc,const srect16& chr,PixelType color,PixelType backcolor,bool transparent_background,const srect16* clip,bool async) {
-                // transparent_background is ignored for this routine
-                srect16 sr = srect16(chr);
-                if(nullptr!=clip)
-                    sr=sr.crop(*clip);
-                if(!sr.intersects((srect16)destination.bounds()))
-                    return gfx_result::success;
-                rect16 dr = (rect16)sr.crop((srect16)destination.bounds());
-                // suspend if we can
-                suspend_token_internal<Destination> stok(destination,async);
-                gfx_result r = destination.begin_batch(dr);
-                if(gfx_result::success!=r)
-                    return r;
-                // draw the character
-                size_t wb = (fc.width()+7)/8;
-                const uint8_t* p = fc.data();
-                for(size_t j=0;j<font.height();++j) {
-                    bits::int_max m = 1 << (fc.width()-1);
-                    bits::int_max accum=0;
-                    memcpy(&accum,p,wb);
-                    p+=wb;
-                    for(size_t n=0;n<=fc.width();++n) {
-                        if(dr.intersects(point16(n+chr.left(),j+chr.top()))) {
-                            if(accum&m) {
-                                r=destination.write_batch(color);
-                                if(gfx_result::success!=r)
-                                    return r;
-                            } else {
-                                r=destination.write_batch(backcolor);
-                                if(gfx_result::success!=r)
-                                    return r;
-                            }
-                        }
-                        accum<<=1;
-                    }
-                }
-                r=destination.commit_batch();
-                return r;
-            }
-        };
-        template<typename Destination,typename PixelType>
-        struct draw_font_batch_helper<Destination,PixelType,false,false> {
             static gfx_result do_draw(Destination& destination,const font& font,const font_char& fc,const srect16& chr,PixelType color,PixelType backcolor,bool transparent_background,const srect16* clip,bool async) {
                 gfx_result r = gfx_result::success;
                 // draw the character
                 size_t wb = (fc.width()+7)/8;
                 const uint8_t* p = fc.data();
                 // suspend if we can
-                suspend_token_internal<Destination> stok(destination,async);
-                for(size_t j=0;j<font.height();++j) {
-                    bits::int_max m = 1 << (fc.width()-1);
-                    bits::int_max accum=0;
-                    memcpy(&accum,p,wb);
-                    p+=wb;
-                    int run_start_fg = -1;
-                    int run_start_bg = -1;
-                    for(size_t n=0;n<fc.width();++n) {
-                        if(accum&m) {
-                            if(!transparent_background&&-1!=run_start_bg) {
-                                r=line(destination,srect16(run_start_bg+chr.left(),chr.top()+j,n-1+chr.left(),chr.top()+j),backcolor,clip);
-                        
-                                run_start_bg=-1;
-                            }
-                            if(-1==run_start_fg)
-                                run_start_fg=n;
-                        } else {
-                            if(-1!=run_start_fg) {
-                                r=line(destination,srect16(run_start_fg+chr.left(),chr.top()+j,n-1+chr.left(),chr.top()+j),color,clip);
-                        
-                                run_start_fg=-1;
-                            }
-                            if(!transparent_background) {
-                                if(-1==run_start_bg)
-                                    run_start_bg=n;
-                            }
-                        }
-
-                        accum<<=1;
-                    }
-                    if(-1!=run_start_fg) {
-                        r=line(destination,srect16(run_start_fg+chr.left(),chr.top()+j,fc.width()-1+chr.left(),chr.top()+j),color,clip);
-                        
-                    }
-                    if(!transparent_background&&-1!=run_start_bg) {
-                        r=line(destination,srect16(run_start_bg+chr.left(),chr.top()+j,fc.width()-1+chr.left(),chr.top()+j),backcolor,clip);
-                
-                        
-                    }
-                }
-                return r;
-            }
-        };
-        template<typename Destination,typename PixelType>
-        struct draw_font_batch_helper<Destination,PixelType,true,true> {
-            static gfx_result do_draw(Destination& destination,const font& font,const font_char& fc,const srect16& chr,PixelType color,PixelType backcolor,bool transparent_background,const srect16* clip,bool async) {
-                // transparent_background is ignored for this routine
-                srect16 sr = srect16(chr);
-                if(nullptr!=clip)
-                    sr=sr.crop(*clip);
-                if(!sr.intersects((srect16)destination.bounds()))
-                    return gfx_result::success;
-                rect16 dr = (rect16)sr.crop((srect16)destination.bounds());
-                // suspend if we can
-                suspend_token_internal<Destination> stok(destination,async);
-                gfx_result r = (async)?destination.begin_batch_async(dr):destination.begin_batch(dr);
-                if(gfx_result::success!=r)
-                    return r;
-                // draw the character
-                size_t wb = (fc.width()+7)/8;
-                const uint8_t* p = fc.data();
-                for(size_t j=0;j<font.height();++j) {
-                    bits::int_max m = 1 << (fc.width()-1);
-                    bits::int_max accum=0;
-                    memcpy(&accum,p,wb);
-                    p+=wb;
-                    for(size_t n=0;n<=fc.width();++n) {
-                        if(dr.intersects(point16(n+chr.left(),j+chr.top()))) {
-                            if(accum&m) {
-                                r=(async)?destination.write_batch_async(color):destination.write_batch(color);
-                                if(gfx_result::success!=r)
-                                    return r;
-                            } else {
-                                r=(async)?destination.write_batch_async(backcolor):destination.write_batch(backcolor);
-                                if(gfx_result::success!=r)
-                                    return r;
-                            }
-                        }
-                        accum<<=1;
-                    }
-                }
-                r=(async)?destination.commit_batch_async():destination.commit_batch();
-                return r;
-            }
-        };
-        template<typename Destination,typename PixelType>
-        struct draw_font_batch_helper<Destination,PixelType,false,true> {
-            static gfx_result do_draw(Destination& destination,const font& font,const font_char& fc,const srect16& chr,PixelType color,PixelType backcolor,bool transparent_background,const srect16* clip,bool async) {
-                gfx_result r = gfx_result::success;
-                // draw the character
-                size_t wb = (fc.width()+7)/8;
-                const uint8_t* p = fc.data();
-                // suspend if we can
-                suspend_token_internal<Destination> stok(destination,async);
+                helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination,async);
                 for(size_t j=0;j<font.height();++j) {
                     bits::int_max m = 1 << (fc.width()-1);
                     bits::int_max accum=0;
@@ -2027,6 +1797,7 @@ namespace gfx {
                         if(accum&m) {
                             if(!transparent_background&&-1!=run_start_bg) {
                                 r=line_impl(destination,srect16(run_start_bg+chr.left(),chr.top()+j,n-1+chr.left(),chr.top()+j),backcolor,clip,async);
+                        
                                 run_start_bg=-1;
                             }
                             if(-1==run_start_fg)
@@ -2034,6 +1805,7 @@ namespace gfx {
                         } else {
                             if(-1!=run_start_fg) {
                                 r=line_impl(destination,srect16(run_start_fg+chr.left(),chr.top()+j,n-1+chr.left(),chr.top()+j),color,clip,async);
+                        
                                 run_start_fg=-1;
                             }
                             if(!transparent_background) {
@@ -2046,14 +1818,62 @@ namespace gfx {
                     }
                     if(-1!=run_start_fg) {
                         r=line_impl(destination,srect16(run_start_fg+chr.left(),chr.top()+j,fc.width()-1+chr.left(),chr.top()+j),color,clip,async);
+                        
                     }
                     if(!transparent_background&&-1!=run_start_bg) {
                         r=line_impl(destination,srect16(run_start_bg+chr.left(),chr.top()+j,fc.width()-1+chr.left(),chr.top()+j),backcolor,clip,async);
+                
+                        
                     }
                 }
                 return r;
             }
         };
+        template<typename Destination,typename PixelType>
+        struct draw_font_batch_helper<Destination,PixelType,true> {
+            static gfx_result do_draw(Destination& destination,const font& font,const font_char& fc,const srect16& chr,PixelType color,PixelType backcolor,bool transparent_background,const srect16* clip,bool async) {
+                using batch = helpers::batcher<Destination,true,Destination::caps::async>;
+                // transparent_background is ignored for this routine
+                srect16 sr = srect16(chr);
+                if(nullptr!=clip)
+                    sr=sr.crop(*clip);
+                if(!sr.intersects((srect16)destination.bounds()))
+                    return gfx_result::success;
+                rect16 dr = (rect16)sr.crop((srect16)destination.bounds());
+                // suspend if we can
+                helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination,async);
+                gfx_result r = batch::begin_batch(destination,dr,async);
+                if(gfx_result::success!=r)
+                    return r;
+                // draw the character
+                size_t wb = (fc.width()+7)/8;
+                const uint8_t* p = fc.data();
+                for(size_t j=0;j<font.height();++j) {
+                    bits::int_max m = 1 << (fc.width()-1);
+                    bits::int_max accum=0;
+                    memcpy(&accum,p,wb);
+                    p+=wb;
+                    for(size_t n=0;n<=fc.width();++n) {
+                        point16 pt(n+chr.left(),j+chr.top());
+                        if(dr.intersects(pt)) {
+                            if(accum&m) {
+                                r=batch::write_batch(destination,pt,color,async);
+                                if(gfx_result::success!=r)
+                                    return r;
+                            } else {
+                                r=batch::write_batch(destination,pt,backcolor,async);
+                                if(gfx_result::success!=r)
+                                    return r;
+                            }
+                        }
+                        accum<<=1;
+                    }
+                }
+                r=batch::commit_batch(destination,async);
+                return r;
+            }
+        };
+        
         template<typename Destination,typename PixelType>
         static gfx_result line_impl(Destination& destination, const srect16& rect,PixelType color,const srect16* clip,bool async) {
             if(rect.x1==rect.x2||rect.y1==rect.y2) {
@@ -2083,7 +1903,7 @@ namespace gfx {
             x=ox=r.x1;
             y=oy=r.y1;
             // suspend if we can
-            suspend_token_internal<Destination> stok(destination,async);
+            helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination,async);
             if(dx>=dy)
             {
                 e=(2*dy)-dx;
@@ -2137,7 +1957,7 @@ namespace gfx {
         static gfx_result rectangle_impl(Destination& destination, const srect16& rect,PixelType color,const srect16* clip,bool async) {
             gfx_result r;
             // suspend if we can
-            suspend_token_internal<Destination> stok(destination,async);
+            helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination,async);
             // top or bottom
             r=line_impl(destination,srect16(rect.x1,rect.y1,rect.x2,rect.y1),color,clip,async);
             if(r!=gfx_result::success)
@@ -2200,7 +2020,7 @@ namespace gfx {
             gfx_result r;
             const spoint16* p = path.begin();
             // suspend if we can
-            suspend_token_internal<Destination> stok(destination,async);
+            helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination,async);
             size_t path_size = path.size();
             while(path_size--) {
                 const spoint16 p1 = *p;
@@ -2225,7 +2045,7 @@ namespace gfx {
                 pr=pr.crop(*clip);
             }
             // suspend if we can
-            suspend_token_internal<Destination> stok(destination,async);
+            helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination,async);
             for(int y = pr.y1;y<=pr.y2;++y) {
                 int run_start = -1;
                 for(int x = pr.x1;x<=pr.x2;++x) {
@@ -2263,7 +2083,7 @@ namespace gfx {
             int rw = (sr.width()*fx+.5);
             int rh = (sr.height()*fy+.5);
             // suspend if we can
-            suspend_token_internal<Destination> stok(destination,async);
+            helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination,async);
             // top
             r=line_impl(destination,srect16(sr.x1+rw,sr.y1,sr.x2-rw,sr.y1),color,clip,async);
             if(gfx_result::success!=r)
@@ -2301,7 +2121,7 @@ namespace gfx {
             int rw = (sr.width()*fx+.5);
             int rh = (sr.height()*fy+.5);
             // suspend if we can
-            suspend_token_internal<Destination> stok(destination,async);
+            helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination,async);
             // top
             r=filled_rectangle_impl(destination,srect16(sr.x1+rw,sr.y1,sr.x2-rw,sr.y1+rh-1),color,clip,async);
             if(gfx_result::success!=r) 
@@ -2458,7 +2278,7 @@ namespace gfx {
             if(0==*sz) return gfx_result::success;
             font_char fc = font[*sz];
             // suspend if we can
-            suspend_token_internal<Destination> stok(destination,async);
+            helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination,async);
             while(*sz) {
                 switch(*sz) {
                     case '\r':
@@ -2507,9 +2327,9 @@ namespace gfx {
                         if(nullptr==clip || clip->intersects(chr)) {
                             if(chr.intersects(dest_rect)) {
                                 if(transparent_background)
-                                    r=draw_font_batch_helper<Destination,PixelType,false,Destination::caps::async>::do_draw(destination,font,fc,chr,color,backcolor,transparent_background,clip,async);
+                                    r=draw_font_batch_helper<Destination,PixelType,false>::do_draw(destination,font,fc,chr,color,backcolor,transparent_background,clip,async);
                                 else
-                                    r=draw_font_batch_helper<Destination,PixelType,Destination::caps::batch,Destination::caps::async>::do_draw(destination,font,fc,chr,color,backcolor,transparent_background,clip,async);
+                                    r=draw_font_batch_helper<Destination,PixelType,Destination::caps::batch>::do_draw(destination,font,fc,chr,color,backcolor,transparent_background,clip,async);
                                 if(gfx_result::success!=r) {
                                     return r;
                                 }
@@ -2535,51 +2355,7 @@ namespace gfx {
             }
             return gfx_result::success;
         }
-        template<typename Destination,bool Suspend,bool Async> 
-        struct suspend_caps_helper {
-            inline static gfx_result suspend(Destination& destination) {
-                return gfx_result::not_supported;
-            }
-            inline static gfx_result resume(Destination& destination,bool force) {
-                return gfx_result::not_supported;
-            }
-            inline static gfx_result suspend_async(Destination& destination) {
-                return gfx_result::not_supported;
-            }
-            inline static gfx_result resume_async(Destination& destination,bool force) {
-                return gfx_result::not_supported;
-            }
-        };
-        template<typename Destination> 
-        struct suspend_caps_helper<Destination,true,false> {
-            inline static gfx_result suspend(Destination& destination) {
-                return destination.suspend();
-            }
-            inline static gfx_result resume(Destination& destination,bool force) {
-                return destination.resume(force);
-            }
-            inline static gfx_result suspend_async(Destination& destination) {
-                return destination.suspend();
-            }
-            inline static gfx_result resume_async(Destination& destination,bool force) {
-                return destination.resume(force);
-            }
-        };
-        template<typename Destination> 
-        struct suspend_caps_helper<Destination,true,true> {
-            inline static gfx_result suspend(Destination& destination) {
-                return destination.suspend();
-            }
-            inline static gfx_result resume(Destination& destination,bool force) {
-                return destination.resume(force);
-            }
-            inline static gfx_result suspend_async(Destination& destination) {
-                return destination.suspend_async();
-            }
-            inline static gfx_result resume_async(Destination& destination,bool force) {
-                return destination.resume_async(force);
-            }
-        };
+        
     public:
         // draws a point at the specified location and of the specified color, with an optional clipping rectangle
         template<typename Destination,typename PixelType>
@@ -2759,22 +2535,22 @@ namespace gfx {
         // suspends drawing for a destination that supports it
         template<typename Destination>
         static gfx_result suspend(Destination& destination) {
-            return suspend_caps_helper<Destination,Destination::caps::suspend,false>::suspend(destination);
+            return helpers::suspender<Destination,Destination::caps::suspend,false>::suspend(destination);
         }
         // resumes a suspended destination
         template<typename Destination>
         static gfx_result resume(Destination& destination,bool force=false) {
-            return suspend_caps_helper<Destination,Destination::caps::suspend,false>::resume(destination,force);
+            return helpers::suspender<Destination,Destination::caps::suspend,false>::resume(destination,force);
         }
         // asynchronously suspends drawing for a destination that supports it
         template<typename Destination>
         static gfx_result suspend_async(Destination& destination) {
-            return suspend_caps_helper<Destination,Destination::caps::suspend,Destination::caps::async>::suspend_async(destination);
+            return helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async>::suspend_async(destination);
         }
         // asynchronously resumes a suspended destination
         template<typename Destination>
         static gfx_result resume_async(Destination& destination,bool force=false) {
-            return suspend_caps_helper<Destination,Destination::caps::suspend,Destination::caps::async>::resume_async(destination,force);
+            return helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async>::resume_async(destination);
         }  
     };
     template<typename Destination>
@@ -2842,11 +2618,13 @@ namespace gfx {
                     return r;
                 }
                 PixelType dpx;
-                if(!convert(px,&dpx)) {
-                    return gfx_result::not_supported;
+                r= convert_palette_to(target,px,&dpx);
+                if(gfx_result::success!=r) {
+                    return r;
                 }
-                if(!convert(dpx,&px)) {
-                    return gfx_result::not_supported;
+                r=convert_palette_to(target,dpx,&px);
+                if(gfx_result::success!=r) {
+                    return r;
                 }
                 r = target.point(pt,px);
                 if(r!=gfx_result::success) {

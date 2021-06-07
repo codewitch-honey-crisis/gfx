@@ -546,6 +546,7 @@ namespace gfx {
         }
         // blends two pixels. ratio is between zero and one. larger ratio numbers favor this pixel
         constexpr gfx_result blend(type rhs,double ratio,type* out_pixel) {
+            static_assert(!has_channel_names<channel_name::index>::value,"pixel must not be indexed");
             if(has_channel_names<channel_name::R,channel_name::G,channel_name::B>::value && channels<5) {
                 if(nullptr==out_pixel)
                     return gfx_result::invalid_argument;
@@ -656,9 +657,13 @@ namespace gfx {
         channel_traits<channel_name::Cr,(BitDepth/4)>,
         channel_traits<channel_name::A,(BitDepth/4)>
     >;
+    template<size_t BitDepth>
+    using indexed_pixel=pixel<channel_traits<channel_name::index,BitDepth>>;
     // converts a pixel to the destination pixel type
     template<typename PixelTypeLhs, typename PixelTypeRhs>
     constexpr static inline gfx_result convert(PixelTypeLhs source,PixelTypeRhs* result,const PixelTypeRhs* background=nullptr) {
+        static_assert(!PixelTypeLhs::template has_channel_names<channel_name::index>::value,"left hand pixel must not be indexed");
+        static_assert(!PixelTypeRhs::template has_channel_names<channel_name::index>::value,"right hand pixel must not be indexed");
         if(nullptr==result) return gfx_result::invalid_argument;
         if(helpers::is_same<PixelTypeLhs,PixelTypeRhs>::value && nullptr==background) {
             result->native_value=source.native_value;

@@ -73,6 +73,7 @@ namespace gfx {
                 }
             }
             pixel->native_value=ii;
+            //printf("nearest (native palette) was %d\r\n",ii);
             return gfx_result::success;
         }
     };
@@ -103,6 +104,7 @@ namespace gfx {
         }
         */
         gfx_result nearest(mapped_pixel_type mapped_pixel,pixel_type* pixel) const {
+            //printf("nearest\r\n");
             if(nullptr==pixel) {
                 return gfx_result::invalid_argument;
             }
@@ -122,14 +124,15 @@ namespace gfx {
         }
     public:
         using type = ega_palette;
-        using pixel_type = pixel<channel_traits<channel_name::index,4>>;
+        using pixel_type = indexed_pixel<4>;
         using mapped_pixel_type = MappedPixelType;
         constexpr static const bool writable = false;
         constexpr static const size_t size = 16;
         gfx_result map(pixel_type pixel,mapped_pixel_type* mapped_pixel) const {
-            return index_to_mapped(pixel.native_value,mapped_pixel);
+            return index_to_mapped(pixel.channel<channel_name::index>(),mapped_pixel);
         }
         gfx_result nearest(mapped_pixel_type mapped_pixel,pixel_type* pixel) const {
+            
             if(nullptr==pixel) {
                 return gfx_result::invalid_argument;
             }
@@ -160,10 +163,17 @@ namespace gfx {
                     ii=i;
                 }
             }
-            pixel->native_value=ii;
+            pixel->channel<channel_name::index>(ii);
+            //printf("nearest was %d\r\n",ii);
             return gfx_result::success;
         }
     };
+    template<typename Destination,typename Source>
+    inline static gfx_result convert_palette(Destination& destination, const Source& source, typename Source::pixel_type pixel, typename Destination::pixel_type* result, const typename Destination::pixel_type* background=nullptr);
+    template<typename Target,typename PixelType>
+    inline static gfx_result convert_palette_to(const Target& target,typename Target::pixel_type pixel, PixelType* result, const PixelType* background=nullptr);
+    template<typename Target,typename PixelType>
+    inline static gfx_result convert_palette_from(Target& target,PixelType pixel, typename Target::pixel_type* result, const typename Target::pixel_type* background=nullptr) ;
     namespace helpers {
         template<typename Target,typename PixelType, bool Indexed>
         struct palette_mapper_impl {
@@ -194,17 +204,25 @@ namespace gfx {
         template<typename Target>
         struct palette_mapper_impl<Target,typename Target::pixel_type,true> {
             inline static gfx_result pixel_to_indexed(const Target& target,typename Target::pixel_type pixel,const typename Target::pixel_type* background, typename Target::pixel_type* indexed) { 
+                if(nullptr==background) {
+                    indexed->native_value = pixel.native_value;
+                    return gfx_result::success;
+                }
                 typename Target::palette_type::mapped_pixel_type mpx;
-                gfx_result r= palette_mapper_impl<Target,typename Target::palette_type::mapped_pixel_type,true>::pixel_to_indexed(target,pixel,nullptr,&mpx);
+                
+                gfx_result r;
+                //r= palette_mapper_impl<Target,typename Target::palette_type::mapped_pixel_type,true>::pixel_to_indexed(target,pixel,nullptr,&mpx);
+                r=convert_palette_to(target,pixel,&mpx);
                 if(gfx_result::success!=r) {
                     return r;
                 }
                 typename Target::palette_type::mapped_pixel_type mbg;
-                r= palette_mapper_impl<Target,typename Target::palette_type::mapped_pixel_type,true>::pixel_to_indexed(target,*background,nullptr,&mbg);
+                //r= palette_mapper_impl<Target,typename Target::palette_type::mapped_pixel_type,true>::pixel_to_indexed(target,*background,nullptr,&mbg);
+                r=convert_palette_to(target,*background,&mbg);
                 if(gfx_result::success!=r) {
                     return r;
                 }
-                r=convert(mpx,&mbg,&mpx);
+                r=convert(mpx,&mpx,&mbg);
                 if(gfx_result::success!=r) {
                     return r;
                 }
@@ -294,6 +312,7 @@ namespace gfx {
                 gfx_result r;
                 rgb_pixel<HTCW_MAX_WORD> rgb;
                 if(nullptr==background) {
+                    //r=convert_palette_to(source,pixel,&rgb,nullptr);
                     r= palette_mapper<Source,rgb_pixel<HTCW_MAX_WORD>>::indexed_to_pixel(source,pixel,&rgb,nullptr);
                     if(gfx_result::success!=r) {
                         return r;
@@ -311,19 +330,19 @@ namespace gfx {
         }; 
     }
     template<typename Destination,typename Source>
-    inline static gfx_result convert_palette(Destination& destination, const Source& source, typename Source::pixel_type pixel, typename Destination::pixel_type* result, const typename Destination::pixel_type* background=nullptr) {
+    inline static gfx_result convert_palette(Destination& destination, const Source& source, typename Source::pixel_type pixel, typename Destination::pixel_type* result, const typename Destination::pixel_type* background) {
         using tshas_index = typename Source::pixel_type::template has_channel_names<channel_name::index>;
         using tdhas_index = typename Destination::pixel_type::template has_channel_names<channel_name::index>;
         return helpers::palette_converter<Destination,Source,tdhas_index::value, tshas_index::value>::convert( destination,source,pixel,result,background);
     }
     template<typename Target,typename PixelType>
-    inline static gfx_result convert_palette_to(const Target& target,typename Target::pixel_type pixel, PixelType* result, const PixelType* background=nullptr) {
+    inline static gfx_result convert_palette_to(const Target& target,typename Target::pixel_type pixel, PixelType* result, const PixelType* background) {
         return helpers::palette_mapper<Target,PixelType>::indexed_to_pixel(target,pixel,result,background);
     }
     template<typename Target,typename PixelType>
-    inline static gfx_result convert_palette_from(Target& target,PixelType pixel, typename Target::pixel_type* result, const typename Target::pixel_type* background=nullptr) {
-        using tshas_index = typename PixelType::template has_channel_names<channel_name::index>;
-        static_assert(!tshas_index::value,"PixelType must not be indexed");
+    inline static gfx_result convert_palette_from(Target& target,PixelType pixel, typename Target::pixel_type* result, const typename Target::pixel_type* background) {
+        //using tshas_index = typename PixelType::template has_channel_names<channel_name::index>;
+        //static_assert(!tshas_index::value,"PixelType must not be indexed");
         return helpers::palette_mapper<Target,PixelType>::pixel_to_indexed(target,pixel,result,background);
     }
 }

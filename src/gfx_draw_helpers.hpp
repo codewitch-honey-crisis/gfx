@@ -4,6 +4,53 @@
 
 namespace gfx {
     namespace helpers {
+        template<typename Destination,typename Source,bool HasAlpha> 
+        struct blender {
+            static gfx_result point(Destination& destination,point16 pt,Source& source,point16 spt, typename Source::pixel_type pixel) {
+                typename Destination::pixel_type px;
+               // printf("pixel.native_value = %d\r\n",(int)pixel.native_value);
+                gfx_result r=convert_palette(destination,source,pixel,&px);
+                //printf("px.native_value = %d\r\n",(int)px.native_value);
+                if(gfx_result::success!=r) {
+                    return r;
+                }
+                return destination.point(pt,px);
+            }
+        };
+        template<typename Destination,typename Source> 
+        struct blender<Destination,Source,true> {
+            static gfx_result point(Destination& destination,point16 pt,Source& source,point16 spt, typename Source::pixel_type pixel) {
+                
+                double alpha = pixel.template channelr<channel_name::A>();
+                if(0.0==alpha) return gfx_result::success;
+                if(1.0==alpha) return blender<Destination,Source,false>::point(destination,source,pt,pixel);
+                typename Source::pixel_type spx;
+                gfx_result r=source.point(spt,&spx);
+                if(gfx_result::success!=r) {
+                    return r;
+                }
+                rgb_pixel<HTCW_MAX_WORD> bg;
+                r=convert_palette_from(source,spx,&bg);
+                if(gfx_result::success!=r) {
+                    return r;
+                }
+                rgb_pixel<HTCW_MAX_WORD> fg;
+                r=convert_palette_from(source,pixel,fg);
+                if(gfx_result::success!=r) {
+                    return r;
+                }
+                r=fg.blend(bg,alpha,&fg);
+                if(gfx_result::success!=r) {
+                    return r;
+                }
+                typename Destination::pixel_type px;
+                r=convert_palette_to(fg,&px);
+                if(gfx_result::success!=r) {
+                    return r;
+                }
+                return destination.point(pt,px);
+            }
+        };
         template<typename Destination,bool Batch,bool Async> 
         struct batcher {
             inline static gfx_result begin_batch(Destination& destination,const rect16& bounds,bool async) {

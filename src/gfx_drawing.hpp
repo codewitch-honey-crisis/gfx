@@ -72,6 +72,7 @@ namespace gfx {
         template<typename Source>
         gfx_result sample_bilinear (const Source& source, const rect16& src_rect, float u, float v,typename Source::pixel_type* out_pixel) {
             using pixel_type = typename Source::pixel_type;
+            using rgba_type = rgba_pixel<HTCW_MAX_WORD>;
             // calculate coordinates -> also need to offset by half a pixel to keep image from shifting down and left half a pixel
             float x = (u * src_rect.width()) - 0.5f+src_rect.left();
             int xint = int(x);
@@ -88,6 +89,7 @@ namespace gfx {
             point16 pt01(xint+0,yint+1);
             point16 pt11(xint+1,yint+1);
             pixel_type px00,px10,px01,px11;
+            rgba_type cpx00,cpx10,cpx01,cpx11;
             clamp_point16(pt00,src_rect);
             clamp_point16(pt10,src_rect);
             clamp_point16(pt01,src_rect);
@@ -96,7 +98,15 @@ namespace gfx {
             if(gfx_result::success!=r) {
                 return r;
             }
+            r=convert_palette_to(source,px00,&cpx00);
+            if(gfx_result::success!=r) {
+                return r;
+            }
             r=source.point(pt10,&px10);
+            if(gfx_result::success!=r) {
+                return r;
+            }
+            r=convert_palette_to(source,px10,&cpx10);
             if(gfx_result::success!=r) {
                 return r;
             }
@@ -104,25 +114,35 @@ namespace gfx {
             if(gfx_result::success!=r) {
                 return r;
             }
+            r=convert_palette_to(source,px01,&cpx01);
+            if(gfx_result::success!=r) {
+                return r;
+            }
             r=source.point(pt11,&px11);
             if(gfx_result::success!=r) {
                 return r;
             }
+            r=convert_palette_to(source,px11,&cpx11);
+            if(gfx_result::success!=r) {
+                return r;
+            }
             // interpolate bi-linearly!
-            pixel_type col0;
-            r=px00.blend(px10,xfract,&col0);
+            rgba_type ccol0;
+            r=cpx00.blend(cpx10,xfract,&ccol0);
             if(gfx_result::success!=r) {
                 return r;
             }
-            pixel_type col1;
-            r=px01.blend(px11,xfract,&col1);
+            rgba_type ccol1;
+            r=cpx01.blend(cpx11,xfract,&ccol1);
             if(gfx_result::success!=r) {
                 return r;
             }
-            r=col0.blend(col1,yfract,out_pixel);
+            rgba_type ccol2;
+            r=ccol0.blend(ccol1,yfract,&ccol2);
             if(gfx_result::success!=r) {
                 return r;
             }
+            r=convert_palette_from(source,ccol2,out_pixel);
             return gfx_result::success;
         }
         template<typename Source>
@@ -886,7 +906,6 @@ namespace gfx {
             rect16 ddr = (rect16)dsr;
             int o = (int)dest_rect.orientation();
             const int w = dest_rect.width(),h=dest_rect.height();
-
             // suspend if we can
             helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination,async);
 
@@ -933,13 +952,35 @@ namespace gfx {
                             if(gfx_result::success!=r) {
                                 return r;
                             }
-                            r=batch::write_batch(destination,(point16)spt,px,async);
+                            r=batch::write_batch(destination,(point16)spt,px,async);                        
                         } else if(nullptr==transparent_color || transparent_color->native_value!=srcpx.native_value) {
-                            // already clipped, hence nullptr
-                            r=draw::point_impl(destination,spt,srcpx,nullptr,async);
+                            r=helpers::blender<Destination,Source,has_alpha&&Destination::caps::read>::point(destination,(point16)spt,source,srcpt,srcpx);
                             if(gfx_result::success!=r) {
                                 return r;
                             }
+                            /*// already clipped, hence nullptr
+                            double alpha = srcpx.template channelr<channel_name::A>();
+                            if(has_alpha && alpha>=1.0) {
+                                typename Destination::pixel_type bg;
+                                r=destination.point((point16)spt,&bg);
+                                if(gfx_result::success!=r) {
+                                    return r;
+                                }
+                                typename Source::pixel_type sbgpx;
+                                r=convert_palette_to(destination,bg,&sbgpx);
+                                if(gfx_result::success!=r) {
+                                    return r;
+                                }
+                                r=srcpx.blend(sbgpx,alpha,&srcpx);
+                            }
+                            typename Destination::pixel_type dp;
+                            r=convert_palette_from(destination,srcpx,&dp);
+                            // TODO: Make this do async
+                            r=destination.point(spt,dp);
+                            //r=draw::point_impl(destination,spt,srcpx,nullptr,async);
+                            if(gfx_result::success!=r) {
+                                return r;
+                            }*/
                         }
                     }
                 }
@@ -967,7 +1008,7 @@ namespace gfx {
                             u=1.0-u;
                         }
                         typename Source::pixel_type sampx;
-                       
+                        
                         switch(resize_type) {
                             case bitmap_resize::resize_bicubic:
                                 r=helpers::sample_bicubic(source,srcr,u,v,&sampx);
@@ -997,7 +1038,8 @@ namespace gfx {
                             r=batch::write_batch(destination,(point16)spt,px,async);
                         } else if(nullptr==transparent_color || transparent_color->native_value!=sampx.native_value) {
                             // already clipped, hence nullptr
-                            r=draw::point_impl(destination,spt,sampx,nullptr,async);
+                            r=helpers::blender<Destination,Source,has_alpha&&Destination::caps::read>::point(destination,(point16)spt,source,point16(x+srcr.x1,y+srcr.y1),sampx);
+                            //r=draw::point_impl(destination,spt,sampx,nullptr,async);
                             if(gfx_result::success!=r) {
                                 return r;
                             }
@@ -1592,7 +1634,7 @@ namespace gfx {
                         if(gfx_result::success!=r) {
                             return r;
                         }
-                        r=convert_palette_to(destination, color,&dpx,&bgpx);
+                        r=convert_palette_from(destination, color,&dpx,&bgpx);
                         if(gfx_result::success!=r) {
                             return r;
                         }
@@ -1603,7 +1645,9 @@ namespace gfx {
                         
                     }
                 }
-                r=convert_palette_to(destination,color,&dpx);
+                //printf("color.native_value = %llx",(unsigned long long)color.native_value);
+                r=convert_palette_from(destination,color,&dpx);
+                //printf(", dpx.native_value = %d\r\n",(int)dpx.native_value);
                 if(gfx_result::success!=r) {
                         return r;
                 }
@@ -1638,9 +1682,6 @@ namespace gfx {
                         if(gfx_result::success!=r) {
                             return r;
                         }
-                        // TODO: failing when instantiated with color as indexed pixel
-                        // it's trying to use color as indexed, to draw to a bitmap<>
-                        // with an unindexed color
                         r=convert_palette_from(destination,color,&dpx,&bgpx);
                         if(gfx_result::success!=r) {
                             return r;
@@ -1648,7 +1689,6 @@ namespace gfx {
                         return destination.point(location,dpx);
                     }
                 }
-                // TODO: failing when instantiated with color as indexed pixel
                 r=convert_palette_from(destination,color,&dpx);
                 if(gfx_result::success!=r) {
                     return r;

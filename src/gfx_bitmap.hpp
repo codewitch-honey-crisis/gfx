@@ -124,7 +124,7 @@ namespace gfx {
         };
     }
     // represents an in-memory bitmap
-    template<typename PixelType,typename PaletteType /*= palette<PixelType,PixelType>*/>
+    template<typename PixelType,typename PaletteType = palette<PixelType,PixelType>>
     class bitmap final {
         size16 m_dimensions;
         PaletteType* m_palette;
@@ -492,7 +492,7 @@ namespace gfx {
             }
             const size_t seg = location.y/m_segment_height;
             const uint16_t offs = location.y%m_segment_height;
-            return segment_type(size16(m_dimensions.width,m_segment_height),m_segments[seg]).point(point16(location.x,offs),color);
+            return segment_type(size16(m_dimensions.width,m_segment_height),m_segments[seg],m_palette).point(point16(location.x,offs),color);
         }
         gfx_result point(point16 location,pixel_type* out_color) const {
             if(nullptr==m_segments) {
@@ -505,7 +505,7 @@ namespace gfx {
             }
             const size_t seg = location.y/m_segment_height;
             const uint16_t offs = location.y%m_segment_height;
-            return segment_type(size16(m_dimensions.width,m_segment_height),m_segments[seg]).point(point16(location.x,offs),out_color);
+            return segment_type(size16(m_dimensions.width,m_segment_height),m_segments[seg],m_palette).point(point16(location.x,offs),out_color);
         }
         gfx_result fill(const rect16& bounds,pixel_type color) {
             if(nullptr==m_segments) {
@@ -523,9 +523,9 @@ namespace gfx {
             if(m_segment_height>=h) {
                 // it's all contained within one segment
                 rf.y2 = h+offset-1;
-                return segment_type(size16(m_dimensions.width,h),m_segments[segment]).fill(rf,color);
+                return segment_type(size16(m_dimensions.width,h),m_segments[segment],m_palette).fill(rf,color);
             }
-            gfx_result r=segment_type(size16(m_dimensions.width,m_segment_height),m_segments[segment]).fill(rf,color);
+            gfx_result r=segment_type(size16(m_dimensions.width,m_segment_height),m_segments[segment],m_palette).fill(rf,color);
             if(gfx_result::success!=r) {
                 return r;
             }
@@ -533,7 +533,7 @@ namespace gfx {
             rf.y2=m_segment_height-1;
             size_t i = segment+1;
             for(int y=b.y1+m_segment_height;y<=b.y2;y+=m_segment_height) {
-                gfx_result r= segment_type(size16(m_dimensions.width,m_segment_height),m_segments[i]).fill(rf,color);
+                gfx_result r= segment_type(size16(m_dimensions.width,m_segment_height),m_segments[i],m_palette).fill(rf,color);
                 if(gfx_result::success!=r) {
                     return r;
                 }   
@@ -545,7 +545,7 @@ namespace gfx {
             if(0!=end_offset) {
                 const size_t end_segment = yy2/m_segment_height;
                 rf.y2 = end_offset;
-                return segment_type(size16(m_dimensions.width,rf.height()),m_segments[end_segment]).fill(rf,color);
+                return segment_type(size16(m_dimensions.width,rf.height()),m_segments[end_segment],m_palette).fill(rf,color);
             }
             return gfx_result::success;
         }

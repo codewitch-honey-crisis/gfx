@@ -657,6 +657,9 @@ namespace gfx {
         channel_traits<channel_name::Cr,(BitDepth/4)>,
         channel_traits<channel_name::A,(BitDepth/4)>
     >;
+    // pixel likes to pack bits right to left, but we need left to right here.
+    //template<size_t BitDepth>
+    //using indexed_pixel=pixel<channel_traits<channel_name::index,bits::get_word_size(BitDepth),0,((BitDepth == 64) ? 0xffffffffffffffffU : (( 1 << BitDepth ) - 1))>>;
     template<size_t BitDepth>
     using indexed_pixel=pixel<channel_traits<channel_name::index,BitDepth>>;
     // converts a pixel to the destination pixel type

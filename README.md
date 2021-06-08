@@ -52,6 +52,8 @@ I wanted a graphics library that was faster and better than what I had found for
 
 GFX on the other hand, isn't tied to anything. It can draw anywhere, on any platform. It's basically standard C++, and things like line drawing and font drawing algorithms. Without a driver, it can only draw to in memory bitmaps, but once you add a driver to the mix, you can draw directly onto displays the same way you do to bitmaps.
 
+`Disclaimer: `The documentation that ships with the downloaded code is always at least one iteration out of date compared to this article, and compared to what's on github. That shouldn't matter, since this article *is* the documentation so if you got it from here, you're hip to the latest. However, if this bugs you, get it from Github instead. Unfortunately, it's just a lot more work for me to sync everything back and then repackage and reupload to make it in sync.
+
 **Update:** Some minor bugfixes, SPI drivers are refactored to use a common base, more drivers are now added, and one click configuration for generic ESP32 boards is now available
 
 **Update 2:** Included support for the LilyGo TTGO board, as well as the green tab 128x128 1.44" ST7735 display (though other green tab models may work too they have not been tested)
@@ -76,7 +78,11 @@ GFX on the other hand, isn't tied to anything. It can draw anywhere, on any plat
 
 **Update 12:** Easy of use update. I've compiled all of the includes into a single includable header, and I've added `draw::image<>()` which deals with the progressive loading so you don't need to do it yourself.
 
-**Update 13:** Service release. Certain draw operations between certain draw targets would fail to compile
+**Update 13:** Service release. Certain draw operations between certain draw targets would fail to compile
+
+**Update 14:** Added palette/CLUT support! (still a baby, not quite complete but I'll mature it as I go)
+
+**Update 15:** Service release. Fixed `large_bitmap<>()` out of bounds crashing issue
 
 Concepts
 --------
@@ -116,6 +122,18 @@ Due to this, the more pixel formats you have, the greater your code size will be
 #### Alpha Blending
 
 If you create pixels with an alpha channel, it will be respected on supported destinations. Not all devices support the necessary features to enable this. It's also a performance killer, with no way to make it faster without hardware support, which isn't currently available for any supported device.
+
+#### Indexed Color/Palette Support
+
+Some draw destinations use an indexed color scheme, wherein they might have 16 active colors for example picked from a palette of 262,144 possible colors. Or they may have a fixed set of 8 active colors and that's all. The active colors are all that can be displayed at any given point. This was common on older systems with limited frame buffer sizes. It may also be the case with some IoT display hardware, especially color e-Ink displays. e-Ink displays range from 2 color (monochrome) to 8 color that I've seen.
+
+Draw targets that use an indexed pixel for their `pixel_type` - that is, devices with pixels that have a channel with a `channel_name` of `index`, are expected to expose a `palette_type` type alias that indicates the type of the palette they are using, as well as a `palette_type* palette() const` method that returns a pointer to the current palette.
+
+When you draw to a target that has indexed pixels, a best effort attempt is made to match the requested color with one of the active colors in the palette. It will match the closest color it finds. This isn't free. It's pretty CPU intensive so buyer beware, especially when loading JPEGs or something into an indexed target. It will have to run a nearest match on every single pixel, scanning through the palette once for every pixel!
+
+You have to be careful with indexed colors. They can't be used in isolation, because without a palette you don't have enough information to get a color from it. Draw targets can have palettes, so the *combination* of an indexed pixel and a matching draw target yields a valid color. Because of this you can't use the `color<>` template with indexed colors, for example, because without a palette there's no way to know what index value best corresponds to, for example `old_lace`, or even `white`. You'll hopefully get compile errors when you try to use indexed pixels in places where they can't be used, but worse case, you get errors at run time when trying to draw. When trying to draw, this is usually not something you have to worry about much. 
+
+If you must translate indexed pixels to other kinds of pixels yourself can use `convert_palette_from<>()`, `convert_palette_to<>()` and `convert_palette<>()`. These will convert to and from indexed colors optionally alpha blending in the process. They take draw targets in order to get access to the palette information.
 
 ### Drawing Elements
 
@@ -198,6 +216,7 @@ It is not necessary to explicitly include any of these, though if you're writing
 -   **gfx\_color.hpp** - access to the predefined colors through the `color<>` template, for **C++17** or better compilers.
 -   **gfx\_color\_cpp14.hpp** - access to the predefined colors through the `color<>` template, for **C++14** compilers.
 -   **gfx\_image.hpp** - access to `jpeg_image` used for loading JPEG images.
+-   **gfx\_palette.hpp** - access palette support type.
 
  
 
@@ -221,7 +240,7 @@ Let's dive into some code. The following draws a classic effect around the four 
 
 C++
 
-``` {#pre122096 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+``` {#pre33367 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
 draw::filled_rectangle(lcd,(srect16)lcd.bounds(),lcd_color::white);
 const font& f = Bm437_ATI_9x16_FON;
 const char* text = "ESP32 GFX Demo";
@@ -261,7 +280,7 @@ Let's try it again - or at least something similar - this time using double buff
 
 C++
 
-``` {#pre295662 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+``` {#pre522822 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
 draw::filled_rectangle(lcd,(srect16)lcd.bounds(),lcd_color::black);
 const font& f = Bm437_Acer_VGA_8x8_FON;
 const char* text = "ESP32 GFX";
@@ -296,7 +315,7 @@ Since adding polygon support, I suppose an example of that will be helpful. Here
 
 C++
 
-``` {#pre665433 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+``` {#pre478921 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
 // draw a polygon (a triangle in this case)
 // find the origin:
 const spoint16 porg = srect16(0,0,31,31)
@@ -321,7 +340,7 @@ You can define pixels by using the `pixel<>` template, which takes one or more `
 
 C++
 
-``` {#pre681869 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+``` {#pre557908 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
 // declare a 16-bit RGB pixel
 using rgb565 = pixel<channel_traits<channel_name::R,5>,
                     channel_traits<channel_name::G,6>,
@@ -332,7 +351,7 @@ That declares a pixel with 3 channels, each of `uint8_t`: `R:5`, `G:6`, and `B:5
 
 C++
 
-``` {#pre292734 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+``` {#pre173203 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
 using rgb565 = rgb_pixel<16>; // declare a 16-bit RGB pixel
 ```
 
@@ -348,7 +367,7 @@ Each pixel is composed of the channels you declared, and the channels may be acc
 
 C++
 
-``` {#pre120585 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+``` {#pre934892 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
 // declare a 24-bit rgb pixel
 rgb_pixel<24> rgb888;
 
@@ -370,9 +389,9 @@ uint8_t b = rgb888.channel<channel_name::B>();
 uint32_t v = rgb888.value();
 ```
 
-In addition to this, there is a battery of standard color definitions provided in a couple of headers - one for C++14 and a better alternative for C++17, named *gfx\_color\_cpp14.hpp* and *gfx\_color.hpp*, respectively.
+In addition to this, there is a battery of standard color definitions provided when you include the main gfx header.
 
-These define the `color<>` template which provides a psuedo-enum of dozens of colors in any pixel format you specify - as the template argument. Even if you retrieve `hot_pink` as a monochrome or grayscale pixel, it will do the conversion for you, or I should say the compiler will (at least with C++17, I haven't checked the asm output with 14).
+These are accessed through the `color<>` template which provides a psuedo-enum of dozens of colors in any pixel format you specify - as the template argument. Even if you retrieve `hot_pink` as a monochrome or grayscale pixel, it will do the conversion for you, or I should say the compiler will (at least with C++17, I haven't checked the asm output with 14).
 
 ##### Using the Alpha Channel
 
@@ -382,7 +401,7 @@ Here's an example of using it in the wild:
 
 C++
 
-``` {#pre100404 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+``` {#pre85927 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
 using bmpa_type = rgba_pixel<32>;
 using bmpa_color = color<bmpa_type>;
 
@@ -461,7 +480,7 @@ Anyway, first we have to declare our buffer. I was very careful to make my objec
 
 C++
 
-``` {#pre153946 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+``` {#pre918025 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
 using bmp_type = bitmap<rgb_pixel<16>>;
 // the following is for convenience:
 using bmp_color = color<typename bmp_type::pixel_type>; // needs GFX color header
@@ -471,7 +490,7 @@ followed by:
 
 C++
 
-``` {#pre986690 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+``` {#pre87093 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
 constexpr static const size16 bmp_size(16,16);
 uint8_t bmp_buf[bmp_type::sizeof_buffer(bmp_size)];
 ```
@@ -482,7 +501,7 @@ Now that we have all that, wrapping it with a bitmap is trivial:
 
 C++
 
-``` {#pre24959 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+``` {#pre934261 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
 bmp_type bmp(bmp_size,bmp_buf);
 // you'll probably want to do this, but not necessary if 
 // you're redrawing the entire bmp anyway:
@@ -493,7 +512,7 @@ Now you can call `draw` methods passing `bmp` as the destination:
 
 C++
 
-``` {#pre908826 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+``` {#pre991654 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
  // draw a happy face
 
 // bounding info for the face
@@ -555,7 +574,7 @@ The code looks approximately like this under the ESP-IDF at least:
 
 C++
 
-``` {#pre198405 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+``` {#pre594339 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
 uint16_t *lines[2];
 //Allocate memory for the pixel buffers
 for (int i=0; i<2; i++) {
@@ -611,18 +630,17 @@ These methods aren't as effective. The lack of blocking doesn't make up for the 
 
 #### Loading Images
 
- 
-
 There are two ways to get an image from a JPG stream (other formats are coming). Both require creating a stream over the input, like a file, and then using it with one of two methods:
 
-The first, and easiest method is to use `draw::image<>()` which allows you to position the image on the destination and crop a portion of the image. There is an option for resizing but it's not currently supported. It's actually really difficult to do progressively so I'm not sure when it will be. Currently if you try to pass something other than `bitmap_resize::crop` it will return `gfx_result::not_supported`. 
+The first, and easiest method is to use `draw::image<>()` which allows you to position the image on the destination and crop a portion of the image. There is an option for resizing but it's not currently supported. It's actually really difficult to do progressively so I'm not sure when it will be. Currently if you try to pass something other than `bitmap_resize::crop` it will return `gfx_result::not_supported`. Also currently the destination rect's orientation is ignored, so flipping isn't possible. This will be updated when I can manage it - I've got a lot to juggle.
 
 Below `lcd` represents our target on which to draw the image:
 
 C++
 
-``` {#pre682445 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+``` {#pre859269 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
 file_stream fs("/spiffs/image.jpg");
+// TODO: check caps().read to see if the file is opened/readable
 draw::image(lcd,(srect16)lcd.bounds(),&fs,rect16(0,0,-1,-1));
 ```
 
@@ -632,8 +650,9 @@ The second way of loading an image is passing the stream to an image loader func
 
 C++
 
-``` {#pre281212 .lang-cplusplus style="margin-top:0;" data-language="C++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+``` {#pre825103 .lang-cplusplus style="margin-top:0;" data-language="C++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
 file_stream fs("/spiffs/image.jpg");
+// TODO: check caps().read to see if the file is opened/readable
 jpeg_image::load(&fs,[](size16 dimensions,
                         typename jpeg_image::region_type& region,
                         point16 location,
@@ -661,7 +680,7 @@ First, generate a header file from a font file using fontgen under the *tools* f
 
 C++
 
-``` {#pre877286 .lang-cplusplus style="margin-top:0;" data-language="C++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+``` {#pre846487 .lang-cplusplus style="margin-top:0;" data-language="C++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
 ~$ fontgen myfont.fon > myfont.hpp
 ```
 
@@ -669,7 +688,7 @@ Now you can include that in your code:
 
 C++
 
-``` {#pre796357 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+``` {#pre42480 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
 #include "myfont.hpp"
 ```
 
@@ -677,7 +696,7 @@ This allows you to reference the font like this:
 
 C++
 
-``` {#pre78511 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+``` {#pre409214 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
 const font& f = myfont_fon;
 const char* text = "Hello world!";
 srect16 text_rect = f.measure_text((ssize16)lcd.dimensions(),
@@ -693,8 +712,8 @@ The second way to access a font is by loading a *.FON* file from a stream, which
 
 C++
 
-``` {#pre449469 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
-io::file_stream fs("/spiffs/myfon.fon");
+``` {#pre679737 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+file_stream fs("/spiffs/myfon.fon");
 if(!fs.caps().read) {
     printf("Font file not found.\r\n");
     vTaskDelay(portMAX_DELAY);
@@ -799,4 +818,7 @@ History
 -   31<sup>st</sup> May, 2021 - Fixed several build errors
 -   1<sup>st</sup> June, 2021 - Added/fixed bitmap resize options and added dimensions to image callback
 -   5<sup>th</sup> June, 2021 - Added single header file, and easier to use image loading. cleaned up positioning api a bit. bugfix in declarions of clipping rect parameters on `draw::`
--   7<sup>th</sup> June, 2021 - Service release. Certain draw operations between certain draw targets would fail to compile
+-   7<sup>th</sup> June, 2021 - Service release. Certain draw operations between certain draw targets would fail to compile
+-   8<sup>th</sup> June, 2021 - Added palette/CLUT support (initial/experimental)
+-   8<sup>th</sup> June, 2021 - Service release. Fixed `large_bitmap<>()` out of bounds crashing issue
+

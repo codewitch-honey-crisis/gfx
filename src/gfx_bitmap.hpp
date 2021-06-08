@@ -18,11 +18,10 @@ namespace gfx {
                 size_t dx,dxe = dstr.width();
                 gfx_result r;
                 helpers::suspender<Destination,Destination::caps::suspend,false> sustok(dst);
-                if(gfx_result::success!=r)
+                r = helpers::batcher<Destination,Destination::caps::batch,false>::begin_batch(dst,dstr,false);
+                if(gfx_result::success!=r) {
                     return r;
-                r = helpers::batcher<Destination,Destination::caps::batch,false>::begin_batch(dst,dstr);
-                if(gfx_result::success!=r)
-                    return r;
+                }
                 int sox = srcr.left(),soy=srcr.top();
                 int dox = dstr.left(),doy=dstr.top();
                 while(dy<dye) {
@@ -51,14 +50,14 @@ namespace gfx {
                             }
                              
                         }
-                        r = helpers::batcher<Destination,Destination::caps::batch,false>::write_batch(dst,point16(dox+dx,doy+dy),dpx);
+                        r = helpers::batcher<Destination,Destination::caps::batch,false>::write_batch(dst,point16(dox+dx,doy+dy),dpx,false);
                         if(gfx_result::success!=r)
                             return r;
                         ++dx;
                     }
                     ++dy;
                 }
-                return helpers::batcher<Destination,Destination::caps::batch,false>::commit_batch(dst);
+                return helpers::batcher<Destination,Destination::caps::batch,false>::commit_batch(dst,false);
                 
             }
         };
@@ -512,10 +511,11 @@ namespace gfx {
                 return gfx_result::out_of_memory;
             }
             const rect16 tb = this->bounds();
-            const rect16 b = bounds.normalize();
+            rect16 b = bounds.normalize();
             if(!b.intersects(tb)) {
                 return gfx_result::success;
             }
+            b= b.crop(tb);
             const size_t segment = b.y1/m_segment_height;
             const uint16_t offset = b.y1%m_segment_height;
             rect16 rf(b.x1,offset,b.x2,m_segment_height-1);
@@ -533,6 +533,9 @@ namespace gfx {
             rf.y2=m_segment_height-1;
             size_t i = segment+1;
             for(int y=b.y1+m_segment_height;y<=b.y2;y+=m_segment_height) {
+                if(i>=m_dimensions.height/m_segment_height) {
+                    printf("crash!\r\n");
+                }
                 gfx_result r= segment_type(size16(m_dimensions.width,m_segment_height),m_segments[i],m_palette).fill(rf,color);
                 if(gfx_result::success!=r) {
                     return r;
@@ -540,7 +543,7 @@ namespace gfx {
                 ++i;
             }
             // see if there's any remainder to fill
-            const uint16_t yy2 = (b.y2+b.y1);
+            const uint16_t yy2 = (b.y2);
             const uint16_t end_offset = yy2%m_segment_height;
             if(0!=end_offset) {
                 const size_t end_segment = yy2/m_segment_height;

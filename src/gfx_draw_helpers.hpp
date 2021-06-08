@@ -127,7 +127,7 @@ namespace gfx {
             inline static gfx_result suspend(Destination& dst) {
                 return gfx_result::success;
             }
-            inline static gfx_result resume(Destination& dst) {
+            inline static gfx_result resume(Destination& dst,bool force=false) {
                 return gfx_result::success;
             }
             inline static gfx_result suspend_async(Destination& dst) {
@@ -157,13 +157,16 @@ namespace gfx {
             inline static gfx_result suspend(Destination& dst) {
                 return dst.suspend();
             }
-            inline static gfx_result resume(Destination& dst) {
+            inline static gfx_result resume(Destination& dst,bool force=false) {
+                if(force) {
+                    return resume(dst,true);
+                }
                 return dst.resume();
             }
             inline static gfx_result suspend_async(Destination& dst) {
                 return suspend(dst);
             }
-            inline static gfx_result resume_async(Destination& dst,bool force) {
+            inline static gfx_result resume_async(Destination& dst,bool force=false) {
                 if(force) {
                     return resume(dst,true);
                 }

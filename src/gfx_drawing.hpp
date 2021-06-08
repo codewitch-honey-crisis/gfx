@@ -1264,6 +1264,7 @@ namespace gfx {
         
         template<typename Destination,typename PixelType>
         static gfx_result ellipse_impl(Destination& destination, const srect16& rect,PixelType color,const srect16* clip,bool filled,bool async) {
+            // TODO: Come up with a better ellipse drawing routine that never overlaps pixels (it's screwing with alpha blending)
             gfx_result r;
             using int_type = typename srect16::value_type;
             int_type x_adj =(1-(rect.width()&1));
@@ -1346,27 +1347,32 @@ namespace gfx {
         
                 // printing points based on 4-way symmetry
                 if(filled) {
-                    r=line_impl(destination,srect16(-x + xc, y + yc+y_adj,x + xc+x_adj, y + yc+y_adj),color,clip,async);
-                    if(r!=gfx_result::success)
-                        return r;
-                    r=line_impl(destination,srect16(-x + xc, -y + yc,x + xc+x_adj, -y + yc),color,clip,async);
-                    if(r!=gfx_result::success)
-                        return r;
+                    if(oy!=y) {
+                        r=line_impl(destination,srect16(-x + xc, y + yc+y_adj,x + xc+x_adj, y + yc+y_adj),color,clip,async);
+                        if(r!=gfx_result::success)
+                            return r;
+                        r=line_impl(destination,srect16(-x + xc, -y + yc,x + xc+x_adj, -y + yc),color,clip,async);
+                        if(r!=gfx_result::success)
+                            return r;
+                    }
                 } else {
-                    r=point_impl(destination,spoint16(x + xc+x_adj, y + yc+y_adj),color,clip,async);
-                    if(r!=gfx_result::success)
-                        return r;
-                    r=point_impl(destination,spoint16(-x + xc, y + yc+y_adj),color,clip,async);
-                    if(r!=gfx_result::success)
-                        return r;
-                    r=point_impl(destination,spoint16(x + xc+x_adj, -y + yc),color,clip,async);
-                    if(r!=gfx_result::success)
-                        return r;
-                    r=point_impl(destination,spoint16(-x + xc, -y + yc),color,clip,async);
-                    if(r!=gfx_result::success)
-                        return r;
+                    if(oy!=y || ox!=x) {
+                        r=point_impl(destination,spoint16(x + xc+x_adj, y + yc+y_adj),color,clip,async);
+                        if(r!=gfx_result::success)
+                            return r;
+                        r=point_impl(destination,spoint16(-x + xc, y + yc+y_adj),color,clip,async);
+                        if(r!=gfx_result::success)
+                            return r;
+                        r=point_impl(destination,spoint16(x + xc+x_adj, -y + yc),color,clip,async);
+                        if(r!=gfx_result::success)
+                            return r;
+                        r=point_impl(destination,spoint16(-x + xc, -y + yc),color,clip,async);
+                        if(r!=gfx_result::success)
+                            return r;
+                    }
                 }
-                    
+                ox=x;
+                oy=y; 
                 // Checking and updating parameter
                 // value based on algorithm
                 if (d2 > 0) {

@@ -1,8 +1,12 @@
 #ifndef HTCW_STREAM_HPP
 #define HTCW_STREAM_HPP
+#ifdef ARDUINO
+#include <Arduino.h>
+#else
 #include <stdio.h>
 #include <string.h>
 #include <inttypes.h>
+#endif
 namespace io {
     struct stream_caps {
         uint8_t read : 1;
@@ -145,6 +149,53 @@ namespace io {
             return m_current-m_begin;   
         }
     };
+#ifdef ARDUINO
+
+    class arduino_stream final : public stream {
+        Stream* m_stream;
+        arduino_stream(const arduino_stream& rhs) = delete;
+        arduino_stream& operator=(const arduino_stream& rhs)=delete;
+    public:
+        arduino_stream(Stream* stream) : m_stream(stream) {
+        }
+        arduino_stream(arduino_stream&& rhs) : m_stream(rhs.m_stream) {
+            rhs.m_stream=nullptr;
+        }
+        arduino_stream& operator=(arduino_stream&& rhs) {
+            m_stream=rhs.m_stream;
+            rhs.m_stream=nullptr;
+            return *this;
+        }
+        virtual size_t read(uint8_t* destination,size_t size) {
+            if(nullptr==m_stream) return 0;
+            return m_stream->readBytes(destination,size);
+        }
+        virtual int getc() {
+            if(nullptr==m_stream) return -1;
+            return m_stream->read();
+        }
+        virtual size_t write(const uint8_t* source,size_t size) {
+            if(nullptr==m_stream) return 0;
+            return m_stream->write(source,size);
+        }
+        virtual int putc(int value) {
+            if(nullptr==m_stream) return 0;
+            return m_stream->write((uint8_t)value);
+        } 
+        virtual unsigned long long seek(long long position, seek_origin origin=seek_origin::start) {
+            return 0;
+        }
+        virtual stream_caps caps() const {
+            stream_caps c;
+            c.read = 1;
+            c.write = 1;
+            c.seek = 0;
+            return c;
+
+            
+        }
+    };
+#else
     class file_stream final : public stream {
         FILE* m_fd;
         stream_caps m_caps;
@@ -241,5 +292,6 @@ namespace io {
             return m_caps;
         }
     };
+#endif
 }
 #endif

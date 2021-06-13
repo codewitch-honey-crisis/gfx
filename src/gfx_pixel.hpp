@@ -115,11 +115,11 @@ namespace gfx {
     template<typename PixelType,typename ChannelTraits,
             size_t Index,
             size_t BitsToLeft> 
-    struct channel final {
+    struct pixel_channel final {
         // the declaring pixel's type
         using pixel_type = PixelType;
         // this type
-        using type = channel<pixel_type,ChannelTraits,Index,BitsToLeft>;
+        using type = pixel_channel<pixel_type,ChannelTraits,Index,BitsToLeft>;
         // the name type for the channel
         using name_type = typename ChannelTraits::name_type;
         // the integer type for the channel
@@ -173,7 +173,7 @@ namespace gfx {
         };
         template <typename PixelType,size_t Count,size_t BitsToLeft,typename ChannelTrait, typename ...ChannelTraits>
         struct channel_by_index_impl<PixelType,0,Count,BitsToLeft,ChannelTrait,ChannelTraits...> {
-            using type = channel<PixelType,ChannelTrait,Count,BitsToLeft>;
+            using type = pixel_channel<PixelType,ChannelTrait,Count,BitsToLeft>;
         };
         template<typename PixelType,size_t Index,size_t Count,size_t BitsToLeft> 
         struct channel_by_index_impl<PixelType,Index,Count,BitsToLeft> {
@@ -188,11 +188,11 @@ namespace gfx {
         };
         template <typename PixelType,size_t Count,size_t BitsToLeft,typename ChannelTrait, typename ...ChannelTraits>
         struct channel_by_index_unchecked_impl<PixelType,0,Count,BitsToLeft,ChannelTrait,ChannelTraits...> {
-            using type = channel<PixelType,ChannelTrait,Count,BitsToLeft>;
+            using type = pixel_channel<PixelType,ChannelTrait,Count,BitsToLeft>;
         };
         template<typename PixelType,size_t Index,size_t Count,size_t BitsToLeft> 
         struct channel_by_index_unchecked_impl<PixelType,Index,Count,BitsToLeft> {
-            using type = channel<PixelType,channel_traits<channel_name::nop,0,0,0,0>,0,0>;
+            using type = pixel_channel<PixelType,channel_traits<channel_name::nop,0,0,0,0>,0,0>;
         };
 
         template<typename PixelType,size_t Count,typename... ChannelTraits>
@@ -202,21 +202,22 @@ namespace gfx {
             using ch = typename PixelType::template channel_by_index<Count>;
             using next = pixel_init_impl<PixelType,Count+1, ChannelTraits...>;
             constexpr static inline void init(PixelType& pixel) {
-                constexpr const size_t index = Count;
                 if(ChannelTrait::bit_depth==0) return;
-                pixel.template channel<index>(ChannelTrait::default_);
+                pixel.native_value = typename PixelType::int_type(typename PixelType::int_type(helpers::clamp(ch::default_,ch::min,ch::max))<<ch::total_bits_to_right);
+                
                 next::init(pixel);
             }
             constexpr static inline void init(PixelType& pixel,typename ChannelTrait::int_type value, typename ChannelTraits::int_type... values) {
-                constexpr const size_t index = Count;
                 if(ChannelTrait::bit_depth==0) return;
-                pixel.template channel<index>(value);
+                const typename PixelType::int_type shval = typename PixelType::int_type(typename PixelType::int_type(helpers::clamp(value,ch::min,ch::max))<<ch::total_bits_to_right);
+                pixel.native_value=typename PixelType::int_type((pixel.native_value&typename ch::pixel_type::int_type(~ch::channel_mask))|shval);
                 next::init(pixel,values...);
             }
             constexpr static inline void initf(PixelType& pixel,typename ChannelTrait::real_type value, typename ChannelTraits::real_type... values) {
-                constexpr const size_t index = Count;
                 if(ChannelTrait::bit_depth==0) return;
-                pixel.template channelr<index>(value);
+                typename ch::int_type ivalue = helpers::clamp(value,0.0,1.0) * ch::scale;
+                const typename PixelType::int_type shval = typename PixelType::int_type(typename PixelType::int_type(ivalue)<<ch::total_bits_to_right);
+                pixel.native_value=typename PixelType::int_type((pixel.native_value&typename ch::pixel_type::int_type(~ch::channel_mask))|shval);
                 next::initf(pixel,values...);
             }
             
@@ -568,8 +569,7 @@ namespace gfx {
             }
             using tmp_pixel=pixel<channel_traits<channel_name::R,HTCW_MAX_WORD/3>,channel_traits<channel_name::G,HTCW_MAX_WORD/3+(HTCW_MAX_WORD%3)>,channel_traits<channel_name::B,HTCW_MAX_WORD/3>>;
             tmp_pixel tmp,tmp2,tmp3;
-            gfx_result r;
-            r=convert(*this,&tmp);
+            gfx_result r=convert(*this,&tmp);
             if(gfx_result::success!=r) {
                 return r;
             }

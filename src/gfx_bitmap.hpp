@@ -146,7 +146,10 @@ namespace gfx {
             const size_t offs_bits = offs % 8;
             // now set the pixel
             uint8_t tmp[pixel_type::packed_size+(((int)pixel_type::pad_right_bits)<=offs_bits)];
-            *((typename pixel_type::int_type*)tmp)=rhs.value();
+            typename pixel_type::int_type v = rhs.value();
+            memcpy(tmp,&v,sizeof(typename pixel_type::int_type));
+            // below doesn't work with strict aliasing:
+            //*((typename pixel_type::int_type*)tmp)=rhs.value();
             bits::shift_right(tmp,0,pixel_type::bit_depth+offs_bits,offs_bits);
             bits::set_bits(offs_bits,pixel_type::bit_depth,begin()+offs/8,tmp);
             return gfx_result::success;

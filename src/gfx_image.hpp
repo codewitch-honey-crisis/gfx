@@ -17,7 +17,11 @@ namespace gfx {
     using stream = io::stream;
     using seek_origin = io::seek_origin;
     using stream_caps = io::stream_caps;
+#ifdef ARDUINO
+    using arduino_stream = io::arduino_stream;
+#else
     using file_stream = io::file_stream;
+#endif
     using buffer_stream = io::buffer_stream;
     
     struct jpeg_image final {
@@ -957,12 +961,12 @@ namespace gfx {
                     len=jd->input_stream->read(buf,len);
                 } else {
                     // TODO: If this seeks past the end of the streem it's not detected right now
-                    if(jd->input_stream->caps().seek)
+                    if(jd->input_stream->caps().seek) {
                         jd->input_stream->seek(len,seek_origin::current);
-                    else {
+                    } else {
                         // TODO: can make this at least a little faster by reading chunks
                         unsigned int count = len;
-                        while(0<count--) {
+                        while(count--) {
                             jd->input_stream->read<uint8_t>();
                         }
                     }
@@ -981,7 +985,6 @@ namespace gfx {
         }
 
     public:
-        
         static gfx_result load(stream* input,callback out_func,void* state=nullptr) {
             if(nullptr==input)
                 return gfx_result::invalid_argument;
@@ -1018,6 +1021,12 @@ namespace gfx {
             
             return gfx_result::success;
         }
+#ifdef ARDUINO
+        inline static gfx_result load(Stream* input,callback out_func,void* state=nullptr) {
+            arduino_stream stm(input);
+            return load(&stm,out_func,state);
+        }
+#endif  
     };
     const uint8_t jpeg_image::Zig[64] = {/* Zigzag-order to raster-order conversion table */
 									0, 1, 8, 16, 9, 2, 3, 10, 17, 24, 32, 25, 18, 11, 4, 5,

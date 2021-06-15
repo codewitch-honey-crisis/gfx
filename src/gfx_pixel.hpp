@@ -253,6 +253,28 @@ namespace gfx {
             
         };
 
+        template<typename PixelType,size_t Count,typename... ChannelTraits>
+        struct pixel_blend_impl;        
+        template<typename PixelType,size_t Count, typename ChannelTrait,typename... ChannelTraits>
+        struct pixel_blend_impl<PixelType,Count,ChannelTrait,ChannelTraits...> {
+            using ch = typename PixelType::template channel_by_index<Count>;
+            using next = pixel_blend_impl<PixelType,Count+1, ChannelTraits...>;
+            constexpr static inline void blend_val(PixelType lhs,PixelType rhs,double amount,PixelType* out_pixel) {
+                constexpr const size_t index = Count;
+                if(ChannelTrait::bit_depth==0) return;
+                const double l = lhs.template channelr<index>()*amount;
+                const double r = rhs.template channelr<index>()*(1.0-amount);
+                out_pixel->template channelr<index>(l+r);
+                next::blend_val(lhs,rhs,amount,out_pixel);
+            }
+        };
+        template<typename PixelType,size_t Count>
+        struct pixel_blend_impl<PixelType,Count> {
+            constexpr static inline void blend_val(PixelType lhs,PixelType rhs,double amount,PixelType* out_pixel) {
+            }
+            
+        };
+
         template<size_t Count,typename Name, typename ...ChannelTraits>
         struct channel_index_by_name_impl;
         template<size_t Count,typename Name>
@@ -547,41 +569,19 @@ namespace gfx {
         }
         // blends two pixels. ratio is between zero and one. larger ratio numbers favor this pixel
         constexpr gfx_result blend(type rhs,double ratio,type* out_pixel) {
+            if(out_pixel==nullptr) {
+                return gfx_result::invalid_argument;
+            }
             static_assert(!has_channel_names<channel_name::index>::value,"pixel must not be indexed");
-            if(has_channel_names<channel_name::R,channel_name::G,channel_name::B>::value && channels<5) {
-                if(nullptr==out_pixel)
-                    return gfx_result::invalid_argument;
-                if(ratio>1.0) ratio = 1.0;
-                if(ratio<0) ratio = 0;
-                const double rrat = 1.0-ratio;
-                using tindexR = channel_index_by_name<channel_name::R>;
-                const size_t chiR = tindexR::value;
-                out_pixel->channel_unchecked<chiR>(rhs.template channel_unchecked<chiR>()*rrat+channel_unchecked<chiR>()*ratio);
-
-                using tindexG = channel_index_by_name<channel_name::G>;
-                const size_t chiG = tindexG::value;
-                out_pixel->channel_unchecked<chiG>(rhs.template channel_unchecked<chiG>()*rrat+channel_unchecked<chiG>()*ratio);
-
-                using tindexB = channel_index_by_name<channel_name::B>;
-                const size_t chiB = tindexB::value;
-                out_pixel->channel_unchecked<chiB>(rhs.template channel_unchecked<chiB>()*rrat+channel_unchecked<chiB>()*ratio);
+            if(ratio==1.0) {
+                out_pixel->native_value = native_value;
+                return gfx_result::success;
+            } else if(ratio==0.0) {
+                out_pixel->native_value = rhs.native_value;
                 return gfx_result::success;
             }
-            using tmp_pixel=pixel<channel_traits<channel_name::R,HTCW_MAX_WORD/3>,channel_traits<channel_name::G,HTCW_MAX_WORD/3+(HTCW_MAX_WORD%3)>,channel_traits<channel_name::B,HTCW_MAX_WORD/3>>;
-            tmp_pixel tmp,tmp2,tmp3;
-            gfx_result r=convert(*this,&tmp);
-            if(gfx_result::success!=r) {
-                return r;
-            }
-            r=convert(rhs,&tmp2);
-            if(gfx_result::success!=r) {
-                return r;
-            }
-            r=tmp.blend(tmp2,ratio,&tmp3);
-            if(gfx_result::success!=r) {
-                return r;
-            }
-            return convert(tmp3,out_pixel);
+            helpers::pixel_blend_impl<type,0,ChannelTraits...>::blend_val(*this,rhs,ratio,out_pixel);
+            return gfx_result::success;
         }
         // blends two pixels. ratio is between zero and one. larger ratio numbers favor this pixel
         type blend(type rhs,double ratio) {

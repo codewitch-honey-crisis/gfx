@@ -260,8 +260,7 @@ namespace io {
             return *this;
         }
         ~file_stream() {
-            if(nullptr!=m_fd)
-                fclose(m_fd);
+            close();
         }
         
         virtual size_t read(uint8_t* destination,size_t size) {
@@ -290,6 +289,10 @@ namespace io {
         }
         virtual stream_caps caps() const {
             return m_caps;
+        }
+        void close() {
+            if(nullptr!=m_fd)
+                fclose(m_fd);
         }
     };
 #endif

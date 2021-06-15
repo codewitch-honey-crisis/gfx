@@ -346,31 +346,8 @@ namespace gfx {
             return gfx_result::success;
         }
     };
-    template<typename MappedPixelType> 
-    struct epaper_mono_palette {
-        static_assert(!MappedPixelType::template has_channel_names<channel_name::index>::value,"Mapped pixel must not be indexed");
-    public:
-        using type = epaper_mono_palette;
-        using pixel_type = indexed_pixel<1>;
-        using mapped_pixel_type = MappedPixelType;
-        constexpr static const bool writable = false;
-        constexpr static const size_t size = 2;
-        gfx_result map(pixel_type pixel,mapped_pixel_type* mapped_pixel) const {
-            gsc_pixel<1> tmp(!!!pixel.native_value);
-            return convert(tmp,&mapped_pixel);
-        }
-        gfx_result nearest(mapped_pixel_type mapped_pixel,pixel_type* pixel) const {
-            if(nullptr==pixel) {
-                return gfx_result::invalid_argument;
-            }
-            gsc_pixel<1> tmp;
-            gfx_result r = convert(mapped_pixel,&tmp);
-            if(gfx_result::success!=r) {
-                return r;
-            }
-            pixel->channel<channel_name::index>(!!!tmp.native_value);
-            return gfx_result::success;
-        }
-    };
+    
+    
+    
 }
 #endif

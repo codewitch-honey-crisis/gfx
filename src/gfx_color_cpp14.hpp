@@ -288,5 +288,7 @@ namespace gfx {
         template<typename PixelType> const PixelType color<PixelType>::white_smoke = convert<source_type,PixelType>(color<PixelType>::source_type(true,0.96078431372549,0.96078431372549,0.96078431372549));
         template<typename PixelType> const PixelType color<PixelType>::yellow = convert<source_type,PixelType>(color<PixelType>::source_type(true,1,1,0));
         template<typename PixelType> const PixelType color<PixelType>::yellow_green = convert<source_type,PixelType>(color<PixelType>::source_type(true,0.603921568627451,0.803921568627451,0.196078431372549));
+
+        using color_max = color<rgb_pixel<HTCW_MAX_WORD>>;
 }
 #endif

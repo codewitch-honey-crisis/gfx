@@ -1,6 +1,7 @@
 #ifndef HTCW_GFX_PALETTE_HPP
 #define HTCW_GFX_PALETTE_HPP
 #include "gfx_pixel.hpp"
+#include <stdlib.h>
 namespace gfx {
         // represents a palette/CLUT for indexed pixels
     template<typename PixelType,typename MappedPixelType>
@@ -347,7 +348,458 @@ namespace gfx {
         }
     };
     
-    
-    
+    namespace helpers {
+        
+        template<typename ValueType, unsigned K = 3>
+        class kd_tree
+        {
+        public:
+            
+            struct kd_point
+            {
+                double coord[K];
+
+                kd_point() { }
+
+                kd_point(double a,double b,double c)
+                {
+                    coord[0] = a; coord[1] = b; coord[2] = c;
+                }
+
+                kd_point(double v[K])
+                {
+                    for(unsigned n=0; n<K; ++n)
+                        coord[n] = v[n];
+                }
+
+                bool operator==(const kd_point& b) const
+                {
+                    for(unsigned n=0; n<K; ++n)
+                        if(coord[n] != b.coord[n]) return false;
+                    return true;
+                }
+                double sqrdist(const kd_point& b) const
+                {
+                    double result = 0;
+                    for(unsigned n=0; n<K; ++n)
+                        { double diff = coord[n] - b.coord[n];
+                        result += diff*diff; }
+                    return result;
+                }
+            };
+        private:
+            struct kd_rect
+            {
+                kd_point min, max;
+
+                kd_point bound(const kd_point& t) const
+                {
+                    kd_point p;
+                    for(unsigned i=0; i<K; ++i)
+                        if(t.coord[i] <= min.coord[i])
+                            p.coord[i] = min.coord[i];
+                        else if(t.coord[i] >= max.coord[i])
+                            p.coord[i] = max.coord[i];
+                        else
+                            p.coord[i] = t.coord[i];
+                    return p;
+                }
+                void make_infinite()
+                {
+                    for(unsigned i=0; i<K; ++i)
+                    {
+                        min.coord[i] = -1e99;
+                        max.coord[i] =  1e99;
+                    }
+                }
+            };
+            struct kd_pair {
+                ValueType first;
+                double second;
+            };
+            struct kd_node
+            {
+                kd_point k;
+                ValueType       v;
+                kd_node  *left, *right;
+            public:
+                kd_node() : k(),v(),left(0),right(0) { }
+                kd_node(const kd_point& kk, const ValueType& vv) : k(kk), v(vv), left(0), right(0) { }
+
+                virtual ~kd_node() { delete (left); delete (right); }
+
+                static kd_node* ins( const kd_point& key, const ValueType& val,
+                                    kd_node*& t, int lev)
+                {
+                    if(!t)
+                        return (t = new kd_node(key, val));
+                    else if(key == t->k)
+                        return 0; /* key duplicate */
+                    else if(key.coord[lev] > t->k.coord[lev])
+                        return ins(key, val, t->right, (lev+1)%K);
+                    else
+                        return ins(key, val, t->left,  (lev+1)%K);
+                }
+                struct nearest
+                {
+                    const kd_node* kd;
+                    double        dist_sqd;
+                };
+                // Method nearest Neighbor from Andrew Moore's thesis. Numbered
+                // comments are direct quotes from there. Step "SDL" is added to
+                // make the algorithm work correctly.
+                static void nnbr(const kd_node* kd, const kd_point& target,
+                                kd_rect& hr, // in-param and temporary; not an out-param.
+                                int lev,
+                                nearest& nearest)
+                {
+                    // 1. if kd is empty then set dist-sqd to infinity and exit.
+                    if (!kd) return;
+
+                    // 2. s := split field of kd
+                    int s = lev % K;
+
+                    // 3. pivot := dom-elt field of kd
+                    const kd_point& pivot = kd->k;
+                    double pivot_to_target = pivot.sqrdist(target);
+
+                    // 4. Cut hr into to sub-hyperrectangles left-hr and right-hr.
+                    //    The cut plane is through pivot and perpendicular to the s
+                    //    dimension.
+                    kd_rect& left_hr = hr; // optimize by not cloning
+                    kd_rect right_hr = hr;
+                    left_hr.max.coord[s]  = pivot.coord[s];
+                    right_hr.min.coord[s] = pivot.coord[s];
+
+                    // 5. target-in-left := target_s <= pivot_s
+                    bool target_in_left = target.coord[s] < pivot.coord[s];
+
+                    const kd_node* nearer_kd;
+                    const kd_node* further_kd;
+                    kd_rect nearer_hr;
+                    kd_rect further_hr;
+
+                    // 6. if target-in-left then nearer is left, further is right
+                    if (target_in_left) {
+                        nearer_kd = kd->left;
+                        nearer_hr = left_hr;
+                        further_kd = kd->right;
+                        further_hr = right_hr;
+                    }
+                    // 7. if not target-in-left then nearer is right, further is left
+                    else {
+                        nearer_kd = kd->right;
+                        nearer_hr = right_hr;
+                        further_kd = kd->left;
+                        further_hr = left_hr;
+                    }
+
+                    // 8. Recursively call nearest Neighbor with parameters
+                    //    (nearer-kd, target, nearer-hr, max-dist-sqd), storing the
+                    //    results in nearest and dist-sqd
+                    nnbr(nearer_kd, target, nearer_hr, lev + 1, nearest);
+
+                    // 10. A nearer point could only lie in further-kd if there were some
+                    //     part of further-hr within distance sqrt(max-dist-sqd) of
+                    //     target.  If this is the case then
+                    const kd_point closest = further_hr.bound(target);
+                    if (closest.sqrdist(target) < nearest.dist_sqd)
+                    {
+                        // 10.1 if (pivot-target)^2 < dist-sqd then
+                        if (pivot_to_target < nearest.dist_sqd)
+                        {
+                            // 10.1.1 nearest := (pivot, range-elt field of kd)
+                            nearest.kd = kd;
+                            // 10.1.2 dist-sqd = (pivot-target)^2
+                            nearest.dist_sqd = pivot_to_target;
+                        }
+
+                        // 10.2 Recursively call nearest Neighbor with parameters
+                        //      (further-kd, target, further-hr, max-dist_sqd)
+                        nnbr(further_kd, target, further_hr, lev + 1, nearest);
+                    }
+                    // SDL: otherwise, current point is nearest
+                    else if (pivot_to_target < nearest.dist_sqd)
+                    {
+                        nearest.kd       = kd;
+                        nearest.dist_sqd = pivot_to_target;
+                    }
+                }
+            private:
+                void operator=(const kd_node&);
+            public:
+                kd_node(const kd_node& b)
+                    : k(b.k), v(b.v),
+                    left( b.left ? new kd_node(*b.left) : 0),
+                    right( b.right ? new kd_node(*b.right) : 0 ) { }
+            };
+        private:
+            kd_node* m_root;
+        public:
+            kd_tree() : m_root(0) { }
+            virtual ~kd_tree() { delete (m_root); }
+
+            bool insert(const kd_point& key, const ValueType& val)
+            {
+                return kd_node::ins(key, val, m_root, 0);
+            }
+
+            const kd_pair nearest(const kd_point& key) const
+            {
+                kd_rect hr;
+                hr.make_infinite();
+
+                typename kd_node::nearest nn;
+                nn.kd       = 0;
+                nn.dist_sqd = 1e99;
+                kd_node::nnbr(m_root, key, hr, 0, nn);
+                if(!nn.kd) return { ValueType(), 1e99 };
+                return { nn.kd->v, nn.dist_sqd };
+            }
+        public:
+            kd_tree& operator=(const kd_tree&b)
+            {
+                if(this != &b)
+                {
+                    if(m_root) delete (m_root);
+                    m_root = b.m_root ? new kd_node(*b.m_root) : 0;
+                }
+                return *this;
+            }
+            kd_tree(const kd_tree& b)
+                : m_root( b.m_root ? new kd_node(*b.m_root) : 0 ){ }
+        };
+                
+        /* 8x8 threshold map (note: the patented pattern dithering algorithm uses 4x4) */
+        static const unsigned char dither_threshold_map[8*8] PROGMEM = {
+            0,48,12,60, 3,51,15,63,
+            32,16,44,28,35,19,47,31,
+            8,56, 4,52,11,59, 7,55,
+            40,24,36,20,43,27,39,23,
+            2,50,14,62, 1,49,13,61,
+            34,18,46,30,33,17,45,29,
+            10,58, 6,54, 9,57, 5,53,
+            42,26,38,22,41,25,37,21 };
+        #define d(x) x/64.0
+        static const double dither_threshhold_map_fast[8*8] = {
+        d( 0), d(48), d(12), d(60), d( 3), d(51), d(15), d(63),
+        d(32), d(16), d(44), d(28), d(35), d(19), d(47), d(31),
+        d( 8), d(56), d( 4), d(52), d(11), d(59), d( 7), d(55),
+        d(40), d(24), d(36), d(20), d(43), d(27), d(39), d(23),
+        d( 2), d(50), d(14), d(62), d( 1), d(49), d(13), d(61),
+        d(34), d(18), d(46), d(30), d(33), d(17), d(45), d(29),
+        d(10), d(58), d( 6), d(54), d( 9), d(57), d( 5), d(53),
+        d(42), d(26), d(38), d(22), d(41), d(25), d(37), d(21) };
+        #undef d
+        double dither_color_compare(int r1,int g1,int b1, int r2,int g2,int b2)
+        {
+            double luma1 = (r1*299 + g1*587 + b1*114) / (255.0*1000);
+            double luma2 = (r2*299 + g2*587 + b2*114) / (255.0*1000);
+            double lumadiff = luma1-luma2;
+            double diffR = (r1-r2)/255.0, diffG = (g1-g2)/255.0, diffB = (b1-b2)/255.0;
+            return (diffR*diffR*0.299 + diffG*diffG*0.587 + diffB*diffB*0.114)*0.75
+                + lumadiff*lumadiff;
+        }
+        static unsigned* dither_luminosity_cache=nullptr;
+        gfx_result dither_unprepare() {
+            if(nullptr!=dither_luminosity_cache) {
+                delete[] dither_luminosity_cache;
+                dither_luminosity_cache = nullptr;
+            }
+            return gfx_result::success;
+        }
+        template<typename PaletteType>
+        gfx_result dither_prepare(const PaletteType* palette) {
+            if(nullptr==palette) {
+                return gfx_result::invalid_argument;
+            }
+            gfx_result r= dither_unprepare();
+            if(gfx_result::success!=r) {
+                return r;
+            }
+            const size_t size = PaletteType::size;
+            dither_luminosity_cache = new unsigned[size];
+            if(nullptr==dither_luminosity_cache) {
+                return gfx_result::out_of_memory;
+            }
+            unsigned*p=(unsigned*)dither_luminosity_cache;
+            for(int i = 0;i<size;++i) {
+                typename PaletteType::pixel_type ipx(i);
+                typename PaletteType::mapped_pixel_type mpx;
+                rgb_pixel<24> rgb888;
+                r=palette->map(ipx,&mpx);
+                if(gfx_result::success!=r) {
+                    return r;
+                }
+                r=convert(mpx,&rgb888);
+                if(gfx_result::success!=r) {
+                    return r;
+                }
+                int r = rgb888.template channel<channel_name::R>();
+                int g = rgb888.template channel<channel_name::G>();
+                int b = rgb888.template channel<channel_name::B>();
+                *p++ =  r*299 + g*587 + b*114;
+            }
+            return gfx_result::success;
+        }
+        double dither_mixing_error(int r,int g,int b,
+                           int r0,int g0,int b0,
+                           int r1,int g1,int b1,
+                           int r2,int g2,int b2,
+                           double ratio)
+        {
+            return dither_color_compare(r,g,b, r0,g0,b0) 
+                + dither_color_compare(r1,g1,b1, r2,g2,b2) * 0.1 * (fabs(ratio-0.5)+0.5);
+        }
+        struct dither_mixing_plan_data_fast
+        {
+            unsigned colors[2];
+            double ratio; /* 0 = always index1, 1 = always index2, 0.5 = 50% of both */
+        };
+        template<typename PaletteType>
+        gfx_result dither_mixing_plan_fast(const PaletteType* palette, typename PaletteType::mapped_pixel_type color, dither_mixing_plan_data_fast* plan) {
+            gfx_result rr ;
+            if(nullptr==plan || nullptr==palette) {
+                return gfx_result::invalid_argument;
+            }
+            rgb_pixel<24> rgb888;
+            rr = convert(color,&rgb888);
+            if(gfx_result::success!=rr) {
+                return rr;
+            }
+            const unsigned r= rgb888.template channel<channel_name::R>(), 
+                        g=rgb888.template channel<channel_name::G>(), 
+                        b=rgb888.template channel<channel_name::B>();
+
+            *plan = { {0,0}, 0.5 };
+            double least_penalty = 1e99;
+            for(unsigned index1 = 0; index1 < 16; ++index1)
+            for(unsigned index2 = index1; index2 < 16; ++index2)
+            {
+                // Determine the two component colors
+                typename PaletteType::mapped_pixel_type mpx1;
+                rr=palette->map(typename PaletteType::pixel_type(index1),&mpx1);
+                if(gfx_result::success!=rr) {
+                    return rr;
+                }
+                typename PaletteType::mapped_pixel_type mpx2;
+                rr=palette->map(typename PaletteType::pixel_type(index2),&mpx1);
+                if(gfx_result::success!=rr) {
+                    return rr;
+                }
+                rr = convert(mpx1,&rgb888);
+                if(gfx_result::success!=rr) {
+                    return rr;
+                }   
+                unsigned r1= rgb888.template channel<channel_name::R>(), 
+                        g1=rgb888.template channel<channel_name::G>(), 
+                        b1=rgb888.template channel<channel_name::B>();
+                rr = convert(mpx2,&rgb888);
+                if(gfx_result::success!=rr) {
+                    return rr;
+                }
+                unsigned r2= rgb888.template channel<channel_name::R>(), 
+                        g2=rgb888.template channel<channel_name::G>(), 
+                        b2=rgb888.template channel<channel_name::B>();
+                int ratio = 32;
+                if(mpx1.native_value != mpx2.native_value)
+                {
+                    // Determine the ratio of mixing for each channel.
+                    //   solve(r1 + ratio*(r2-r1)/64 = r, ratio)
+                    // Take a weighed average of these three ratios according to the
+                    // perceived luminosity of each channel (according to CCIR 601).
+                    ratio = ((r2 != r1 ? 299*64 * int(r - r1) / int(r2-r1) : 0)
+                        +  (g2 != g1 ? 587*64 * int(g - g1) / int(g2-g1) : 0)
+                        +  (b1 != b2 ? 114*64 * int(b - b1) / int(b2-b1) : 0))
+                        / ((r2 != r1 ? 299 : 0)
+                        + (g2 != g1 ? 587 : 0)
+                        + (b2 != b1 ? 114 : 0));
+                    if(ratio < 0) ratio = 0; else if(ratio > 63) ratio = 63;   
+                }
+                // Determine what mixing them in this proportion will produce
+                unsigned r0 = r1 + ratio * int(r2-r1) / 64;
+                unsigned g0 = g1 + ratio * int(g2-g1) / 64;
+                unsigned b0 = b1 + ratio * int(b2-b1) / 64;
+                double penalty = dither_mixing_error(
+                    r,g,b, r0,g0,b0, r1,g1,b1, r2,g2,b2,
+                    ratio / double(64));
+                if(penalty < least_penalty)
+                {
+                    least_penalty = penalty;
+                    plan->colors[0] = index1;
+                    plan->colors[1] = index2;
+                    plan->ratio = ratio / double(64);
+                }
+            }
+            
+            return gfx_result::success;
+        }
+        template<typename PaletteType>
+        gfx_result dither_mixing_plan(const PaletteType* palette, typename PaletteType::mapped_pixel_type color, typename PaletteType::pixel_type* plan,double error_multiplier = 0.9 ) {
+            gfx_result r ;
+            if(nullptr==plan || nullptr==palette) {
+                return gfx_result::invalid_argument;
+            }
+            rgb_pixel<24> rgb888;
+            r = convert(color,&rgb888);
+            if(gfx_result::success!=r) {
+                return r;
+            }
+            const int src[3] = { rgb888.template channel<channel_name::R>(), rgb888.template channel<channel_name::G>(), rgb888.template channel<channel_name::B>() };
+
+            int e[3] = { 0, 0, 0 }; // Error accumulator
+            for(unsigned c=0; c<64; ++c)
+            {
+                // Current temporary value
+                int t[3] = { (int)(src[0] + e[0] * error_multiplier), (int)(src[1] + e[1] * error_multiplier), (int)(src[2] + e[2] * error_multiplier) };
+                // Clamp it in the allowed RGB range
+                t[0]=helpers::clamp(t[0],0,255);
+                t[1]=helpers::clamp(t[1],0,255);
+                t[2]=helpers::clamp(t[2],0,255);
+                // Find the closest color from the palette
+                double least_penalty = 1e99;
+                unsigned chosen = c%16;
+                for(unsigned index=0; index<PaletteType::size; ++index)
+                {
+                    typename PaletteType::pixel_type ipx(index);
+                    typename PaletteType::mapped_pixel_type col;
+                    r= palette->map(ipx,&col);
+                    if(gfx_result::success!=r) {
+                        return r;
+                    }
+                    r=convert(col,&rgb888);
+                    if(gfx_result::success!=r) {
+                        return r;
+                    }
+                    const int pc[3] = { rgb888.template channel<channel_name::R>(), rgb888.template channel<channel_name::G>(), rgb888.template channel<channel_name::B>() };
+                    double penalty = dither_color_compare(pc[0],pc[1],pc[2], t[0],t[1],t[2]);
+                    if(penalty < least_penalty)
+                        { least_penalty = penalty; chosen=index; }
+                }
+                // Add it to candidates and update the error
+                plan[c] = typename PaletteType::pixel_type(chosen);
+                typename PaletteType::mapped_pixel_type mcolor;
+                r=palette->map(plan[c],&mcolor);
+                if(gfx_result::success!=r) {
+                    return r;
+                }
+                r=convert(mcolor,&rgb888);
+                if(gfx_result::success!=r) {
+                    return r;
+                }
+                const int pc[3] = { rgb888.template channel<channel_name::R>(), rgb888.template channel<channel_name::G>(), rgb888.template channel<channel_name::B>() };
+                e[0] += src[0]-pc[0];
+                e[1] += src[1]-pc[1];
+                e[2] += src[2]-pc[2];
+            }
+            // Sort the colors according to luminance
+            qsort(plan,64,sizeof(typename PaletteType::pixel_type),[](const void* a,const void*b){
+                
+                return (int)(((unsigned*)dither_luminosity_cache)[((const typename PaletteType::pixel_type*)b)->template channel<0>()]-
+                    ((unsigned*)dither_luminosity_cache)[((const typename PaletteType::pixel_type*)a)->template channel<0>()]);
+            });
+            return gfx_result::success;
+        }
+    }
 }
 #endif

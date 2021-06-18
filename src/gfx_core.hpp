@@ -2,6 +2,9 @@
 #define HTCW_GFX_CORE_HPP
 #include <stdint.h>
 #include "bits.hpp"
+#ifndef ARDUINO
+    #define PROGMEM 
+#endif
 namespace gfx {
     template<bool Blt,bool Async,bool Batch,bool CopyFrom,bool Suspend,bool Read,bool CopyTo>
     struct gfx_caps {

@@ -151,5 +151,6 @@ namespace gfx {
         // ensure colors can be converted to destination type:
         static_assert(0!=white.native_value || 0!=black.native_value,"Color type is not convertible from RGB");
     };
+    using color_max = color<rgb_pixel<HTCW_MAX_WORD>>;
 }
 #endif

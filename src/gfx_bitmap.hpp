@@ -591,6 +591,15 @@ namespace gfx {
         const palette_type *palette() const {
             return m_palette;
         }
+
+        // computes the minimum required size for a bitmap buffer, in bytes
+        constexpr inline static size_t sizeof_buffer(size16 size) {
+            return (size.width*size.height*pixel_type::bit_depth+7)/8;
+        }
+        // computes the minimum required size for a bitmap buffer, in bytes
+        constexpr inline static size_t sizeof_buffer(uint16_t width,uint16_t height) {
+            return sizeof_buffer(size16(width,height));
+        }
     };
     
 

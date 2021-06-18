@@ -673,8 +673,8 @@ namespace gfx {
 
             *plan = { {0,0}, 0.5 };
             double least_penalty = 1e99;
-            for(unsigned index1 = 0; index1 < 16; ++index1)
-            for(unsigned index2 = index1; index2 < 16; ++index2)
+            for(unsigned index1 = 0; index1 < PaletteType::size; ++index1)
+            for(unsigned index2 = index1; index2 < PaletteType::size; ++index2)
             {
                 // Determine the two component colors
                 typename PaletteType::mapped_pixel_type mpx1;

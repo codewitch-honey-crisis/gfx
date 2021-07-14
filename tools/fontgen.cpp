@@ -1,11 +1,16 @@
+// define if windows:
+#define WINDOWS
 #define HTCW_LITTLE_ENDIAN
 #include <stdio.h>
 #include <string.h>
 #include "../src/gfx_font.hpp"
+#include "../src/gfx_open_font.hpp"
 using namespace gfx;
-
+#ifdef WINDOWS
+#define PATH_CHAR '\\'
+#else
 #define PATH_CHAR '/'
-
+#endif
 const char* get_fname(const char* filepath) {
     
     const char* sz=filepath;
@@ -139,7 +144,39 @@ void generate(const font& f,const char* filename) {
     printf("%s_char_data);\r\n\r\n",ident);
     printf("#endif // %s_HPP\r\n",ident);
 }
+void generate(file_stream& f,const char* filename) {
+    char ident[256];
+    make_ident(get_fname(filename),ident);
+    printf("#ifndef %s_HPP\r\n",ident);
+    printf("#define %s_HPP\r\n",ident);
+    printf("#include <stdint.h>\r\n");
+    printf("#include <gfx_core.hpp>\r\n\r\n");
+    printf("#include <gfx_open_font.hpp>\r\n\r\n");
+    printf("#ifndef PROGMEM\r\n\t#define PROGMEM\r\n#endif\r\n\r\n");
+    printf("static const uint8_t %s_char_data[] PROGMEM = {\r\n\t",ident);
+    int cc=0;
+    size_t len = f.seek(0,seek_origin::end)+1;
+    f.seek(0,seek_origin::start);
+    for(size_t i = 0;i<len; ++i) {
+        if(i!=0)
+            printf(", ");
+        uint8_t b;
+        f.read(&b,1);
+        printf("0x%02X",(int)b);
+        ++cc;
+        if(0==cc%25) {
+            printf("\r\n\t");
+        }
+    }
+    printf("};\r\n\r\n");
+    
+    printf("static ::gfx::const_buffer_stream %s_char_stream(\r\n\t",ident);
+    printf("%s_char_data,%d);\r\n\r\n",ident,(int)len);
+    printf("static ::gfx::open_font %s(&%s_char_stream);\r\n",ident,ident);
+    printf("#endif // %s_HPP\r\n",ident);
+}
 int main(int argc, char** argv) {
+    
     if(argc<2) {
         fprintf(stderr,"Input font file not specified");
         return (int)font::result::invalid_argument;
@@ -160,18 +197,48 @@ int main(int argc, char** argv) {
     if(argc>4) {
         fc = sscanf(argv[4],"%c",&lc);
     }
-    
-    auto stm = io::file_stream(argv[1],io::file_mode::read);
-    
-    font f;
-    auto r = font::read(&stm,&f,index,fc,lc,nullptr);
-    
-    if(font::result::success==r) {
-        generate(f,argv[1]);
-    } else {
-        fprintf(stderr,"Failed with %d\r\n",(int)r);
-        return (int)r;
+    size_t slen = strlen(argv[1]);
+    bool is_open_font = true;
+    if(slen>4) {
+        const char* sz = argv[1];
+        sz+=slen-4;
+        if(*sz=='.') {
+            ++sz;
+            if(*sz=='f' || *sz=='F') {
+                ++sz;
+                if(*sz=='o' || *sz=='O') {
+                    ++sz;
+                    if(*sz=='n' || *sz=='N') {
+                        is_open_font = false;
+                    }
+                }
+            }
+
+        }
     }
     
+    
+    auto stm = io::file_stream(argv[1],io::file_mode::read);
+            
+    if(!is_open_font) {   
+        font f;
+        auto r = font::read(&stm,&f,index,fc,lc,nullptr);
+        
+        if(font::result::success==r) {
+            generate(f,argv[1]);
+        } else {
+            fprintf(stderr,"Failed with %d\r\n",(int)r);
+            return (int)r;
+        }
+    } else {
+        open_font f;
+        auto r= open_font::open(&stm,&f);
+        if(gfx_result::success==r) {
+            generate(stm,argv[1]);
+        } else {
+            fprintf(stderr,"Failed with %d\r\n",(int)r);
+            return (int)r;
+        }
+    }
     return 0;
 }

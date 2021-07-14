@@ -215,7 +215,7 @@ namespace gfx {
             }
             constexpr static inline void initf(PixelType& pixel,typename ChannelTrait::real_type value, typename ChannelTraits::real_type... values) {
                 if(ChannelTrait::bit_depth==0) return;
-                typename ch::int_type ivalue = helpers::clamp(value,0.0,1.0) * ch::scale;
+                typename ch::int_type ivalue = helpers::clamp<decltype(value)>(value,0.0,1.0) * ch::scale;
                 const typename PixelType::int_type shval = typename PixelType::int_type(typename PixelType::int_type(ivalue)<<ch::total_bits_to_right);
                 pixel.native_value=typename PixelType::int_type((pixel.native_value&typename ch::pixel_type::int_type(~ch::channel_mask))|shval);
                 next::initf(pixel,values...);

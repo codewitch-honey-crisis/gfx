@@ -2,6 +2,13 @@
 #define HTCW_STREAM_HPP
 #ifdef ARDUINO
 #include <Arduino.h>
+#include <SD.h>
+// TODO: Fix this ifdef so the AVR is the one that is special cased:
+#ifdef ESP32
+#include <pgmspace.h>
+#else
+#include <avr/pgmspace.h>
+#endif
 #else
 #include <stdio.h>
 #include <string.h>
@@ -149,6 +156,107 @@ namespace io {
             return m_current-m_begin;   
         }
     };
+    class const_buffer_stream final : public stream {
+        const uint8_t* m_begin;
+        const uint8_t* m_current;
+        size_t m_size;
+        const_buffer_stream(const const_buffer_stream& rhs)=delete;
+        const_buffer_stream& operator=(const const_buffer_stream& rhs)=delete;
+    public:
+        const_buffer_stream() : m_begin(nullptr),m_current(nullptr),m_size(0) {}
+        const_buffer_stream(const uint8_t* buffer,size_t size) :m_begin(buffer),m_current(buffer),m_size(size) {
+            if(nullptr==buffer) m_size=0;
+        }
+        const_buffer_stream(const_buffer_stream&& rhs) : m_begin(rhs.m_begin), m_current(rhs.m_current), m_size(rhs.m_size) {
+            rhs.m_begin=rhs.m_current=nullptr;
+            rhs.m_size=0;
+        }
+        const_buffer_stream& operator=(const_buffer_stream&& rhs) {
+            m_begin=rhs.m_begin;
+            m_current=rhs.m_current;
+            m_size=rhs.m_size;
+            rhs.m_begin=rhs.m_current=nullptr;
+            rhs.m_size=0;
+            return *this;
+        }
+        void set(const uint8_t* buffer,size_t size) {
+            m_begin = m_current = buffer;
+            m_size = size;
+            if(nullptr==buffer) m_size=0;
+        }
+        virtual int getc() {
+            if(nullptr==m_current || (size_t)(m_current-m_begin)>=m_size)
+                return -1;
+#if defined(ARDUINO) && !defined(ESP32)
+            return pgm_read_byte(m_current++);
+#else
+            return *(m_current++);
+#endif
+        }
+        virtual int putc(int value) {
+            return -1;
+        }
+        virtual stream_caps caps() const {
+            stream_caps s;
+            s.read = (nullptr!=m_current);
+            s.write = s.seek =0;
+            return s;
+        }
+        virtual size_t read(uint8_t* destination,size_t size) {
+            if(nullptr==m_current || nullptr==destination || size==0)
+                return 0;
+            size_t offs=m_current-m_begin;
+            if(offs>=m_size)
+                return 0;
+            if(size+offs>m_size) 
+                size = (m_size-offs);
+#if defined(ARDUINO) && !defined(ESP32)
+            offs=size;
+            while(offs--) {
+                *destination++=pgm_read_byte(m_current++);
+            }
+#else
+            memcpy(destination,m_current,size);
+            m_current+=size;
+#endif
+            return size;
+        }
+        
+        virtual size_t write(const uint8_t* source,size_t size) {
+            return 0;
+        }
+        
+        virtual unsigned long long seek(long long position,seek_origin origin=seek_origin::start)  {
+            if(nullptr==m_current)
+                return 0;
+            size_t offs=m_current-m_begin;
+            size_t p;
+            switch(origin) {
+                case seek_origin::start:
+                    if(position<0)
+                        p = 0;
+                    else if(0<=position && ((unsigned long long)position)>m_size) {
+                        p=m_size;
+                    } else
+                        p=(size_t)position;
+                    break;
+                case seek_origin::current:
+                    if(offs+position<0)
+                        p = offs;
+                    else if(offs+position>m_size) {
+                        p=m_size;
+                    } else
+                        p=(size_t)(offs+position);
+                    break;
+                case seek_origin::end:
+                    return seek(m_size-position,seek_origin::start);
+                default:
+                    return offs;
+            }
+            m_current=m_begin+p;
+            return m_current-m_begin;   
+        }
+    };
 #ifdef ARDUINO
 
     class arduino_stream final : public stream {
@@ -195,17 +303,81 @@ namespace io {
             
         }
     };
-#else
+#endif
+
     class file_stream final : public stream {
+#ifdef ARDUINO
+        File& m_file;
+#else
         FILE* m_fd;
+#endif
         stream_caps m_caps;
         file_stream(const file_stream& rhs) = delete;
         file_stream& operator=(const file_stream& rhs)=delete;
     public:
+#ifdef ARDUINO
+        file_stream(File& file) : m_file(file){
+            if(!m_file) {
+                m_caps.read=0;
+                m_caps.write=0;
+                m_caps.seek=0;
+            } else {
+                m_caps.read=1;
+                m_caps.write=1;
+                m_caps.seek=1;
+            }
+        }
+        file_stream(file_stream&& rhs) : m_file(rhs.m_file),m_caps(rhs.m_caps) {
+            rhs.m_caps={0,0,0};
+        }
+        file_stream& operator=(file_stream&& rhs) {
+            m_file=rhs.m_file;
+            m_caps=rhs.m_caps;
+            rhs.m_caps={0,0,0};
+            return *this;
+        }
+        ~file_stream() {
+        }
+        File& handle() const {
+            return m_file;
+        }
+        virtual size_t read(uint8_t* destination,size_t size) {
+            if(!m_file) return 0;
+            return m_file.readBytes((char*)destination,size);
+        }
+        virtual int getc() {
+            if(!m_file) return -1;
+            return m_file.read();
+        }
+        virtual size_t write(const uint8_t* source,size_t size) {
+            if(!m_file) return 0;
+            return m_file.write(source,size);
+        }
+        virtual int putc(int value) {
+            if(!m_file) return 0;
+            return m_file.write((uint8_t)value);
+        } 
+        virtual unsigned long long seek(long long position, seek_origin origin=seek_origin::start) {
+            switch(origin) {
+                case seek_origin::start:
+                    m_file.seek((uint32_t)position);
+                    break;
+                case seek_origin::current:
+                    if(0!=position) {
+                        m_file.seek(uint32_t(position+m_file.position()));
+                    }
+                    break;
+                case seek_origin::end:
+                    m_file.seek(uint32_t(m_file.size()-position-1));
+                    break;
+            }
+            return m_file.position();
+        }
+#else
         file_stream(const char* name,file_mode mode=file_mode::read) : m_caps({0,0,0}) {
             if((int)file_mode::append==((int)mode & (int)file_mode::append)) {
                 if((int)file_mode::read==((int)mode & (int)file_mode::read)) {
-                    m_fd = fopen(name,"a+");
+                    m_fd = fopen(name,"ab+");
                     if(nullptr!=m_fd) {
                         m_caps.read=1;
                         m_caps.write=1;
@@ -213,7 +385,7 @@ namespace io {
                     }
                     return;
                 }
-                m_fd = fopen(name,"a");
+                m_fd = fopen(name,"ab");
                 if(nullptr!=m_fd) {
                     m_caps.read=0;
                     m_caps.write=1;
@@ -223,7 +395,7 @@ namespace io {
             }
             if((int)file_mode::write==((int)mode & (int)file_mode::write)) {
                 if((int)file_mode::read==((int)mode & (int)file_mode::read)) {
-                    m_fd = fopen(name,"w+");
+                    m_fd = fopen(name,"wb+");
                     if(nullptr!=m_fd) {
                         m_caps.read=1;
                         m_caps.write=1;
@@ -231,7 +403,7 @@ namespace io {
                     }
                     return;
                 }
-                m_fd = fopen(name,"w");
+                m_fd = fopen(name,"wb");
                 if(nullptr!=m_fd) {
                     m_caps.read=0;
                     m_caps.write=1;
@@ -240,7 +412,7 @@ namespace io {
                 return;
             }
             if((int)file_mode::read==((int)mode & (int)file_mode::read)) {
-                m_fd = fopen(name,"r");
+                m_fd = fopen(name,"rb");
                 if(nullptr!=m_fd) {
                     m_caps.read=1;
                     m_caps.write=0;
@@ -262,7 +434,9 @@ namespace io {
         ~file_stream() {
             close();
         }
-        
+        FILE* handle() const {
+            return m_fd;
+        }
         virtual size_t read(uint8_t* destination,size_t size) {
             if(0==m_caps.read) return 0;
             return fread(destination,1,size,m_fd);
@@ -287,14 +461,14 @@ namespace io {
                 fseek(m_fd,(long int)position,(int)origin);
             return ftell(m_fd);
         }
-        virtual stream_caps caps() const {
-            return m_caps;
-        }
         void close() {
             if(nullptr!=m_fd)
                 fclose(m_fd);
         }
-    };
 #endif
+        virtual stream_caps caps() const {
+            return m_caps;
+        }
+    };
 }
 #endif

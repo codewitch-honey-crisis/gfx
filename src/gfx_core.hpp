@@ -2,10 +2,22 @@
 #define HTCW_GFX_CORE_HPP
 #include <stdint.h>
 #include "bits.hpp"
+#include "stream.hpp"
 #ifndef ARDUINO
     #define PROGMEM 
 #endif
 namespace gfx {
+    static_assert(bits::endianness()!=bits::endian_mode::none,"Please define HTCW_LITTLE_ENDIAN or HTCW_BIG_ENDIAN before including GFX to indicate the byte order of the platform.");
+    using stream = io::stream;
+    using seek_origin = io::seek_origin;
+    using stream_caps = io::stream_caps;
+#ifdef ARDUINO
+    using arduino_stream = io::arduino_stream;
+#endif
+    using buffer_stream = io::buffer_stream;
+    using const_buffer_stream = io::const_buffer_stream;
+    using file_stream = io::file_stream;
+    
     template<bool Blt,bool Async,bool Batch,bool CopyFrom,bool Suspend,bool Read,bool CopyTo>
     struct gfx_caps {
         constexpr const static bool blt = Blt;
@@ -26,6 +38,7 @@ namespace gfx {
         out_of_memory,
         invalid_format,
         no_palette,
+        invalid_state,
         unknown_error
     };
     

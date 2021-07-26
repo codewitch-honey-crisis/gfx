@@ -1,5 +1,6 @@
 #ifndef HTCW_STREAM_HPP
 #define HTCW_STREAM_HPP
+#include <bits.hpp>
 #ifdef ARDUINO
 #include <Arduino.h>
 #include <SD.h>
@@ -198,8 +199,9 @@ namespace io {
         }
         virtual stream_caps caps() const {
             stream_caps s;
-            s.read = (nullptr!=m_current);
-            s.write = s.seek =0;
+            s.read = s.seek= (nullptr!=m_current);
+            s.write = 0;
+        
             return s;
         }
         virtual size_t read(uint8_t* destination,size_t size) {
@@ -343,7 +345,11 @@ namespace io {
         }
         virtual size_t read(uint8_t* destination,size_t size) {
             if(!m_file) return 0;
-            return m_file.readBytes((char*)destination,size);
+            //return m_file.read(destination,size);
+            if(0!=m_file.readBytes((char*)destination,size)) {
+                return size;
+            }
+            return 0;
         }
         virtual int getc() {
             if(!m_file) return -1;
@@ -351,13 +357,18 @@ namespace io {
         }
         virtual size_t write(const uint8_t* source,size_t size) {
             if(!m_file) return 0;
-            return m_file.write(source,size);
+            size_t s= m_file.write(source,size);
+            //m_file.flush();
+            return s;
         }
         virtual int putc(int value) {
             if(!m_file) return 0;
-            return m_file.write((uint8_t)value);
+            size_t s = m_file.write((uint8_t)value);
+            //m_file.flush();
+            return s;
         } 
         virtual unsigned long long seek(long long position, seek_origin origin=seek_origin::start) {
+            
             switch(origin) {
                 case seek_origin::start:
                     m_file.seek((uint32_t)position);
@@ -368,7 +379,7 @@ namespace io {
                     }
                     break;
                 case seek_origin::end:
-                    m_file.seek(uint32_t(m_file.size()-position-1));
+                    m_file.seek(uint32_t(m_file.size()+position));
                     break;
             }
             return m_file.position();
@@ -469,6 +480,201 @@ namespace io {
         virtual stream_caps caps() const {
             return m_caps;
         }
+    };
+    class stream_reader_base {
+    protected:
+        stream* m_stream;
+        stream_reader_base(io::stream* stream) : m_stream(stream) {
+
+        }
+    public:
+        inline bool initialized() const {
+            return m_stream!=nullptr;
+        }
+        inline stream* base_stream() const {
+            return m_stream;
+        }
+    };
+    class stream_reader_le : public stream_reader_base {
+     public:
+        stream_reader_le(io::stream* stream) : stream_reader_base(stream) {
+
+        }
+        bool read(uint8_t* out_value) const {
+            if(nullptr==m_stream || nullptr==out_value) {
+                return false;
+            }
+            if(sizeof(*out_value)!=m_stream->read((uint8_t*)out_value,sizeof(*out_value))) {
+                return false;
+            }
+            *out_value = bits::from_le(*out_value);
+            return true;
+        }
+        bool read(uint16_t* out_value) const {
+            if(nullptr==m_stream || nullptr==out_value) {
+                return false;
+            }
+            if(sizeof(*out_value)!=m_stream->read((uint8_t*)out_value,sizeof(*out_value))) {
+                return false;
+            }
+            *out_value = bits::from_le(*out_value);
+            return true;
+        }
+        bool read(uint32_t* out_value) const {
+            if(nullptr==m_stream || nullptr==out_value) {
+                return false;
+            }
+            if(sizeof(*out_value)!=m_stream->read((uint8_t*)out_value,sizeof(*out_value))) {
+                return false;
+            }
+            *out_value = bits::from_le(*out_value);
+            return true;
+        }
+#if HTCW_MAX_WORD >= 64
+        bool read(uint64_t* out_value) const {
+            if(nullptr==m_stream || nullptr==out_value) {
+                return false;
+            }
+            if(sizeof(*out_value)!=m_stream->read((uint8_t*)out_value,sizeof(*out_value))) {
+                return false;
+            }
+            *out_value = bits::from_le(*out_value);
+            return true;
+        }
+#endif
+        bool read(int8_t* out_value) const {
+            if(nullptr==m_stream || nullptr==out_value) {
+                return false;
+            }
+            if(sizeof(*out_value)!=m_stream->read((uint8_t*)out_value,sizeof(*out_value))) {
+                return false;
+            }
+            *out_value = bits::from_le(*out_value);
+            return true;
+        }
+        bool read(int16_t* out_value) const {
+            if(nullptr==m_stream || nullptr==out_value) {
+                return false;
+            }
+            if(sizeof(*out_value)!=m_stream->read((uint8_t*)out_value,sizeof(*out_value))) {
+                return false;
+            }
+            *out_value = bits::from_le(*out_value);
+            return true;
+        }
+        bool read(int32_t* out_value) const {
+            if(nullptr==m_stream || nullptr==out_value) {
+                return false;
+            }
+            if(sizeof(*out_value)!=m_stream->read((uint8_t*)out_value,sizeof(*out_value))) {
+                return false;
+            }
+            *out_value = bits::from_le(*out_value);
+            return true;
+        }
+#if HTCW_MAX_WORD >= 64
+        bool read(int64_t* out_value) const {
+            if(nullptr==m_stream || nullptr==out_value) {
+                return false;
+            }
+            if(sizeof(*out_value)!=m_stream->read((uint8_t*)out_value,sizeof(*out_value))) {
+                return false;
+            }
+            *out_value = bits::from_le(*out_value);
+            return true;
+        }
+#endif
+
+    };
+    class stream_reader_be : public stream_reader_base {
+    public:
+        stream_reader_be(io::stream* stream) : stream_reader_base(stream) {
+
+        }
+        bool read(uint8_t* out_value) const {
+            if(nullptr==m_stream || nullptr==out_value) {
+                return false;
+            }
+            if(sizeof(*out_value)!=m_stream->read((uint8_t*)out_value,sizeof(*out_value))) {
+                return false;
+            }
+            *out_value = bits::from_be(*out_value);
+            return true;
+        }
+        bool read(uint16_t* out_value) const {
+            if(nullptr==m_stream || nullptr==out_value) {
+                return false;
+            }
+            if(sizeof(*out_value)!=m_stream->read((uint8_t*)out_value,sizeof(*out_value))) {
+                return false;
+            }
+            *out_value = bits::from_be(*out_value);
+            return true;
+        }
+        bool read(uint32_t* out_value) const {
+            if(nullptr==m_stream || nullptr==out_value) {
+                return false;
+            }
+            if(sizeof(*out_value)!=m_stream->read((uint8_t*)out_value,sizeof(*out_value))) {
+                return false;
+            }
+            *out_value = bits::from_be(*out_value);
+            return true;
+        }
+#if HTCW_MAX_WORD >= 64
+        bool read(uint64_t* out_value) const {
+            if(nullptr==m_stream || nullptr==out_value) {
+                return false;
+            }
+            if(sizeof(*out_value)!=m_stream->read((uint8_t*)out_value,sizeof(*out_value))) {
+                return false;
+            }
+            *out_value = bits::from_be(*out_value);
+            return true;
+        }
+#endif
+        bool read(int8_t* out_value) const {
+            if(nullptr==m_stream || nullptr==out_value) {
+                return false;
+            }
+            if(sizeof(*out_value)!=m_stream->read((uint8_t*)out_value,sizeof(*out_value))) {
+                return false;
+            }
+            *out_value = bits::from_be(*out_value);
+            return true;
+        }
+        bool read(int16_t* out_value) const {
+            if(nullptr==m_stream || nullptr==out_value) {
+                return false;
+            }
+            if(sizeof(*out_value)!=m_stream->read((uint8_t*)out_value,sizeof(*out_value))) {
+                return false;
+            }
+            *out_value = bits::from_be(*out_value);
+            return true;
+        }
+        bool read(int32_t* out_value) const {
+            if(nullptr==m_stream || nullptr==out_value) {
+                return false;
+            }
+            if(sizeof(*out_value)!=m_stream->read((uint8_t*)out_value,sizeof(*out_value))) {
+                return false;
+            }
+            *out_value = bits::from_be(*out_value);
+            return true;
+        }
+#if HTCW_MAX_WORD >= 64
+        bool read(int64_t* out_value) const {
+            if(nullptr==m_stream || nullptr==out_value) {
+                return false;
+            }
+            if(sizeof(*out_value)!=m_stream->read((uint8_t*)out_value,sizeof(*out_value))) {
+                return false;
+            }
+            *out_value = bits::from_be(*out_value);
+            return true;
+        }
+#endif
     };
 }
 #endif

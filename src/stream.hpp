@@ -265,6 +265,108 @@ namespace io {
             return m_current-m_begin;   
         }
     };
+    class const_buffer_stream final : public stream {
+        const uint8_t* m_begin;
+        const uint8_t* m_current;
+        size_t m_size;
+        const_buffer_stream(const const_buffer_stream& rhs)=delete;
+        const_buffer_stream& operator=(const const_buffer_stream& rhs)=delete;
+    public:
+        const_buffer_stream() : m_begin(nullptr),m_current(nullptr),m_size(0) {}
+        const_buffer_stream(const uint8_t* buffer,size_t size) :m_begin(buffer),m_current(buffer),m_size(size) {
+            if(nullptr==buffer) m_size=0;
+        }
+        const_buffer_stream(const_buffer_stream&& rhs) : m_begin(rhs.m_begin), m_current(rhs.m_current), m_size(rhs.m_size) {
+            rhs.m_begin=rhs.m_current=nullptr;
+            rhs.m_size=0;
+        }
+        const_buffer_stream& operator=(const_buffer_stream&& rhs) {
+            m_begin=rhs.m_begin;
+            m_current=rhs.m_current;
+            m_size=rhs.m_size;
+            rhs.m_begin=rhs.m_current=nullptr;
+            rhs.m_size=0;
+            return *this;
+        }
+        void set(const uint8_t* buffer,size_t size) {
+            m_begin = m_current = buffer;
+            m_size = size;
+            if(nullptr==buffer) m_size=0;
+        }
+        virtual int getc() {
+            if(nullptr==m_current || (size_t)(m_current-m_begin)>=m_size)
+                return -1;
+#if defined(ARDUINO) && !defined(ESP32)
+            return pgm_read_byte(m_current++);
+#else
+            return *(m_current++);
+#endif
+        }
+        virtual int putc(int value) {
+            return -1;
+        }
+        virtual stream_caps caps() const {
+            stream_caps s;
+            s.read = s.seek= (nullptr!=m_current);
+            s.write = 0;
+        
+            return s;
+        }
+        virtual size_t read(uint8_t* destination,size_t size) {
+            if(nullptr==m_current || nullptr==destination || size==0)
+                return 0;
+            size_t offs=m_current-m_begin;
+            if(offs>=m_size)
+                return 0;
+            if(size+offs>m_size) 
+                size = (m_size-offs);
+#if defined(ARDUINO) && !defined(ESP32)
+            offs=size;
+            while(offs--) {
+                *destination++=pgm_read_byte(m_current++);
+            }
+#else
+            memcpy(destination,m_current,size);
+            m_current+=size;
+#endif
+            return size;
+        }
+        
+        virtual size_t write(const uint8_t* source,size_t size) {
+            return 0;
+        }
+        
+        virtual unsigned long long seek(long long position,seek_origin origin=seek_origin::start)  {
+            if(nullptr==m_current)
+                return 0;
+            size_t offs=m_current-m_begin;
+            size_t p;
+            switch(origin) {
+                case seek_origin::start:
+                    if(position<0)
+                        p = 0;
+                    else if(0<=position && ((unsigned long long)position)>m_size) {
+                        p=m_size;
+                    } else
+                        p=(size_t)position;
+                    break;
+                case seek_origin::current:
+                    if(offs+position<0)
+                        p = offs;
+                    else if(offs+position>m_size) {
+                        p=m_size;
+                    } else
+                        p=(size_t)(offs+position);
+                    break;
+                case seek_origin::end:
+                    return seek(m_size-position,seek_origin::start);
+                default:
+                    return offs;
+            }
+            m_current=m_begin+p;
+            return m_current-m_begin;   
+        }
+    };
 #ifdef ARDUINO
 
     class arduino_stream final : public stream {
@@ -520,6 +622,10 @@ namespace io {
         }
         inline stream* base_stream() const {
             return m_stream;
+        }
+#endif
+        virtual stream_caps caps() const {
+            return m_caps;
         }
     };
     class stream_reader_le : public stream_reader_base {

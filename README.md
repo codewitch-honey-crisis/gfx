@@ -88,6 +88,8 @@ GFX on the other hand, isn't tied to anything. It can draw anywhere, on any plat
 
 **Update 18:** Added dithering support for e-paper displays
 
+**Update 19:** Added TrueType font support!
+
 Concepts
 --------
 
@@ -153,13 +155,25 @@ Draw sources again, are things like bitmaps, or display drivers that support rea
 
 #### Fonts
 
-Fonts can be included as legacy *.FON* files like those used in Windows 3.1. The file format is low overhead, and designed for 16 bit systems, so the fonts are very simple and compact, while supporting relatively rich features for an IoT device, like variable width fonts. When loading a font this way, it will be allocated on the heap. Note that you cannot currently load fonts this way under the Arduino framework.
+GFX supports two types of fonts. It supports a fast raster font and TrueType fonts, depending on your needs. If you need quick and dirty, with the emphasis on quick, use the `font` class. For pretty, scalable and potentially anti-aliased fonts at the expense of performance, use the `open_font` class.
 
-Alternatively, you can use the *fontgen* to create a C++ header file from a font file. This header can then be included in order to embed the font data directly into your binary. This is a static resource rather than loaded into the heap.
+The behavior and design of each are slightly different due to different capabilities and different performance considerations. For example, raster fonts are always allocated in either RAM or PROGMEM space. This is because they are small and so that they will operate at maximum speed. TrueType fonts on the other hand, are larger, much more complicated fonts, and so GFX will stream them directly from a file as needed, trading speed for minimal RAM use. Unlike raster fonts, TrueType fonts are essentially not loaded into memory, and will only cause temporary memory allocations as needed to render text.
 
-When fonts are drawn, very basic terminal control characters like tab, carriage return, and newline are supported. They can be drawn with or without a background, though it's almost always much faster to draw them with one, at least when drawing to a display.
+Both `font` and `open_font` can be loaded from a readable, seekable stream such as a `file_stream`. This if anything, will make `font` slightly quicker and `open_font` much slower than when you embed them. The raster fonts are old Windows 3.1 FON files while the TrueType font files are platform agnostic TTF files.
 
-In addition to loading and providing basic information about fonts, the `font` class also allows you to measure how much space a particular region of text will require in that font.
+Alternatively, you can use the *fontgen* to create a C++ header file from a font file. This header can then be included in order to embed the font data directly into your binary. This is a static resource rather than loaded into the heap. This is the recommended way of loading fonts when you can, especially with `open_font`.
+
+When fonts are drawn, very basic terminal control characters like tab, carriage return, and newline are supported. Raster fonts can be drawn with or without a background, though it's almost always much faster to draw them with one, at least when drawing to a display.
+
+##### TrueType Layout Considerations
+
+Truetype fonts must usually be downscaled from their native size before being displayed. You can use the `scale()` method passing the desired font height in pixels.
+
+Note that sizes and positions with TrueType are somewhat approximate in that they don't always reflect what you think they might. Part of that is nature of digital typesetting and part of that is because non-commercial font files often have bad font metrics in them. It usually takes some trial and error to get them pixel perfect.
+
+Also note that unlike raster fonts, TrueType font glyphs aren't limited to a bounding box. They can overhang part of the letter outside of the specified draw area which can lead to the left and top edges of letters in your destination area being clipped. Fortunately, you can draw text with an `offset` parameter to offset the text within the drawing area to avoid this, and/or to adjust the precise position of the text.
+
+In addition to loading and providing basic information about fonts, the `font` and `open_font` classes also allow you to measure how much space a particular region of text will require in that font.
 
 ### Images
 
@@ -254,9 +268,7 @@ Images do not use resources directly except for some bookkeeping during loading.
 
 Let's dive into some code. The following draws a classic effect around the four edges of the screen in four different colors, with "ESP32 GFX Demo" in the center of the screen:
 
-C++
-
-``` {#pre165421 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+``` {.lang-cplusplus data-language="c++" data-allowshrink="True" datacollapse="False"}
 draw::filled_rectangle(lcd,(srect16)lcd.bounds(),lcd_color::white);
 const font& f = Bm437_ATI_9x16_FON;
 const char* text = "ESP32 GFX Demo";
@@ -296,9 +308,7 @@ Compare the performance of line drawing with GFX to other libraries. You'll be p
 
 Let's try it again - or at least something similar - this time using double buffering on a supporting target, like an SSD1306 display. Note that `suspend<>()` and `resume<>()` can be called regardless of the draw destination, but they will report `gfx::gfx_result::not_supported` on targets that are not double buffered. You don't have to care that much about that, because the draws will still work, unbuffered. Anyway, here's the code:
 
-C++
-
-``` {#pre586667 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+``` {.lang-cplusplus data-language="c++" data-allowshrink="True" datacollapse="False"}
 draw::filled_rectangle(lcd,(srect16)lcd.bounds(),lcd_color::black);
 const font& f = Bm437_Acer_VGA_8x8_FON;
 const char* text = "ESP32 GFX";
@@ -337,9 +347,7 @@ The refresh rate of this class of displays is extremely slow. However, GFX does
 
 Since adding polygon support, I suppose an example of that will be helpful. Here it is in practice:
 
-C++
-
-``` {#pre226706 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+``` {.lang-cplusplus data-language="c++" data-allowshrink="True" datacollapse="False"}
 // draw a polygon (a triangle in this case)
 // find the origin:
 const spoint16 porg = srect16(0,0,31,31)
@@ -362,9 +370,7 @@ This will draw a small triangle horizontally centered at the bottom of the scree
 
 You can define pixels by using the `pixel<>` template, which takes one or more `channel_traits<>` as arguments, themselves taking a name, a bit depth, and optional minimum, maximum, default value, and scale. The channel names are predefined, and combinations of channel names make up *known color models*. Known color models are models that can be converted to and from an RGB color model, essentially. Currently they include RGB, Y'UV, YbCbCr, and grayscale. Declare pixels in order to create bitmaps in different formats or to declare color pixels for use with your particular display driver's native format. In the rare case you need to define one manually, you can do something like this:
 
-C++
-
-``` {#pre33365 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+``` {.lang-cplusplus data-language="c++" data-allowshrink="True" datacollapse="False"}
 // declare a 16-bit RGB pixel
 using rgb565 = pixel<channel_traits<channel_name::R,5>,
                     channel_traits<channel_name::G,6>,
@@ -373,9 +379,7 @@ using rgb565 = pixel<channel_traits<channel_name::R,5>,
 
 That declares a pixel with 3 channels, each of `uint8_t`: `R:5`, `G:6`, and `B:5`. Note that after the colon is how many effective bits it has. The `uint8_t` type is only for representing each pixel channel in value space in your code. In binary space, like laid out in an in memory bitmap, the pixel takes 16 bits, not 24. This defines a standard 16-bit pixel you typically find on color display adapters for IoT platforms. RGB is one of the known color models so there is a shorthand for declaring an RGB pixel type of any bit depth:
 
-C++
-
-``` {#pre832470 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+``` {.lang-cplusplus data-language="c++" data-allowshrink="True" datacollapse="False"}
 using rgb565 = rgb_pixel<16>; // declare a 16-bit RGB pixel
 ```
 
@@ -389,9 +393,7 @@ Most of the time you'll just need to read pixel values from a draw source, or ge
 
 Each pixel is composed of the channels you declared, and the channels may be accessed by "name" (`channel_name` enumeration) or by index. The values can be retrieved or set using `channel<>()` accessors for the native integer value and `channelr<>()` for real/floating point values scaled to between zero and one. Often times you need to set or get the channel programmatically based on some other compile time constant and the compiler will complain because it can't verify that the channel actually exists. In order to avoid this you can use `channel_unchecked<>()` which accesses the channel without compile time verification. If the channel does not exist, setting and getting does nothing. If you need to translate between real and integer values for a channel you can use the channel's `::scale` and `::scaler` values.
 
-C++
-
-``` {#pre468335 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+``` {.lang-cplusplus data-language="c++" data-allowshrink="True" datacollapse="False"}
 // declare a 24-bit rgb pixel
 rgb_pixel<24> rgb888;
 
@@ -423,9 +425,7 @@ Pixels that have `channel_name::A` are said to have an alpha channel. In this c
 
 Here's an example of using it in the wild:
 
-C++
-
-``` {#pre887961 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+``` {.lang-cplusplus data-language="c++" data-allowshrink="True" datacollapse="False"}
 using bmpa_type = rgba_pixel<32>;
 using bmpa_color = color<bmpa_type>;
 
@@ -502,9 +502,7 @@ I like to declare my fixed size bitmap buffers in the global scope (under a name
 
 Anyway, first we have to declare our buffer. I was very careful to make my objects `constexpr` enabled so you could do things like the following:
 
-C++
-
-``` {#pre446858 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+``` {.lang-cplusplus data-language="c++" data-allowshrink="True" datacollapse="False"}
 using bmp_type = bitmap<rgb_pixel<16>>;
 // the following is for convenience:
 using bmp_color = color<typename bmp_type::pixel_type>; // needs GFX color header
@@ -512,9 +510,7 @@ using bmp_color = color<typename bmp_type::pixel_type>; // needs GFX color heade
 
 followed by:
 
-C++
-
-``` {#pre486125 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+``` {.lang-cplusplus data-language="c++" data-allowshrink="True" datacollapse="False"}
 constexpr static const size16 bmp_size(16,16);
 uint8_t bmp_buf[bmp_type::sizeof_buffer(bmp_size)];
 ```
@@ -523,9 +519,7 @@ To be honest, the first time I wrote code like that, I was surprised it compiled
 
 Now that we have all that, wrapping it with a bitmap is trivial:
 
-C++
-
-``` {#pre35902 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+``` {.lang-cplusplus data-language="c++" data-allowshrink="True" datacollapse="False"}
 bmp_type bmp(bmp_size,bmp_buf);
 // you'll probably want to do this, but not necessary if 
 // you're redrawing the entire bmp anyway:
@@ -534,9 +528,7 @@ bmp.clear(bmp.bounds()); // zero the bmp memory
 
 Now you can call `draw` methods passing `bmp` as the destination:
 
-C++
-
-``` {#pre409986 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+``` {.lang-cplusplus data-language="c++" data-allowshrink="True" datacollapse="False"}
  // draw a happy face
 
 // bounding info for the face
@@ -596,9 +588,7 @@ What size is worthwhile? It depends. The idea is you want to be sending part of 
 
 The code looks approximately like this under the ESP-IDF at least:
 
-C++
-
-``` {#pre828347 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+``` {.lang-cplusplus data-language="c++" data-allowshrink="True" datacollapse="False"}
 uint16_t *lines[2];
 //Allocate memory for the pixel buffers
 for (int i=0; i<2; i++) {
@@ -660,9 +650,7 @@ The first, and easiest method is to use `draw::image<>()` which allows you to po
 
 Below `lcd` represents our target on which to draw the image:
 
-C++
-
-``` {#pre617877 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+``` {.lang-cplusplus data-language="c++" data-allowshrink="True" datacollapse="False"}
 file_stream fs("/spiffs/image.jpg");
 // TODO: check caps().read to see if the file is opened/readable
 draw::image(lcd,(srect16)lcd.bounds(),&fs,rect16(0,0,-1,-1));
@@ -672,9 +660,7 @@ Note above since we don't know the size of the bitmap we can pass 0xFFFF or -1 f
 
 The second way of loading an image is passing the stream to an image loader function along with a callback (I prefer to use an anonymous method/lambda for this) that handles the progressive loading. You'll be called back multiple times, each time with a portion of the image as a bitmap, along with a location where it belongs within the image, and any state you passed along to the load function. Note that to reduce overhead, a state variable is used to pass state instead of using a functor like `std::function`. You can use a "flat" lambda that decays to a simple function pointer, and then pass your class pointer in as the `state` argument, to be reconstituted inside your callback. Often times, you won't even need a state argument because everything you're after, such as the display itself, is available globally:
 
-C++
-
-``` {#pre297966 .lang-cplusplus style="margin-top:0;" data-language="C++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+``` {.lang-cplusplus data-language="C++" data-allowshrink="True" datacollapse="False"}
 file_stream fs("/spiffs/image.jpg");
 // TODO: check caps().read to see if the file is opened/readable
 jpeg_image::load(&fs,[](size16 dimensions,
@@ -692,9 +678,11 @@ jpeg_image::load(&fs,[](size16 dimensions,
 
 Fonts can be used with `draw::text<>()` and can either be loaded from a stream, similar to images, or they can be embedded into the binary by generating a C++ header file for them. Which way you choose depends on what you need and what you're willing to give up. With embedded, everything is a matter of robbing Peter to pay Paul.
 
-Anyway, you'll usually want to go with the embedded fonts, unless you intend for the fonts to be able to be loaded and unloaded at runtime for some reason, or program space is at more of a premium than say, SPIFFs and RAM, or if you want to be able to load *.FON* files from an SD card for example. Note once again that Arduino only supports embedding fonts, not loading them.
+Anyway, you'll usually want to go with the embedded fonts, unless you intend for the fonts to be able to be loaded and unloaded at runtime for some reason, or program space is at more of a premium than say, SPIFFs and RAM, or if you want to be able to load *.FON* or *.TTF* files from an SD card for example.
 
 Speaking of *.FON* files, they are an old (primarily) raster font format from the Windows 3.1 days. Given those were 16-bit systems, the *.FON* files were to the point, with little extra overhead and were designed to be read quickly. Furthermore while being old, at least they aren't a completely proprietary format. It is possible to hunt them down online, or even make your own. For these devices, *.FON* files are a nearly ideal format, which is why they were chosen here. With IoT, everything old is new again.
+
+You can also use .TTF files, which are more flexible, nicer, modern fonts, but you pay a significant penalty in terms of performance and complexity. 
 
 You can use the *fontgen* tool to create header files from font files. Simply include these to embed them and then reference the font in your code. The font is a global variable with the same name as the file, including the extension, with illegal identifier characters turned into underscores.
 
@@ -702,25 +690,29 @@ Let's talk about the first method - embedding:
 
 First, generate a header file from a font file using fontgen under the *tools* folder of the GFX library:
 
-Shell
-
-``` {#pre773414 .lang-shell style="margin-top:0;" data-language="shell" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+``` {.lang-shell data-language="shell" data-allowshrink="True" datacollapse="False"}
 ~$ fontgen myfont.fon > myfont.hpp
 ```
 
+or
+
+``` {data-allowshrink="True" datacollapse="False"}
+C:\> fontgen myfont.ttf > myfont.hpp
+```
+
+Note with Windows, it might try to spit it out in UTF-16 which will mangle your header file to death. If that happens, open the header in notepad, and resave it as ASCII or UTF-8. Also note in the fontgen source there is a `#define WINDOWS` which should be set on the Windows platform.
+
 Now you can include that in your code:
 
-C++
-
-``` {#pre300317 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+``` {.lang-cplusplus data-language="c++" data-allowshrink="True" datacollapse="False"}
 #include "myfont.hpp"
 ```
 
 This allows you to reference the font like this:
 
-C++
+##### Raster Fonts
 
-``` {#pre924393 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+``` {.lang-cplusplus data-language="c++" data-allowshrink="True" datacollapse="False"}
 const font& f = myfont_fon;
 const char* text = "Hello world!";
 srect16 text_rect = f.measure_text((ssize16)lcd.dimensions(),
@@ -734,9 +726,7 @@ draw::text(lcd,
 
 The second way to access a font is by loading a *.FON* file from a stream, which stores the font around on the heap rather than embedded as a `static` `const` array in your code is to just replace the first line of code above with this:
 
-C++
-
-``` {#pre37191 .lang-cplusplus style="margin-top:0;" data-language="c++" data-collapse="False" data-linecount="False" data-allow-shrink="True"}
+``` {.lang-cplusplus data-language="c++" data-allowshrink="True" datacollapse="False"}
 file_stream fs("/spiffs/myfon.fon");
 if(!fs.caps().read) {
     printf("Font file not found.\r\n");
@@ -748,6 +738,28 @@ font f(&fs);
 That will create a font on the heap from the given file. You can then go on to draw it like normal. When it goes out of scope, the heap it used is reclaimed. Note that this method of loading fonts does not currently work under the Arduino framework. They must be embedded.
 
 It is usually more efficient to draw fonts with a solid background than ones with a transparent background, so if raw performance is your ultimate goal, stick with non-transparent font draws.
+
+##### TrueType Fonts
+
+``` {.lang-cplusplus data-language="c++" data-allowshrink="True" datacollapse="False"}
+const open_font& f=Maziro_ttf;
+draw::filled_rectangle(lcd,(srect16)lcd.bounds(),lcd_color::white);
+const char* text = "ESP32 GFX Demo";
+float scale = f.scale(40);
+srect16 text_rect = f.measure_text((ssize16)lcd.dimensions(),{5,-7},
+                        text,scale).bounds();
+draw::text(lcd,
+        text_rect.center((srect16)lcd.bounds()),
+        {5,-7},
+        text,
+        f,
+        scale,
+        lcd_color::dark_blue);
+```
+
+Note the addition of the offset and scale parameters compared to raster fonts.
+
+Files are the same as loading raster fonts.
 
 ### GFX Draw Bindings
 
@@ -851,3 +863,5 @@ History
 -   13<sup>th</sup> June, 2021 - Added Arduino framework support and several Arduino based drivers
 -   15<sup>th</sup> June, 2021 - Added support for two e-ink/e-paper displays: the DEP0290B (and the associated LilyGo T5 2.2 board) as well as the GDEH0154Z90 (WaveShare 1.54 inch 3-color black/white/red display).
 -   17<sup>th</sup> June, 2021 - Added dithering support for e-ink/e-paper displays
+-   13<sup>th</sup> July, 2021 - Added TrueType font support
+

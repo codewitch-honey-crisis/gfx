@@ -30,7 +30,7 @@ namespace bits {
     // swaps byte order
     constexpr static inline uint16_t swap(uint16_t value)
     {
-        return (value >> 8) | (value << 8);
+        return ((value&0xFF00) >> 8) | ((value & 0x00FF) << 8);
     }
     // swaps byte order
     constexpr static inline uint32_t swap(uint32_t value)
@@ -52,6 +52,35 @@ namespace bits {
     constexpr static inline uint8_t swap(uint8_t value) {
         return value;
     }
+
+
+    // swaps byte order
+    constexpr static inline uint16_t swap(int16_t value)
+    {
+        return ((value & 0xFF00) >> 8) | ((value &0x00FF) << 8);
+    }
+    // swaps byte order
+    constexpr static inline uint32_t swap(int32_t value)
+    {
+        int32_t tmp = ((value << 8) & 0xFF00FF00) | ((value >> 8) & 0xFF00FF);
+        return (tmp << 16) | (tmp >> 16);
+    }
+#if HTCW_MAX_WORD >= 64
+    // swaps byte order
+    constexpr static inline int64_t swap(int64_t value) {
+        value = (value & 0x00000000FFFFFFFF) << 32 | (value & 0xFFFFFFFF00000000) >> 32;
+        value = (value & 0x0000FFFF0000FFFF) << 16 | (value & 0xFFFF0000FFFF0000) >> 16;
+        value = (value & 0x00FF00FF00FF00FF) << 8  | (value & 0xFF00FF00FF00FF00) >> 8;
+        return value;
+    }
+#endif
+
+    // swaps byte order (no-op to resolve ambiguous overload)
+    constexpr static inline int8_t swap(int8_t value) {
+        return value;
+    }
+
+
     template<size_t SizeBytes>
     constexpr static inline void swap_inline(void* data) {
         switch(SizeBytes) {
@@ -117,6 +146,50 @@ namespace bits {
     constexpr static inline uint8_t from_be(uint8_t value) {
         return value;
     }
+
+
+    constexpr static inline int16_t from_le(int16_t value) {
+        if(endianness()==endian_mode::big_endian)
+            return swap(value);
+        return value;
+    }
+    constexpr static inline int32_t from_le(int32_t value) {
+        if(endianness()==endian_mode::big_endian)
+            return swap(value);
+        return value;
+    }
+#if HTCW_MAX_WORD >=64
+    constexpr static inline int64_t from_le(int64_t value) {
+        if(endianness()==endian_mode::big_endian)
+            return swap(value);
+        return value;
+    }
+#endif
+    constexpr static inline int8_t from_le(int8_t value) {
+        return value;
+    }
+
+    constexpr static inline int16_t from_be(int16_t value) {
+        if(endianness()==endian_mode::little_endian)
+            return swap(value);
+        return value;
+    }
+    constexpr static inline int32_t from_be(int32_t value) {
+        if(endianness()==endian_mode::little_endian)
+            return swap(value);
+        return value;
+    }
+#if HTCW_MAX_WORD >=64
+    constexpr static inline int64_t from_be(int64_t value) {
+        if(endianness()==endian_mode::little_endian)
+            return swap(value);
+        return value;
+    }
+#endif
+    constexpr static inline int8_t from_be(int8_t value) {
+        return value;
+    }
+
     constexpr size_t get_word_size(size_t size) {
 #if HTCW_MAX_WORD >= 64
         if(size>64) return 0; 

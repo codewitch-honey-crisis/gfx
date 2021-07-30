@@ -9,6 +9,7 @@
 #include "gfx_palette.hpp"
 #include "gfx_font.hpp"
 #include "gfx_image.hpp"
+#include "gfx_open_font.hpp"
 namespace gfx {
     
     enum struct bitmap_resize {
@@ -1919,7 +1920,77 @@ namespace gfx {
                 return r;
             }
         };
+        template<typename Destination>
+        struct open_font_render_state {
+            int off_x;
+            int off_y;
+            typename Destination::pixel_type color;
+            Destination* destination;
+            const srect16* clip;
+            bool async;
+        };
+        template<typename Destination,bool Read> struct draw_open_font_helper_impl {
+            static int render_callback(int x, int y, int c, void* state) {
+                open_font_render_state<Destination>* pst=(open_font_render_state<Destination>*)state;
+                if(c!=0) {
+                    point16 pt(uint16_t(x+pst->off_x),uint16_t(y+pst->off_y));
+                    if(nullptr==pst->clip||pst->clip->intersects((spoint16)pt)) {
+                        return (int)pst->destination->point(pt,pst->color);
+                    }
+                }
+                return 0;
+            }
+        };
+        template<typename Destination> struct draw_open_font_helper_impl<Destination,true> {
+            static int render_callback(int x, int y, int c, void* state) {
+                open_font_render_state<Destination>* pst=(open_font_render_state<Destination>*)state;
+                double d = c/255.0;
+                if(d>0.0) {
+                    point16 pt = {uint16_t(x+pst->off_x),uint16_t(y+pst->off_y)};
+                    if(nullptr==pst->clip||pst->clip->intersects((spoint16)pt)) {
+                    
+                        typename Destination::pixel_type bpx;
+                        gfx_result r=pst->destination->point(pt,&bpx);
+                        if(gfx_result::success!=r) {
+                            return (int)r;
+                        }
+                        typename Destination::pixel_type px;
+                        r = pst->color.blend(bpx,d,&px);
+                        if(gfx_result::success!=r) {
+                            return (int)r;
+                        }
+                        return (int)pst->destination->point(pt,px);
+                    }
+                }
+                return 0;
+            }
+        };
+        // this doesn't need to be a template struct but it is because we may add batching and such later
+        template<typename Destination>
+        struct draw_open_font_helper {
+            static gfx_result do_draw(Destination& destination,const open_font& font,float scale,float shift_x,float shift_y, int glyph,const srect16& chr,typename Destination::pixel_type color,const srect16* clip,bool async) {
+                gfx_result r = gfx_result::success;
+                // suspend if we can
+                helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination,async);
+                
+                int(*render_cb)(int x,int y,int c,void* state) = draw_open_font_helper_impl<Destination,Destination::pixel_type::bit_depth!=1&&Destination::caps::read>::render_callback;
+            
+                open_font_render_state<Destination> state;
+                state.off_x = chr.left();
+                state.off_y = chr.top();
+                state.destination = &destination;
+                state.clip = clip;
+                state.color = color;
+                if(gfx_result::success!=r) {
+                    return r;
+                }
+                state.async = async;
+                stbtt::stbtt_MakeGlyphBitmapSubpixel(&font.m_info,render_cb,&state, chr.width(),chr.height(),0,scale,scale,shift_x,shift_y,glyph);
+                return gfx_result::success;
+            }
+        };
         
+
         template<typename Destination,typename PixelType>
         static gfx_result line_impl(Destination& destination, const srect16& rect,PixelType color,const srect16* clip,bool async) {
             if(rect.x1==rect.x2||rect.y1==rect.y2) {
@@ -2401,7 +2472,119 @@ namespace gfx {
             }
             return gfx_result::success;
         }
-        
+        // draws text to the specified destination rectangle with the specified font and colors and optional clipping rectangle
+        template<typename Destination,typename PixelType>
+        static gfx_result text_impl(
+            Destination& destination,
+            const srect16& dest_rect,
+            const spoint16 offset,
+            const char* text,
+            const open_font& font,
+            float scale,
+            PixelType color,
+            float scaled_tab_width,
+            srect16* clip,
+            bool async) {
+            if(nullptr==text) return gfx_result::invalid_argument;
+            gfx_result r=gfx_result::success;
+            if(nullptr==text)
+                return gfx_result::invalid_argument;
+            const char*sz=text;
+            if(0==*sz) return gfx_result::success;
+            int asc,dsc,lgap;
+            float height;
+            stbtt::stbtt_GetFontVMetrics(&font.m_info,&asc,&dsc,&lgap);
+            float baseline = asc*scale;
+            int x1,y1,x2,y2;
+            stbtt::stbtt_GetFontBoundingBox(&font.m_info,&x1,&y1,&x2,&y2);
+            if(scaled_tab_width<=0.0) {
+                scaled_tab_width = (x2-x1+1)*scale*4;
+            }
+            typename Destination::pixel_type px;
+            r=convert(color,&px);
+            if(gfx_result::success!=r) {
+                return r;
+            }
+            height = baseline;
+            int advw;
+            int gi= stbtt::stbtt_FindGlyphIndex(&font.m_info,*sz);
+            float xpos=offset.x,ypos=baseline+offset.y;
+            float x_extent=0,y_extent=0;
+            bool adv_line = false;
+            // suspend if we can
+            helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination,async);
+            ssize16 dest_size = dest_rect.dimensions();
+
+            while(*sz) {
+                if(*sz<32) {
+                    int ti;
+                    switch(*sz) {
+                        case '\t':
+                            ti=xpos/scaled_tab_width;
+                            xpos=(ti+1)*scaled_tab_width;
+                            if(xpos>=dest_size.width) {
+                                adv_line=true;
+                            }
+                            break;
+                        case '\r':
+                            xpos = offset.x;
+                            break;
+                        case '\n':
+                            adv_line=true;
+                            break;
+                    }
+                    if(adv_line) {
+                        adv_line=false;
+                        ypos+=height;
+                        xpos = 0;
+                        ypos+=lgap*scale;
+                    }
+                    ++sz;
+                    gi=stbtt::stbtt_FindGlyphIndex(&font.m_info,*sz);
+                    continue;
+                }
+                stbtt::stbtt_GetGlyphHMetrics(&font.m_info,gi,&advw,nullptr);
+                stbtt::stbtt_GetGlyphBitmapBoxSubpixel(&font.m_info,gi,scale,scale,xpos-floor(xpos),ypos-floor(ypos),&x1,&y1,&x2,&y2);
+
+                srect16 chr(x1+xpos,y1+ypos,x2+xpos,y2+ypos);
+                chr.offset_inplace(dest_rect.left(),dest_rect.top());
+                if(nullptr==clip || clip->intersects(chr)) {
+                    
+                    r=draw_open_font_helper<Destination>::do_draw(destination,font,scale,xpos-floor(xpos),ypos-floor(ypos),gi,chr,px,clip,async);
+                    if(gfx_result::success!=r) {
+                        return r;
+                    }
+                }
+                float xe = x2-x1;
+                adv_line = false;
+                if(xe+xpos>=dest_size.width) {
+                    ypos+=height;
+                    xpos=offset.x;
+                    adv_line = true;
+                } 
+                if(adv_line && height+ypos>=dest_size.height) {
+                    return gfx_result::success;
+                }
+                if(xpos+xe>x_extent) {
+                    x_extent=xpos+xe;
+                }
+                if(ypos+height>y_extent+(lgap*scale)) {
+                    y_extent=ypos+height;
+                }
+                xpos+=(advw*scale);    
+                if(*(sz+1)) {
+                    int gi2=stbtt::stbtt_FindGlyphIndex(&font.m_info,*(sz+1));
+                    xpos+=(stbtt::stbtt_GetGlyphKernAdvance(&font.m_info,gi,gi2)*scale);
+                    gi=gi2;
+                }
+                if(adv_line) {
+                    adv_line=false;
+                    ypos+=lgap*scale;
+                }
+                ++sz;   
+            }
+            return gfx_result::success;
+        }
     public:
         // draws a point at the specified location and of the specified color, with an optional clipping rectangle
         template<typename Destination,typename PixelType>
@@ -2528,7 +2711,7 @@ namespace gfx {
         static inline gfx_result bitmap(Destination& destination,const srect16& dest_rect,Source& source,const rect16& source_rect,bitmap_resize resize_type=bitmap_resize::crop,const typename Source::pixel_type* transparent_color=nullptr, const srect16* clip=nullptr) {
             return bmp_helper<Destination,Source,typename Destination::pixel_type,typename Source::pixel_type>
                 ::draw_bitmap(destination,dest_rect,source,source_rect,resize_type,transparent_color,clip,false);
-        }        
+        }
         // asynchronously draws a portion of a bitmap or display buffer to the specified rectangle with an optional clipping rentangle
         template<typename Destination,typename Source>
         static inline gfx_result bitmap_async(Destination& destination,const srect16& dest_rect,Source& source,const rect16& source_rect,bitmap_resize resize_type=bitmap_resize::crop, const typename Source::pixel_type* transparent_color=nullptr,const srect16* clip=nullptr) {
@@ -2562,6 +2745,34 @@ namespace gfx {
             unsigned int tab_width=4,
             srect16* clip=nullptr) {
             return text_impl(destination,dest_rect,text,font,color,backcolor,transparent_background,tab_width,clip,true);
+        }
+        // draws text to the specified destination rectangle with the specified font and colors and optional clipping rectangle
+        template<typename Destination,typename PixelType>
+        inline static gfx_result text(
+            Destination& destination,
+            const srect16& dest_rect,
+            spoint16 offset,
+            const char* text,
+            const open_font& font,
+            float scale,
+            PixelType color,
+            float scaled_tab_width=0,
+            srect16* clip=nullptr) {
+            return text_impl(destination,dest_rect,offset,text,font,scale,color,scaled_tab_width,clip,false);
+        }
+        // asynchronously draws text to the specified destination rectangle with the specified font and colors and optional clipping rectangle
+        template<typename Destination,typename PixelType>
+        inline static gfx_result text_async(
+            Destination& destination,
+            const srect16& dest_rect,
+            spoint16 offset,
+            const char* text,
+            const open_font& font,
+            float scale,
+            PixelType color,
+            float scaled_tab_width=0,
+            srect16* clip=nullptr) {
+            return text_impl(destination,dest_rect,offset,text,font,scale,color,scaled_tab_width,clip,true);
         }
         // draws an image from the specified stream to the specified destination rectangle with the an optional clipping rectangle
         template<typename Destination>

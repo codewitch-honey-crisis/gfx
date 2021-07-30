@@ -5,7 +5,7 @@
 #include "gfx_palette.hpp"
 #include "gfx_positioning.hpp"
 #include "gfx_bitmap.hpp"
-#include "stream.hpp"
+
 //#define HTCW_JPEG_AS_RGB
 // Jpg decompression code ported from TJpgDec. The original
 // copyright notice is below:
@@ -14,15 +14,6 @@
 /----------------------------------------------------------------------------*/
 
 namespace gfx {
-    using stream = io::stream;
-    using seek_origin = io::seek_origin;
-    using stream_caps = io::stream_caps;
-#ifdef ARDUINO
-    using arduino_stream = io::arduino_stream;
-#else
-    using file_stream = io::file_stream;
-#endif
-    using buffer_stream = io::buffer_stream;
     
     struct jpeg_image final {
         #ifdef HTCW_JPEG_AS_RGB

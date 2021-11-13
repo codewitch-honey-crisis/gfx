@@ -79,6 +79,30 @@ namespace gfx {
                 return gfx_result::success;
             }
         };
+        template<typename Destination,bool Batch,bool Async, bool Read> 
+        struct alpha_batcher {
+            inline static gfx_result begin_batch(Destination& destination,const rect16& bounds,bool async) {
+                return batcher<Destination,Batch,Async>::begin_batch(destination,bounds,async);
+            }
+            inline static gfx_result write_batch(Destination& destination,point16 location,typename Destination::pixel_type pixel,bool async) {
+                return batcher<Destination,Batch,Async>::write_batch(destination,location,pixel,async);
+            }
+            inline static gfx_result commit_batch(Destination& destination,bool async) {
+                return batcher<Destination,Batch,Async>::commit_batch(destination,async);
+            }
+        };
+        template<typename Destination,bool Batch,bool Async> 
+        struct alpha_batcher<Destination,Batch,Async,true> {
+            inline static gfx_result begin_batch(Destination& destination,const rect16& bounds,bool async) {
+                return batcher<Destination,false,Async>::begin_batch(destination,bounds,async);
+            }
+            inline static gfx_result write_batch(Destination& destination,point16 location,typename Destination::pixel_type pixel,bool async) {
+                return batcher<Destination,false,Async>::write_batch(destination,location,pixel,async);
+            }
+            inline static gfx_result commit_batch(Destination& destination,bool async) {
+                return batcher<Destination,false,Async>::commit_batch(destination,async);
+            }
+        };
         template<typename Destination> 
         struct batcher<Destination,true,false> {
             inline static gfx_result begin_batch(Destination& destination,const rect16& bounds,bool async) {

@@ -9,9 +9,27 @@
 
 namespace gfx {
     namespace helpers {
-
-
-        template<typename Source,typename Destination,bool AllowBlt=true>
+        template<typename Source, typename Destination,bool CanRead> struct BlendHelper {
+            static constexpr gfx_result DoBlend(const Source& src, typename Source::pixel_type spx,Destination& dst, point16 dstpnt,typename Destination::pixel_type* out_px) {
+                return convert_palette(dst,src,spx,out_px,nullptr);
+            }
+        };
+        template<typename Source, typename Destination> struct BlendHelper<Source,Destination,true> {
+            static constexpr gfx_result DoBlend(const Source& src, typename Source::pixel_type spx,Destination& dst, point16 dstpnt,typename Destination::pixel_type* out_px) {
+                gfx_result r;
+                typename Destination::pixel_type bgpx;
+                r=dst.point(point16(dstpnt),&bgpx);
+                if(gfx_result::success!=r) {
+                    return r;
+                }
+                r=convert_palette(dst,src,spx,out_px,&bgpx);
+                if(gfx_result::success!=r) {
+                    return r;
+                }
+                return gfx_result::success;
+            }
+        };
+        template<typename Source,typename Destination, bool AllowBlt=true>
         struct bmp_copy_to_helper {
             static inline gfx_result copy_to(const Source& src,const rect16& srcr,Destination& dst,const rect16& dstr) {
                 size_t dy=0,dye=dstr.height();
@@ -34,12 +52,7 @@ namespace gfx {
                             return r;
                         typename Destination::pixel_type dpx;
                         if(Source::pixel_type::template has_channel_names<channel_name::A>::value) {
-                            typename Destination::pixel_type bgpx;
-                            r=dst.point(point16(dox+dx,doy+dy),&bgpx);
-                            if(gfx_result::success!=r) {
-                                return r;
-                            }
-                            r=convert_palette(dst,src,spx,&dpx,&bgpx);
+                            r=BlendHelper<Source,Destination,Destination::caps::read>::DoBlend(src,spx,dst,point16(dox+dx,doy+dy),&dpx);
                             if(gfx_result::success!=r) {
                                 return r;
                             }

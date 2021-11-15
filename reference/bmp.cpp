@@ -40,9 +40,8 @@ int main(int argc, char** argv) {
     // draw stuff
     bmp.clear(bmp.bounds()); // comment this out and check out the uninitialized RAM. It looks neat.
     viewport<bmp_type> view(bmp);
-    view.rotation = 90;    
-    view.offset = {45,5};
-    //view.center = {((typename spoint16::value_type)(tsz.height/2)),0};
+    view.rotation(90);    
+    view.offset({45,5});
     // now draw
     srect16 sr = view.translate(tsz.bounds());
     sr = sr.clamp_top_left_to_at_least_zero();

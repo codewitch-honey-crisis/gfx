@@ -33,25 +33,44 @@ namespace gfx {
         using type = viewport;
         // the type of the pixel used for the bitmap
         using pixel_type = typename Destination::pixel_type;
-        using palette_type = typename Destination::palette_type;
+        //using palette_type = typename Destination::palette_type;
         using caps = gfx::gfx_caps< false,false,false,false,false,Destination::caps::read,false>;
-        spoint16 offset;
-        spoint16 center;
-        float rotation;
-
-        viewport(Destination& destination) : m_destination(destination),offset(0,0), center(0,0), rotation(0.0) {
+        spoint16 m_offset;
+        spoint16 m_center;
+        float m_rotation;
+        double m_ctheta;
+        double m_stheta;
+        viewport(Destination& destination) : m_destination(destination),m_offset(0,0), m_center(0,0), m_rotation(0.0) {
 
         }
         viewport(const type& rhs)=default;
         type& operator=(const type& rhs)=default;
         viewport(type&& rhs)=default;
-
+        constexpr float rotation() const {
+            return m_rotation;
+        }
+        constexpr void rotation(float value) {
+            m_rotation = value;
+            // PI is inconsistently declared!
+            double rads = m_rotation * (3.1415926535 / 180.0);
+            m_ctheta = cos(rads);
+            m_stheta = sin(rads);
+        }
+        constexpr spoint16 center() const {
+            return m_center;
+        }
+        constexpr void center(spoint16 value) {
+            m_center = value;
+        }
+        constexpr spoint16 offset() const {
+            return m_offset;
+        }
+        constexpr void offset(spoint16 value) {
+            m_offset = value;
+        }
         constexpr void translater(float& x,float& y) const {
-            double rads = rotation * (M_PI / 180.0);
-            double ctheta = cos(rads);
-            double stheta = sin(rads);
-            double rx = (ctheta * (x - (double)center.x) - stheta * (y - (double)center.y) + (double)center.x) + offset.x; 
-            double ry = (stheta * (x - (double)center.x) + ctheta * (y - (double)center.y) + (double)center.y) + offset.y;
+            double rx = (m_ctheta * (x - (double)m_center.x) - m_stheta * (y - (double)m_center.y) + (double)m_center.x) + m_offset.x; 
+            double ry = (m_stheta * (x - (double)m_center.x) + m_ctheta * (y - (double)m_center.y) + (double)m_center.y) + m_offset.y;
             x = (float)rx;
             y = (float)ry;
         }
@@ -89,7 +108,7 @@ namespace gfx {
             return m_destination.point(location,out_pixel);
         }
         gfx_result fill(const rect16& dst,pixel_type pixel) {
-            if((rotation==0 && center.x==0 && center.y==0) || (dst.x1==dst.x2&&dst.y1==dst.y2)) {
+            if((rotation==0 && m_center.x==0 && m_center.y==0) || (dst.x1==dst.x2&&dst.y1==dst.y2)) {
                 return m_destination.fill(dst,pixel);
             }
             spoint16 points[4];

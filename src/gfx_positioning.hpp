@@ -273,6 +273,21 @@ namespace gfx {
                 y2=pt1.y;
             }
         }
+        // automatically repositions the rectangle so that it is no less than (0,0)
+        constexpr inline rectx clamp_top_left_to_at_least_zero() {
+            rectx r = *this;
+            r.normalize_inplace();
+            if(r.x1<0) {
+                if(r.y1<0) {
+                    r.offset_inplace(-r.x1,-r.y1);
+                } else {
+                    r.offset_inplace(-r.x1,0);    
+                }
+            } else if(r.y1<0) {
+                r.offset_inplace(0,-r.y1);
+            }
+            return r;
+        }
         // indicates whether or not the rectangle is flipped along the horizontal or vertical axes.
         constexpr rect_orientation orientation() const {
             int result = (int)rect_orientation::normalized;

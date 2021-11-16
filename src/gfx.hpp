@@ -7,4 +7,5 @@
 #include "gfx_image.hpp"
 #include "gfx_drawing.hpp"
 #include "gfx_bitmap.hpp"
+#include "gfx_viewport.hpp"
 #endif // HTCW_GFX

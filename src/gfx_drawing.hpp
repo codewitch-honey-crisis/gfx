@@ -2776,24 +2776,24 @@ namespace gfx {
         }
         // draws an image from the specified stream to the specified destination rectangle with the an optional clipping rectangle
         template<typename Destination>
-        static inline gfx_result image(Destination& destination, const srect16& destination_rect, stream* source_stream, const rect16& source_rect,bitmap_resize resize_type=bitmap_resize::crop, srect16* clip=nullptr) {
+        static inline gfx_result image(Destination& destination, const srect16& destination_rect, stream* source_stream, const rect16& source_rect={0,0,65535,65535},bitmap_resize resize_type=bitmap_resize::crop, srect16* clip=nullptr) {
             return image_impl(destination,destination_rect,source_stream,source_rect,resize_type,clip,false);
         }
         // asynchronously draws an image from the specified stream to the specified destination rectangle with the an optional clipping rectangle
         template<typename Destination>
-        static inline gfx_result image_async(Destination& destination, const srect16& destination_rect, stream* source_stream, const rect16& source_rect,bitmap_resize resize_type=bitmap_resize::crop, srect16* clip=nullptr) {
+        static inline gfx_result image_async(Destination& destination, const srect16& destination_rect, stream* source_stream, const rect16& source_rect={0,0,65535,65535},bitmap_resize resize_type=bitmap_resize::crop, srect16* clip=nullptr) {
             return image_impl(destination,destination_rect,source_stream,source_rect,resize_type,clip,true);
         }
 #ifdef ARDUINO
         // draws an image from the specified stream to the specified destination rectangle with the an optional clipping rectangle
         template<typename Destination>
-        static inline gfx_result image(Destination& destination, const srect16& destination_rect, Stream* source_stream, const rect16& source_rect,bitmap_resize resize_type=bitmap_resize::crop, srect16* clip=nullptr) {
+        static inline gfx_result image(Destination& destination, const srect16& destination_rect, Stream* source_stream, const rect16& source_rect={0,0,65535,65535},bitmap_resize resize_type=bitmap_resize::crop, srect16* clip=nullptr) {
             arduino_stream stm(source_stream);
             return image_impl(destination,destination_rect,&stm,source_rect,resize_type,clip,false);
         }
         // asynchronously draws an image from the specified stream to the specified destination rectangle with the an optional clipping rectangle
         template<typename Destination>
-        static inline gfx_result image_async(Destination& destination, const srect16& destination_rect, Stream* source_stream, const rect16& source_rect,bitmap_resize resize_type=bitmap_resize::crop, srect16* clip=nullptr) {
+        static inline gfx_result image_async(Destination& destination, const srect16& destination_rect, Stream* source_stream,const rect16& source_rect={0,0,65535,65535},bitmap_resize resize_type=bitmap_resize::crop, srect16* clip=nullptr) {
             arduino_stream stm(source_stream);
             return image_impl(destination,destination_rect,&stm,source_rect,resize_type,clip,true);
         }

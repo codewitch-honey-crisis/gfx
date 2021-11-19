@@ -41,7 +41,7 @@ namespace gfx {
                 static const PixelType dark_red;
                 static const PixelType dark_salmon;
                 static const PixelType dark_sea_green;
-                static const PixelType dark_slate_blue;
+                static const PixelType dark_steel_blue;
                 static const PixelType dark_slate_gray;
                 static const PixelType dark_turquoise;
                 static const PixelType dark_violet;
@@ -93,7 +93,7 @@ namespace gfx {
                 static const PixelType medium_orchid;
                 static const PixelType medium_purple;
                 static const PixelType medium_sea_green;
-                static const PixelType medium_slate_blue;
+                static const PixelType medium_steel_blue;
                 static const PixelType medium_spring_green;
                 static const PixelType medium_turquoise;
                 static const PixelType medium_violet_red;
@@ -182,7 +182,7 @@ namespace gfx {
         template<typename PixelType> const PixelType color<PixelType>::dark_red = convert<source_type,PixelType>(color<PixelType>::source_type(true,0.545098039215686,0,0));
         template<typename PixelType> const PixelType color<PixelType>::dark_salmon = convert<source_type,PixelType>(color<PixelType>::source_type(true,0.913725490196078,0.588235294117647,0.47843137254902));
         template<typename PixelType> const PixelType color<PixelType>::dark_sea_green = convert<source_type,PixelType>(color<PixelType>::source_type(true,0.56078431372549,0.737254901960784,0.545098039215686));
-        template<typename PixelType> const PixelType color<PixelType>::dark_slate_blue = convert<source_type,PixelType>(color<PixelType>::source_type(true,0.282352941176471,0.23921568627451,0.545098039215686));
+        template<typename PixelType> const PixelType color<PixelType>::dark_steel_blue = convert<source_type,PixelType>(color<PixelType>::source_type(true,0.282352941176471,0.23921568627451,0.545098039215686));
         template<typename PixelType> const PixelType color<PixelType>::dark_slate_gray = convert<source_type,PixelType>(color<PixelType>::source_type(true,0.184313725490196,0.309803921568627,0.309803921568627));
         template<typename PixelType> const PixelType color<PixelType>::dark_turquoise = convert<source_type,PixelType>(color<PixelType>::source_type(true,0,0.807843137254902,0.819607843137255));
         template<typename PixelType> const PixelType color<PixelType>::dark_violet = convert<source_type,PixelType>(color<PixelType>::source_type(true,0.580392156862745,0,0.827450980392157));
@@ -234,7 +234,7 @@ namespace gfx {
         template<typename PixelType> const PixelType color<PixelType>::medium_orchid = convert<source_type,PixelType>(color<PixelType>::source_type(true,0.729411764705882,0.333333333333333,0.827450980392157));
         template<typename PixelType> const PixelType color<PixelType>::medium_purple = convert<source_type,PixelType>(color<PixelType>::source_type(true,0.576470588235294,0.43921568627451,0.858823529411765));
         template<typename PixelType> const PixelType color<PixelType>::medium_sea_green = convert<source_type,PixelType>(color<PixelType>::source_type(true,0.235294117647059,0.701960784313725,0.443137254901961));
-        template<typename PixelType> const PixelType color<PixelType>::medium_slate_blue = convert<source_type,PixelType>(color<PixelType>::source_type(true,0.482352941176471,0.407843137254902,0.933333333333333));
+        template<typename PixelType> const PixelType color<PixelType>::medium_steel_blue = convert<source_type,PixelType>(color<PixelType>::source_type(true,0.482352941176471,0.407843137254902,0.933333333333333));
         template<typename PixelType> const PixelType color<PixelType>::medium_spring_green = convert<source_type,PixelType>(color<PixelType>::source_type(true,0,0.980392156862745,0.603921568627451));
         template<typename PixelType> const PixelType color<PixelType>::medium_turquoise = convert<source_type,PixelType>(color<PixelType>::source_type(true,0.282352941176471,0.819607843137255,0.8));
         template<typename PixelType> const PixelType color<PixelType>::medium_violet_red = convert<source_type,PixelType>(color<PixelType>::source_type(true,0.780392156862745,0.0823529411764706,0.52156862745098));

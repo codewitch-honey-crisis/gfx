@@ -302,7 +302,7 @@ namespace gfx {
             const size_t chi = chindex::value;
             if(pixel_type::template has_channel_names<channel_name::A>::value && pach::max!=pixel.template channel_unchecked<chi>()) {
                 pixel_type bgpx;
-                rect16 rc = dst.normalize();
+                rect16 rc = dst.normalize().crop(bounds());
                 point16 pt;
                 for(pt.y=rc.y1;pt.y<=rc.y2;++pt.y) {
                     for(pt.x=rc.x1;pt.x<=rc.x2;++pt.x) {

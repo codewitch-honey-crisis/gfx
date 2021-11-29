@@ -39,9 +39,9 @@ int main(int argc, char** argv) {
     bmp_type bmp((size16)tsz,malloc(bmp_type::sizeof_buffer((size16)tsz)));
     // draw stuff
     bmp.clear(bmp.bounds()); // comment this out and check out the uninitialized RAM. It looks neat.
-    view<bmp_type> view(bmp);
-    view.rotation = 90;    
-    view.offset = {45,5};
+    viewport<bmp_type> view(bmp);
+    view.rotation(90);    
+    view.offset({45,5});
     //view.center = {((typename spoint16::value_type)(tsz.height/2)),0};
     // now draw
     srect16 sr = view.translate(tsz.bounds());

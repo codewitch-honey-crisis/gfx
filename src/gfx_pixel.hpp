@@ -518,7 +518,7 @@ namespace gfx {
         }
         // retrieves the floating point channel value by index
         template<size_t Index>
-        constexpr inline auto channelr() const {
+        constexpr inline typename channel_by_index_unchecked<Index>::real_type channelr() const {
             using ch = channel_by_index<Index>;
             return channel<Index>()*ch::scaler;
         }
@@ -530,9 +530,9 @@ namespace gfx {
         }
         // retrieves the floating point channel value by index
         template<size_t Index>
-        constexpr inline auto channelr_unchecked() const {
+        constexpr inline typename channel_by_index_unchecked<Index>::real_type channelr_unchecked() const {
             using ch = channel_by_index_unchecked<Index>;
-            return channel_unchecked<Index>()*ch::scaler;
+            return (typename ch::real_type)channel_unchecked<Index>()*ch::scaler;
         }
         // sets the floating point channel value by index
         template<size_t Index>
@@ -581,6 +581,23 @@ namespace gfx {
                 out_pixel->native_value = rhs.native_value;
                 return gfx_result::success;
             }
+            if(type::template has_channel_names<channel_name::A>::value) {
+                
+                constexpr const size_t ai = type::channel_index_by_name<channel_name::A>::value;
+
+                float a1 = this->template channelr_unchecked<ai>();
+                float a2 = rhs.template channelr_unchecked<ai>();
+               // Serial.printf("blend a1 = %f, a2 = %f\r\n",a1,a2);
+                
+                float r2 = a1/a2;
+                //Serial.printf("blend r2 = %f\r\n",r2);
+                ratio = ratio * r2;
+                if(ratio>1.0)
+                    ratio = 1.0;
+               // Serial.printf("blend ratio = %f\r\n",ratio);
+               
+            }
+            
             helpers::pixel_blend_impl<type,0,ChannelTraits...>::blend_val(*this,rhs,ratio,out_pixel);
             return gfx_result::success;
         }

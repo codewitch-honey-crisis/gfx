@@ -41,7 +41,7 @@ namespace gfx {
         constexpr static const PixelType dark_red = convert<source_type,PixelType>(source_type(true,0.545098039215686,0,0));
         constexpr static const PixelType dark_salmon = convert<source_type,PixelType>(source_type(true,0.913725490196078,0.588235294117647,0.47843137254902));
         constexpr static const PixelType dark_sea_green = convert<source_type,PixelType>(source_type(true,0.56078431372549,0.737254901960784,0.545098039215686));
-        constexpr static const PixelType dark_slate_blue = convert<source_type,PixelType>(source_type(true,0.282352941176471,0.23921568627451,0.545098039215686));
+        constexpr static const PixelType dark_steel_blue = convert<source_type,PixelType>(source_type(true,0.282352941176471,0.23921568627451,0.545098039215686));
         constexpr static const PixelType dark_slate_gray = convert<source_type,PixelType>(source_type(true,0.184313725490196,0.309803921568627,0.309803921568627));
         constexpr static const PixelType dark_turquoise = convert<source_type,PixelType>(source_type(true,0,0.807843137254902,0.819607843137255));
         constexpr static const PixelType dark_violet = convert<source_type,PixelType>(source_type(true,0.580392156862745,0,0.827450980392157));
@@ -93,7 +93,7 @@ namespace gfx {
         constexpr static const PixelType medium_orchid = convert<source_type,PixelType>(source_type(true,0.729411764705882,0.333333333333333,0.827450980392157));
         constexpr static const PixelType medium_purple = convert<source_type,PixelType>(source_type(true,0.576470588235294,0.43921568627451,0.858823529411765));
         constexpr static const PixelType medium_sea_green = convert<source_type,PixelType>(source_type(true,0.235294117647059,0.701960784313725,0.443137254901961));
-        constexpr static const PixelType medium_slate_blue = convert<source_type,PixelType>(source_type(true,0.482352941176471,0.407843137254902,0.933333333333333));
+        constexpr static const PixelType medium_steel_blue = convert<source_type,PixelType>(source_type(true,0.482352941176471,0.407843137254902,0.933333333333333));
         constexpr static const PixelType medium_spring_green = convert<source_type,PixelType>(source_type(true,0,0.980392156862745,0.603921568627451));
         constexpr static const PixelType medium_turquoise = convert<source_type,PixelType>(source_type(true,0.282352941176471,0.819607843137255,0.8));
         constexpr static const PixelType medium_violet_red = convert<source_type,PixelType>(source_type(true,0.780392156862745,0.0823529411764706,0.52156862745098));
@@ -131,7 +131,7 @@ namespace gfx {
         constexpr static const PixelType sienna = convert<source_type,PixelType>(source_type(true,0.627450980392157,0.32156862745098,0.176470588235294));
         constexpr static const PixelType silver = convert<source_type,PixelType>(source_type(true,0.752941176470588,0.752941176470588,0.752941176470588));
         constexpr static const PixelType sky_blue = convert<source_type,PixelType>(source_type(true,0.529411764705882,0.807843137254902,0.92156862745098));
-        constexpr static const PixelType slate_blue = convert<source_type,PixelType>(source_type(true,0.415686274509804,0.352941176470588,0.803921568627451));
+        constexpr static const PixelType steel_blue = convert<source_type,PixelType>(source_type(true,0.415686274509804,0.352941176470588,0.803921568627451));
         constexpr static const PixelType slate_gray = convert<source_type,PixelType>(source_type(true,0.43921568627451,0.501960784313725,0.564705882352941));
         constexpr static const PixelType snow = convert<source_type,PixelType>(source_type(true,1,0.980392156862745,0.980392156862745));
         constexpr static const PixelType spring_green = convert<source_type,PixelType>(source_type(true,0,1,0.498039215686275));

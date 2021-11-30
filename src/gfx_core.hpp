@@ -1,13 +1,31 @@
 #ifndef HTCW_GFX_CORE_HPP
 #define HTCW_GFX_CORE_HPP
 #include <stdint.h>
+#ifdef ARDUINO_ARCH_STM32
+    #define HTCW_LITTLE_ENDIAN
+    #ifndef GFX_ARDUINO_SD_FS
+        #define GFX_ARDUINO_NO_FS
+    #endif
+#endif
+#ifdef GFX_BIG_ENDIAN
+    #define HTCW_BIG_ENDIAN
+#endif
+#ifdef GFX_LITTLE_ENDIAN
+    #define HTCW_LITTLE_ENDIAN
+#endif
+#ifdef GFX_ARDUINO_SD_FS
+    #define IO_ARDUINO_SD_FS
+#endif
+#ifdef GFX_ARDUINO_NO_FS
+    #define IO_ARDUINO_NO_FS
+#endif
 #include "bits.hpp"
 #include "stream.hpp"
 #ifndef ARDUINO
     #define PROGMEM 
 #endif
 namespace gfx {
-    static_assert(bits::endianness()!=bits::endian_mode::none,"Please define HTCW_LITTLE_ENDIAN or HTCW_BIG_ENDIAN before including GFX to indicate the byte order of the platform.");
+    static_assert(bits::endianness()!=bits::endian_mode::none,"Please define GFX_LITTLE_ENDIAN or GFX_BIG_ENDIAN before including GFX to indicate the byte order of the platform.");
     using stream = io::stream;
     using seek_origin = io::seek_origin;
     using stream_caps = io::stream_caps;
@@ -16,8 +34,9 @@ namespace gfx {
 #endif
     using buffer_stream = io::buffer_stream;
     using const_buffer_stream = io::const_buffer_stream;
+#ifndef GFX_ARDUINO_NO_FS
     using file_stream = io::file_stream;
-    
+#endif
     template<bool Blt,bool Async,bool Batch,bool CopyFrom,bool Suspend,bool Read,bool CopyTo>
     struct gfx_caps {
         constexpr const static bool blt = Blt;

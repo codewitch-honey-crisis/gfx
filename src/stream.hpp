@@ -3,17 +3,23 @@
 #include <bits.hpp>
 #ifdef ARDUINO
 #include <Arduino.h>
-#include <FS.h>
+#ifndef IO_ARDUINO_NO_FS
+    #ifdef IO_ARDUINO_SD_FS
+        #include <SD.h>
+    #else
+        #include <FS.h>
+    #endif
+#endif
 // TODO: Fix this ifdef so the AVR is the one that is special cased:
 #ifdef ESP32
-#include <pgmspace.h>
+    #include <pgmspace.h>
 #else
-#include <avr/pgmspace.h>
+    #include <avr/pgmspace.h>
 #endif
 #else
-#include <stdio.h>
-#include <string.h>
-#include <inttypes.h>
+    #include <stdio.h>
+    #include <string.h>
+    #include <inttypes.h>
 #endif
 namespace io {
     struct stream_caps {
@@ -312,7 +318,7 @@ namespace io {
         }
     };
 #endif
-
+#ifndef IO_ARDUINO_NO_FS
     class file_stream final : public stream {
 #ifdef ARDUINO
         File& m_file;
@@ -508,6 +514,7 @@ namespace io {
             return m_caps;
         }
     };
+#endif
     class stream_reader_base {
     protected:
         stream* m_stream;

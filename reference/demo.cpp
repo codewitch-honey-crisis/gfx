@@ -48,7 +48,7 @@ int main(int argc, char** argv) {
     using bmp_type = bitmap<rgb_pixel<bit_depth>>;
     using color = color<typename bmp_type::pixel_type>;
 
-    static const size16 bmp_size(32,32);
+    constexpr static const size16 bmp_size(32,32);
     
     // declare the bitmap
     uint8_t bmp_buf[bmp_type::sizeof_buffer(bmp_size)];
@@ -89,7 +89,7 @@ int main(int argc, char** argv) {
     // but doing so can cause garbage if the regions
     // overlap. This way is safer but takes more RAM
     using bmp2_type = bitmap<typename bmp_type::pixel_type>;
-    static const size16 bmp2_size(128,64);
+    constexpr static const size16 bmp2_size(128,64);
     uint8_t buf2[bmp2_type::sizeof_buffer(bmp2_size)];
     bmp2_type bmp2(bmp2_size,buf2);
 

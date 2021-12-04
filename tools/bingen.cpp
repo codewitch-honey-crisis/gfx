@@ -3,8 +3,8 @@
 #define HTCW_LITTLE_ENDIAN
 #include <stdio.h>
 #include <string.h>
-#include "../src/gfx_font.hpp"
-#include "../src/gfx_open_font.hpp"
+#include <gfx_font.hpp>
+#include <gfx_open_font.hpp>
 using namespace gfx;
 #ifdef WINDOWS
 #define PATH_CHAR '\\'

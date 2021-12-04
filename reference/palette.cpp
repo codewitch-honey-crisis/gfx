@@ -11,9 +11,9 @@ int main(int argc, char** argv) {
     printf("done\r\n");
     ega_palette<rgb_pixel<16>> ega_pal;
     typename palette_type::pixel_type plan[64];
-    helpers::dither_prepare(&ega_pal);
-    helpers::dither_mixing_plan(&ega_pal,color<rgb_pixel<16>>::beige,plan);
-    helpers::dither_unprepare();    
+    helpers::dither_color::prepare(&ega_pal);
+    helpers::dither_color::mixing_plan(&ega_pal,color<rgb_pixel<16>>::beige,plan);
+    helpers::dither_color::unprepare();    
     for(int y=0;y<8;++y) {
         for(int x=0;x<8;++x) {
             printf("%X ",plan[y*8+x].channel<0>());

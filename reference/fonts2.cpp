@@ -1,4 +1,3 @@
-#define HTCW_LITTLE_ENDIAN
 #include <gfx_cpp14.hpp>
 //#include "../fonts/Shangar.h"
 //#include "../fonts/Maziro.h"

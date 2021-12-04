@@ -1,17 +1,13 @@
 #ifndef HTCW_GFX_CORE_HPP
 #define HTCW_GFX_CORE_HPP
+#include <string.h>
 #include <stdint.h>
 #ifdef ARDUINO_ARCH_STM32
-<<<<<<< HEAD:include/gfx_core.hpp
     #define GFX_LITTLE_ENDIAN
-=======
-    #define HTCW_LITTLE_ENDIAN
->>>>>>> 2a710978fc049e38b6e5282e8dbd38e131984be7:src/gfx_core.hpp
     #ifndef GFX_ARDUINO_SD_FS
         #define GFX_ARDUINO_NO_FS
     #endif
 #endif
-<<<<<<< HEAD:include/gfx_core.hpp
 #if !defined(GFX_BIG_ENDIAN) && !defined(GFX_LITTLE_ENDIAN)
     #ifdef ESP_PLATFORM
         #define GFX_LITTLE_ENDIAN
@@ -20,8 +16,6 @@
         #define GFX_LITTLE_ENDIAN
     #endif
 #endif
-=======
->>>>>>> 2a710978fc049e38b6e5282e8dbd38e131984be7:src/gfx_core.hpp
 #ifdef GFX_BIG_ENDIAN
     #define HTCW_BIG_ENDIAN
 #endif

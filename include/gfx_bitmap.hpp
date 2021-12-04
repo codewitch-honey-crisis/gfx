@@ -1,5 +1,6 @@
 #ifndef HTCW_GFX_BITMAP
 #define HTCW_GFX_BITMAP
+#include <string.h>
 #include "gfx_core.hpp"
 #include "gfx_pixel.hpp"
 #include "gfx_positioning.hpp"

@@ -1900,11 +1900,8 @@ namespace gfx {
             int off_x;
             int off_y;
             PixelType color;
-<<<<<<< HEAD:include/gfx_drawing.hpp
             PixelType backcolor;
             bool transparent_background;
-=======
->>>>>>> 2a710978fc049e38b6e5282e8dbd38e131984be7:src/gfx_drawing.hpp
             Destination* destination;
             const srect16* clip;
             bool async;
@@ -1915,7 +1912,6 @@ namespace gfx {
                 if(c!=0) {
                     point16 pt(uint16_t(x+pst->off_x),uint16_t(y+pst->off_y));
                     if(nullptr==pst->clip||pst->clip->intersects((spoint16)pt)) {
-<<<<<<< HEAD:include/gfx_drawing.hpp
                         if(pst->transparent_background) {
                             return (int)draw::point(*pst->destination,(spoint16)pt,pst->color);
                         } else {
@@ -1927,9 +1923,6 @@ namespace gfx {
                                 return (int)r;
                             }
                         }
-=======
-                        return (int)draw::point(*pst->destination,(spoint16)pt,pst->color);
->>>>>>> 2a710978fc049e38b6e5282e8dbd38e131984be7:src/gfx_drawing.hpp
                     }
                 }
                 return 0;
@@ -1958,29 +1951,11 @@ namespace gfx {
                         if(gfx_result::success!=r) {
                             return (int)r;
                         }
-<<<<<<< HEAD:include/gfx_drawing.hpp
                     
                         r= convert_palette_from(*pst->destination,px,&bpx);
                         if(gfx_result::success!=r) {
                             return (int)r;
                         }
-=======
-                        PixelType bppx;
-                        r=convert_palette_to(*pst->destination,bpx,&bppx);
-                        if(gfx_result::success!=r) {
-                            return (int)r;
-                        }
-                        PixelType px;
-                        r = pst->color.blend(bppx,d,&px);
-                        if(gfx_result::success!=r) {
-                            return (int)r;
-                        }
-                        //return (int)draw::point(*pst->destination,(spoint16)pt,px);
-                        r= convert_palette_from(*pst->destination,px,&bpx);
-                        if(gfx_result::success!=r) {
-                            return (int)r;
-                        }
->>>>>>> 2a710978fc049e38b6e5282e8dbd38e131984be7:src/gfx_drawing.hpp
                         return (int)pst->destination->point(pt,bpx);
                     }
                 }
@@ -1990,11 +1965,7 @@ namespace gfx {
         // this doesn't need to be a template struct but it is because we may add batching and such later
         template<typename Destination,typename PixelType>
         struct draw_open_font_helper {
-<<<<<<< HEAD:include/gfx_drawing.hpp
             static gfx_result do_draw(Destination& destination,const open_font& font,float scale,float shift_x,float shift_y, int glyph,const srect16& chr,PixelType color, PixelType backcolor, bool transparent_background, const srect16* clip,bool async) {
-=======
-            static gfx_result do_draw(Destination& destination,const open_font& font,float scale,float shift_x,float shift_y, int glyph,const srect16& chr,PixelType color,const srect16* clip,bool async) {
->>>>>>> 2a710978fc049e38b6e5282e8dbd38e131984be7:src/gfx_drawing.hpp
                 gfx_result r = gfx_result::success;
                 // suspend if we can
                 helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination,async);
@@ -2580,11 +2551,7 @@ namespace gfx {
                 chr.offset_inplace(dest_rect.left(),dest_rect.top());
                 if(nullptr==clip || clip->intersects(chr)) {
                     
-<<<<<<< HEAD:include/gfx_drawing.hpp
                     r=draw_open_font_helper<Destination,PixelType>::do_draw(destination,font,scale,xpos-floor(xpos),ypos-floor(ypos),gi,chr,color,backcolor,transparent_background, clip,async);
-=======
-                    r=draw_open_font_helper<Destination,PixelType>::do_draw(destination,font,scale,xpos-floor(xpos),ypos-floor(ypos),gi,chr,color,clip,async);
->>>>>>> 2a710978fc049e38b6e5282e8dbd38e131984be7:src/gfx_drawing.hpp
                     if(gfx_result::success!=r) {
                         return r;
                     }

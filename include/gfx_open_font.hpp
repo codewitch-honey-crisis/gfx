@@ -4,6 +4,7 @@
 #include "gfx_positioning.hpp"
 namespace gfx {
     struct draw;
+    
     class open_font final {
         friend class draw;
         void*(*m_allocator)(size_t);
@@ -15,7 +16,10 @@ namespace gfx {
         void font_vmetrics(int* ascent, int* descent, int* line_gap) const;
         void glyph_hmetrics(int glyph_index, int* advance_width, int* left_side_bearing) const;
         void glyph_bitmap_bounding_box(int glyph_index,float scale_x,float scale_y,float shift_x,float shift_y,int* x1, int* y1, int* x2, int* y2) const;
-        int glyph_index(const char* sz) const;
+        int glyph_index(const char* sz, size_t* out_advance, gfx_encoding encoding = gfx_encoding::utf8) const;
+        static int latin1_to_utf8(unsigned char* out, size_t outlen, const unsigned char* in, size_t inlen);
+        static int utf8_to_utf16(uint16_t* out, size_t outlen, const unsigned char* in, size_t inlen);
+        static int to_utf32_codepoint(const char* in,size_t in_length, int* codepoint, gfx_encoding encoding=gfx_encoding::utf8);
         open_font(const open_font& rhs)=delete;
         open_font& operator=(const open_font& rhs)=delete;
     public:
@@ -47,7 +51,6 @@ namespace gfx {
         // opens a font stream. Note that the stream must remain open as long as the font is being used. The stream must be readable and seekable. This class does not close the stream
         // This always chooses the first font out of a font collection.
         static gfx_result open(stream* stream, open_font* out_result, void*(*allocatpr)(size_t)=::malloc, void(*deallocator)(void*)=::free);
-
     };
 }
 #endif

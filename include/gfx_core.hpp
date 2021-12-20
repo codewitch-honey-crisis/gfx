@@ -69,7 +69,10 @@ namespace gfx {
         invalid_state,
         unknown_error
     };
-    
+    enum struct gfx_encoding {
+        utf8 = 0,
+        latin1 = 1
+    };
     namespace helpers {
         template<typename T, typename U>
         struct is_same  {

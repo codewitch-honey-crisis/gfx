@@ -23,19 +23,19 @@ namespace gfx {
                 
                 double alpha = pixel.template channelr<channel_name::A>();
                 if(0.0==alpha) return gfx_result::success;
-                if(1.0==alpha) return blender<Destination,Source,false>::point(destination,source,pt,pixel);
+                if(1.0==alpha) return blender<Destination,Source,false>::point(destination,pt,source,spt,pixel);
                 typename Source::pixel_type spx;
                 gfx_result r=source.point(spt,&spx);
                 if(gfx_result::success!=r) {
                     return r;
                 }
                 rgb_pixel<HTCW_MAX_WORD> bg;
-                r=convert_palette_from(source,spx,&bg);
+                r=convert_palette_to(source,spx,&bg);
                 if(gfx_result::success!=r) {
                     return r;
                 }
                 rgb_pixel<HTCW_MAX_WORD> fg;
-                r=convert_palette_from(source,pixel,fg);
+                r=convert_palette_to(source,pixel,&fg);
                 if(gfx_result::success!=r) {
                     return r;
                 }
@@ -44,7 +44,7 @@ namespace gfx {
                     return r;
                 }
                 typename Destination::pixel_type px;
-                r=convert_palette_to(fg,&px);
+                r=convert_palette_from(destination,fg,&px);
                 if(gfx_result::success!=r) {
                     return r;
                 }

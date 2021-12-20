@@ -1,5 +1,6 @@
 #ifndef HTCW_GFX_DRAWING_HPP
 #define HTCW_GFX_DRAWING_HPP
+#include <cmath>
 #include <math.h>
 #include "gfx_core.hpp"
 #include "gfx_pixel.hpp"
@@ -1915,13 +1916,9 @@ namespace gfx {
                         if(pst->transparent_background) {
                             return (int)draw::point(*pst->destination,(spoint16)pt,pst->color);
                         } else {
-                            PixelType px;
-                            double d = c/255.0;
-                            gfx_result r=pst->color.blend(pst->backcolor,d,&px);
+                            auto px = pst->color;
+                            px.blend(pst->backcolor,(c/255.0),&px);
                             return (int)draw::point(*pst->destination,(spoint16)pt,px);
-                            if(gfx_result::success!=r) {
-                                return (int)r;
-                            }
                         }
                     }
                 }
@@ -1935,23 +1932,23 @@ namespace gfx {
                 if(d>0.0) {
                     point16 pt = {uint16_t(x+pst->off_x),uint16_t(y+pst->off_y)};
                     if(nullptr==pst->clip||pst->clip->intersects((spoint16)pt)) {
-                        gfx_result r;
-                        PixelType px;
+                    
                         typename Destination::pixel_type bpx;
-                        PixelType bppx;
-                        r=pst->destination->point(pt,&bpx);
+                        gfx_result r=pst->destination->point(pt,&bpx);
                         if(gfx_result::success!=r) {
                             return (int)r;
                         }
+                        PixelType bppx;
                         r=convert_palette_to(*pst->destination,bpx,&bppx);
                         if(gfx_result::success!=r) {
                             return (int)r;
                         }
+                        PixelType px;
                         r = pst->color.blend(bppx,d,&px);
                         if(gfx_result::success!=r) {
                             return (int)r;
                         }
-                    
+                        //return (int)draw::point(*pst->destination,(spoint16)pt,px);
                         r= convert_palette_from(*pst->destination,px,&bpx);
                         if(gfx_result::success!=r) {
                             return (int)r;
@@ -1970,7 +1967,8 @@ namespace gfx {
                 // suspend if we can
                 helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination,async);
                 
-                int(*render_cb)(int x,int y,int c,void* state) = draw_open_font_helper_impl<Destination,PixelType,Destination::pixel_type::bit_depth!=1&&Destination::caps::read>::render_callback;
+                int(*render_cb)(int x,int y,int c,void* state) = (transparent_background)?draw_open_font_helper_impl<Destination,PixelType,Destination::pixel_type::bit_depth!=1&&Destination::caps::read>::render_callback:
+                    draw_open_font_helper_impl<Destination,PixelType,false>::render_callback;
             
                 open_font_render_state<Destination,PixelType> state;
                 state.off_x = chr.left();
@@ -2484,6 +2482,7 @@ namespace gfx {
             PixelType backcolor,
             bool transparent_background,
             float scaled_tab_width,
+            gfx_encoding encoding,
             srect16* clip,
             bool async) {
             if(nullptr==text) return gfx_result::invalid_argument;
@@ -2509,7 +2508,8 @@ namespace gfx {
            
             height = baseline;
             int advw;
-            int gi= font.glyph_index(sz);
+            size_t advsz;
+            int gi= font.glyph_index(sz,&advsz,encoding);
             float xpos=offset.x,ypos=baseline+offset.y;
             float x_extent=0,y_extent=0;
             bool adv_line = false;
@@ -2541,12 +2541,13 @@ namespace gfx {
                         xpos = 0;
                         ypos+=lgap*scale;
                     }
-                    ++sz;
-                    gi=font.glyph_index(sz);
+                    sz+=advsz;
+                    gi=font.glyph_index(sz,&advsz,encoding);
                     continue;
                 }
                 font.glyph_hmetrics(gi,&advw,nullptr);
                 font.glyph_bitmap_bounding_box(gi,scale,scale,xpos-floor(xpos),ypos-floor(ypos),&x1,&y1,&x2,&y2);
+
                 srect16 chr(x1+xpos,y1+ypos,x2+xpos,y2+ypos);
                 chr.offset_inplace(dest_rect.left(),dest_rect.top());
                 if(nullptr==clip || clip->intersects(chr)) {
@@ -2573,9 +2574,9 @@ namespace gfx {
                     y_extent=ypos+height;
                 }
                 xpos+=(advw*scale);    
-                if(*(sz+1)) {
-                    int gi2=font.glyph_index(sz+1);
-                    xpos+=font.kern_advance_width(gi,gi2)*scale;
+                if(*(sz+advsz)) {
+                    int gi2=font.glyph_index(sz+advsz,&advsz,encoding);
+                    xpos+=(font.kern_advance_width(gi,gi2)*scale);
                     gi=gi2;
                 }
                 if(adv_line) {
@@ -2760,8 +2761,9 @@ namespace gfx {
             PixelType backcolor=convert<::gfx::rgb_pixel<3>,PixelType>(::gfx::rgb_pixel<3>(0,0,0)),
             bool transparent_background = true,
             float scaled_tab_width=0,
+            gfx_encoding encoding=gfx_encoding::utf8,
             srect16* clip=nullptr) {
-            return text_impl(destination,dest_rect,offset,text,font,scale,color,backcolor,transparent_background,scaled_tab_width,clip,false);
+            return text_impl(destination,dest_rect,offset,text,font,scale,color,backcolor,transparent_background,scaled_tab_width,encoding,clip,false);
         }
         // asynchronously draws text to the specified destination rectangle with the specified font and colors and optional clipping rectangle
         template<typename Destination,typename PixelType>

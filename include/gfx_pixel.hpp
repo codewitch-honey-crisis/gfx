@@ -402,7 +402,7 @@ namespace gfx {
         template<typename PixelType,int Index>
         constexpr inline typename PixelType::template channel_by_index_unchecked<Index>::int_type get_channel_direct_unchecked(const typename PixelType::int_type& pixel_value) {
             using ch = typename PixelType::template channel_by_index_unchecked<Index>;
-            if(0>Index || Index>=PixelType::channels) return 0;
+            if(0>Index || Index>=(int)PixelType::channels) return 0;
             const typename PixelType::int_type p = pixel_value>>ch::total_bits_to_right;
             const typename ch::int_type result = typename ch::int_type(typename PixelType::int_type(p & typename PixelType::int_type(ch::value_mask)));
             return result;
@@ -413,7 +413,7 @@ namespace gfx {
         constexpr inline void 
         
         set_channel_direct_unchecked(typename PixelType::int_type& pixel_value,typename PixelType::template channel_by_index_unchecked<Index>::int_type value) {
-            if(0>Index || Index>=PixelType::channels) return;
+            if(0>Index || Index>=(int)PixelType::channels) return;
             using ch = typename PixelType::template channel_by_index_unchecked<Index>;
             const typename PixelType::int_type shval = typename PixelType::int_type(typename PixelType::int_type(helpers::clamp(value,ch::min,ch::max))<<ch::total_bits_to_right);
             pixel_value=typename PixelType::int_type((pixel_value&typename ch::pixel_type::int_type(~ch::channel_mask))|shval);

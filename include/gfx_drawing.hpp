@@ -203,7 +203,7 @@ namespace gfx {
             r = (convert_palette_to(source,px33,&cpx33)); if(gfx_result::success!=r) return r;
             
             // Clamp the values since the curve can put the value below 0 or above 1
-            const size_t chiR = rgba_type::channel_index_by_name<channel_name::R>::value;
+            const int chiR = rgba_type::channel_index_by_name<channel_name::R>::value;
             d0 = cubic_hermite(cpx00.template channelr_unchecked<chiR>(),
                             cpx10.template channelr_unchecked<chiR>(),
                             cpx20.template channelr_unchecked<chiR>(),
@@ -249,7 +249,7 @@ namespace gfx {
                             xfract);
             rpx.channelr<channel_name::G>(helpers::clamp(cubic_hermite(d0,d1,d2,d3,yfract),0.0,1.0));
             
-            const size_t chiB = rgba_type::channel_index_by_name<channel_name::B>::value;
+            const int chiB = rgba_type::channel_index_by_name<channel_name::B>::value;
             d0 = cubic_hermite(cpx00.template channelr_unchecked<chiB>(),
                             cpx10.template channelr_unchecked<chiB>(),
                             cpx20.template channelr_unchecked<chiB>(),
@@ -272,7 +272,7 @@ namespace gfx {
                             xfract);
             rpx.channelr<channel_name::B>(helpers::clamp(cubic_hermite(d0,d1,d2,d3,yfract),0.0,1.0));
             
-            const size_t chiA = rgba_type::channel_index_by_name<channel_name::A>::value;
+            const int chiA = rgba_type::channel_index_by_name<channel_name::A>::value;
             if(-1<chiA) {
                 const size_t chiA = rgba_type::channel_index_by_name<channel_name::A>::value;
                 d0 = cubic_hermite(cpx00.template channelr_unchecked<chiA>(),

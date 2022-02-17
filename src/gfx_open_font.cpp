@@ -4765,10 +4765,16 @@ namespace gfx {
     void open_font::bounding_box(int* x1, int* y1, int* x2, int* y2) const {
        return stbtt::stbtt_GetFontBoundingBox((const stbtt::stbtt_fontinfo*)m_info_data,x1,y1,x2,y2);
     }
-    int open_font::glyph_index(const char* sz) const {
-       // TODO: support unicode here
-       int codepoint = *sz;
-       return stbtt::stbtt_FindGlyphIndex((const stbtt::stbtt_fontinfo*)m_info_data,codepoint);
+    int open_font::glyph_index(const char* sz, size_t* out_advance, gfx_encoding encoding) const {
+       int cp;
+       int c = to_utf32_codepoint(sz,4,&cp,encoding);
+       if(c<0) {
+          if(out_advance) *out_advance = 0;
+         return -1;
+       }
+       if(out_advance) *out_advance = c;
+       int result = stbtt::stbtt_FindGlyphIndex((const stbtt::stbtt_fontinfo*)m_info_data,cp);
+       return result;
     }
     void open_font::free() {
        if(m_deallocator != nullptr) {
@@ -4942,5 +4948,105 @@ namespace gfx {
          }    
          return gfx_result::success;
     }
-    
+    // from libxml http://xmlsoft.org/
+   int open_font::latin1_to_utf8(unsigned char* out, size_t outlen, const unsigned char* in, size_t inlen)
+   {
+      unsigned char* outstart= out;
+      unsigned char* outend= out+outlen;
+      const unsigned char* inend= in+inlen;
+      unsigned char c;
+
+      while (in < inend) {
+         c= *in++;
+         if (c < 0x80) {
+               if (out >= outend)  return -1;
+               *out++ = c;
+               return 1;
+         }
+         else {
+               if (out >= outend)  return -1;
+               *out++ = 0xC0 | (c >> 6);
+               if (out >= outend)  return -1;
+               *out++ = 0x80 | (0x3F & c);
+               return 2;
+         }
+      }
+      return out-outstart;
+   }
+   // from libxml http://xmlsoft.org/
+   int open_font::utf8_to_utf16(uint16_t* out, size_t outlen, const unsigned char* in, size_t inlen)
+   {
+      uint16_t* outstart= out;
+      uint16_t* outend= out+outlen;
+      const unsigned char* inend= in+inlen;
+      unsigned int c, d, trailing;
+
+      while (in < inend) {
+         d= *in++;
+         if      (d < 0x80)  { c= d; trailing= 0; }
+         else if (d < 0xC0)  return -2;    /* trailing byte in leading position */
+         else if (d < 0xE0)  { c= d & 0x1F; trailing= 1; }
+         else if (d < 0xF0)  { c= d & 0x0F; trailing= 2; }
+         else if (d < 0xF8)  { c= d & 0x07; trailing= 3; }
+         else return -2;    /* no chance for this in UTF-16 */
+
+         for ( ; trailing; trailing--) {
+            if ((in >= inend) || (((d= *in++) & 0xC0) != 0x80))  return -1;
+            c <<= 6;
+            c |= d & 0x3F;
+         }
+
+         /* assertion: c is a single UTF-4 value */
+         if (c < 0x10000) {
+               if (out >= outend)  return -1;
+               *out++ = c;
+               return 1;
+         }
+         else if (c < 0x110000) {
+               if (out+1 >= outend)  return -1;
+               c -= 0x10000;
+               *out++ = 0xD800 | (c >> 10);
+               *out++ = 0xDC00 | (c & 0x03FF);
+               return 2;
+         }
+         else  return -1;
+      }
+      return out-outstart;
+   }
+   int open_font::to_utf32_codepoint(const char* in,size_t in_length, int* codepoint, gfx_encoding encoding) {
+      int c;
+      uint16_t out_tmp[4];
+      switch(encoding) {
+         case gfx_encoding::utf8: {
+            c = utf8_to_utf16(out_tmp,4,(const unsigned char*)in,in_length);
+         }
+         break;
+         case gfx_encoding::latin1: {
+            unsigned char out_tmp1[4];
+            c = latin1_to_utf8(out_tmp1,4,(const unsigned char*)in,in_length);
+            if(c<0) {
+               *codepoint = 0;
+               return c;
+            }
+            c=utf8_to_utf16(out_tmp,4,out_tmp1,4);
+         }
+         break;
+         default:
+            c=0;
+            break;
+      }
+      switch(c) {
+         case 1:
+            *codepoint = out_tmp[0];
+            break;
+         case 2:
+            *codepoint = (out_tmp[0] << 10) + out_tmp[1] - 0x35fdc00;
+            break;
+         default:
+            *codepoint = 0;
+            break;
+      }
+      return c;
+   }
+
 }

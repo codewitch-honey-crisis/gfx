@@ -8,6 +8,10 @@
         #define GFX_ARDUINO_NO_FS
     #endif
 #endif
+#if defined(ARDUINO_ARCH_SAMD) && defined(SEEED_GROVE_UI_WIRELESS)
+    #define GFX_LITTLE_ENDIAN
+    #define GFX_ARDUINO_NO_FS
+#endif
 #if !defined(GFX_BIG_ENDIAN) && !defined(GFX_LITTLE_ENDIAN)
     #ifdef ESP_PLATFORM
         #define GFX_LITTLE_ENDIAN
@@ -26,7 +30,7 @@
     #define IO_ARDUINO_SD_FS
 #endif
 #ifdef GFX_ARDUINO_NO_FS
-    #define IO_ARDUINO_NO_FS
+    #define IO_NO_FS
 #endif
 #include "bits.hpp"
 #include "io_stream.hpp"
@@ -69,7 +73,10 @@ namespace gfx {
         invalid_state,
         unknown_error
     };
-    
+    enum struct gfx_encoding {
+        utf8 = 0,
+        latin1 = 1
+    };
     namespace helpers {
         template<typename T, typename U>
         struct is_same  {

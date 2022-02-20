@@ -1870,7 +1870,7 @@ namespace gfx {
                 const bool dhas_alpha = tdhas_alpha::value;
                 if(has_alpha && !dhas_alpha) {
                     using tindexA = typename PixelType::template channel_index_by_name<channel_name::A>;
-                    const size_t chiA = tindexA::value;
+                    const int chiA = tindexA::value;
                     using tchA = typename PixelType::template channel_by_index_unchecked<chiA>;
                     auto alp = color.template channel_unchecked<chiA>();
                     const float ar = alp*tchA::scaler;

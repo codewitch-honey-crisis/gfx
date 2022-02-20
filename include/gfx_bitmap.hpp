@@ -10,26 +10,7 @@
 
 namespace gfx {
     namespace helpers {
-        template<typename Source, typename Destination,bool CanRead> struct BlendHelper {
-            static constexpr gfx_result DoBlend(const Source& src, typename Source::pixel_type spx,Destination& dst, point16 dstpnt,typename Destination::pixel_type* out_px) {
-                return convert_palette(dst,src,spx,out_px,nullptr);
-            }
-        };
-        template<typename Source, typename Destination> struct BlendHelper<Source,Destination,true> {
-            static constexpr gfx_result DoBlend(const Source& src, typename Source::pixel_type spx,Destination& dst, point16 dstpnt,typename Destination::pixel_type* out_px) {
-                gfx_result r=gfx_result::success;
-                typename Destination::pixel_type bgpx;
-                r=dst.point(point16(dstpnt),&bgpx);
-                if(gfx_result::success!=r) {
-                    return r;
-                }
-                r=convert_palette(dst,src,spx,out_px,&bgpx);
-                if(gfx_result::success!=r) {
-                    return r;
-                }
-                return gfx_result::success;
-            }
-        };
+        
         template<typename Source,typename Destination, bool AllowBlt=true>
         struct bmp_copy_to_helper {
             static inline gfx_result copy_to(const Source& src,const rect16& srcr,Destination& dst,const rect16& dstr) {
@@ -53,7 +34,7 @@ namespace gfx {
                             return r;
                         typename Destination::pixel_type dpx;
                         if(Source::pixel_type::template has_channel_names<channel_name::A>::value) {
-                            r=BlendHelper<Source,Destination,Destination::caps::read>::DoBlend(src,spx,dst,point16(dox+dx,doy+dy),&dpx);
+                            r=blend_helper<Source,Destination,Destination::caps::read>::do_blend(src,spx,dst,point16(dox+dx,doy+dy),&dpx);
                             if(gfx_result::success!=r) {
                                 return r;
                             }
@@ -149,6 +130,7 @@ namespace gfx {
         using pixel_type = PixelType;
         using palette_type = PaletteType;
         using caps = gfx::gfx_caps< true,false,false,false,false,true,true>;
+        
     private:
         gfx_result point_impl(point16 location,pixel_type rhs) {
             if(nullptr==begin()) {
@@ -614,7 +596,22 @@ namespace gfx {
         constexpr inline static size_t sizeof_buffer(uint16_t width,uint16_t height) {
             return sizeof_buffer(size16(width,height));
         }
-    };    
+    };
+    namespace helpers {
+        template<typename Source,bool HasPalette> struct bitmap_from_helper {
+            using type = bitmap<typename Source::pixel_type>;
+            static type create_from(const Source& source,size16 size,void* buffer)  {
+                return type(size,buffer);
+            }
+        };
+        template<typename Source> struct bitmap_from_helper<Source,true> {
+            using type = bitmap<typename Source::pixel_type, typename Source::palette_type>;
+            static type create_from(const Source& source,size16 size,void* buffer)  {
+                return type(size,buffer,source.palette());
+            }
+        };
+        
+    }    
 }
 
 #endif

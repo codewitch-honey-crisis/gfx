@@ -113,7 +113,7 @@ namespace gfx {
     
     // represents a channel's metadata
     template<typename PixelType,typename ChannelTraits,
-            size_t Index,
+            int Index,
             size_t BitsToLeft> 
     struct pixel_channel final {
         // the declaring pixel's type
@@ -165,39 +165,39 @@ namespace gfx {
         };
         template <> struct bit_depth<> { static const size_t value = 0; };
         
-        template<typename PixelType,size_t Index,size_t Count,size_t BitsToLeft,typename... ChannelTraits>
+        template<typename PixelType,int Index,int Count,size_t BitsToLeft,typename... ChannelTraits>
         struct channel_by_index_impl;        
-        template<typename PixelType,size_t Index,size_t Count, size_t BitsToLeft, typename ChannelTrait,typename... ChannelTraits>
+        template<typename PixelType,int Index,int Count, size_t BitsToLeft, typename ChannelTrait,typename... ChannelTraits>
         struct channel_by_index_impl<PixelType,Index,Count,BitsToLeft,ChannelTrait,ChannelTraits...> {
             using type = typename channel_by_index_impl<PixelType,Index-1,Count+1,BitsToLeft+ChannelTrait::bit_depth, ChannelTraits...>::type;
         };
-        template <typename PixelType,size_t Count,size_t BitsToLeft,typename ChannelTrait, typename ...ChannelTraits>
+        template <typename PixelType,int Count,size_t BitsToLeft,typename ChannelTrait, typename ...ChannelTraits>
         struct channel_by_index_impl<PixelType,0,Count,BitsToLeft,ChannelTrait,ChannelTraits...> {
             using type = pixel_channel<PixelType,ChannelTrait,Count,BitsToLeft>;
         };
-        template<typename PixelType,size_t Index,size_t Count,size_t BitsToLeft> 
+        template<typename PixelType,int Index,int Count,size_t BitsToLeft> 
         struct channel_by_index_impl<PixelType,Index,Count,BitsToLeft> {
             using type = void;
         };
 
-        template<typename PixelType,size_t Index,size_t Count,size_t BitsToLeft,typename... ChannelTraits>
+        template<typename PixelType,int Index,int Count,size_t BitsToLeft,typename... ChannelTraits>
         struct channel_by_index_unchecked_impl;        
-        template<typename PixelType,size_t Index,size_t Count, size_t BitsToLeft, typename ChannelTrait,typename... ChannelTraits>
+        template<typename PixelType,int Index,int Count, size_t BitsToLeft, typename ChannelTrait,typename... ChannelTraits>
         struct channel_by_index_unchecked_impl<PixelType,Index,Count,BitsToLeft,ChannelTrait,ChannelTraits...> {
             using type = typename channel_by_index_unchecked_impl<PixelType,Index-1,Count+1,BitsToLeft+ChannelTrait::bit_depth, ChannelTraits...>::type;
         };
-        template <typename PixelType,size_t Count,size_t BitsToLeft,typename ChannelTrait, typename ...ChannelTraits>
+        template <typename PixelType,int Count,size_t BitsToLeft,typename ChannelTrait, typename ...ChannelTraits>
         struct channel_by_index_unchecked_impl<PixelType,0,Count,BitsToLeft,ChannelTrait,ChannelTraits...> {
             using type = pixel_channel<PixelType,ChannelTrait,Count,BitsToLeft>;
         };
-        template<typename PixelType,size_t Index,size_t Count,size_t BitsToLeft> 
+        template<typename PixelType,int Index,int Count,size_t BitsToLeft> 
         struct channel_by_index_unchecked_impl<PixelType,Index,Count,BitsToLeft> {
             using type = pixel_channel<PixelType,channel_traits<channel_name::nop,0,0,0,0>,0,0>;
         };
 
-        template<typename PixelType,size_t Count,typename... ChannelTraits>
+        template<typename PixelType,int Count,typename... ChannelTraits>
         struct pixel_init_impl;        
-        template<typename PixelType,size_t Count, typename ChannelTrait,typename... ChannelTraits>
+        template<typename PixelType,int Count, typename ChannelTrait,typename... ChannelTraits>
         struct pixel_init_impl<PixelType,Count,ChannelTrait,ChannelTraits...> {
             using ch = typename PixelType::template channel_by_index<Count>;
             using next = pixel_init_impl<PixelType,Count+1, ChannelTraits...>;
@@ -222,7 +222,7 @@ namespace gfx {
             }
             
         };
-        template<typename PixelType,size_t Count>
+        template<typename PixelType,int Count>
         struct pixel_init_impl<PixelType,Count> {
             constexpr static inline void init(PixelType& pixel) {
             
@@ -232,9 +232,9 @@ namespace gfx {
             }
         };
 
-        template<typename PixelType,size_t Count,typename... ChannelTraits>
+        template<typename PixelType,int Count,typename... ChannelTraits>
         struct pixel_diff_impl;        
-        template<typename PixelType,size_t Count, typename ChannelTrait,typename... ChannelTraits>
+        template<typename PixelType,int Count, typename ChannelTrait,typename... ChannelTraits>
         struct pixel_diff_impl<PixelType,Count,ChannelTrait,ChannelTraits...> {
             using ch = typename PixelType::template channel_by_index<Count>;
             using next = pixel_diff_impl<PixelType,Count+1, ChannelTraits...>;
@@ -245,7 +245,7 @@ namespace gfx {
                 return d*d+next::diff_sum(lhs,rhs);
             }
         };
-        template<typename PixelType,size_t Count>
+        template<typename PixelType,int Count>
         struct pixel_diff_impl<PixelType,Count> {
             constexpr static inline double diff_sum(PixelType lhs,PixelType rhs) {
                 return 0.0;
@@ -253,9 +253,9 @@ namespace gfx {
             
         };
 
-        template<typename PixelType,size_t Count,typename... ChannelTraits>
+        template<typename PixelType,int Count,typename... ChannelTraits>
         struct pixel_blend_impl;        
-        template<typename PixelType,size_t Count, typename ChannelTrait,typename... ChannelTraits>
+        template<typename PixelType,int Count, typename ChannelTrait,typename... ChannelTraits>
         struct pixel_blend_impl<PixelType,Count,ChannelTrait,ChannelTraits...> {
             using ch = typename PixelType::template channel_by_index<Count>;
             using next = pixel_blend_impl<PixelType,Count+1, ChannelTraits...>;
@@ -268,22 +268,22 @@ namespace gfx {
                 next::blend_val(lhs,rhs,amount,out_pixel);
             }
         };
-        template<typename PixelType,size_t Count>
+        template<typename PixelType,int Count>
         struct pixel_blend_impl<PixelType,Count> {
             constexpr static inline void blend_val(PixelType lhs,PixelType rhs,double amount,PixelType* out_pixel) {
             }
             
         };
 
-        template<size_t Count,typename Name, typename ...ChannelTraits>
+        template<int Count,typename Name, typename ...ChannelTraits>
         struct channel_index_by_name_impl;
-        template<size_t Count,typename Name>
+        template<int Count,typename Name>
         struct channel_index_by_name_impl<Count,Name> {
-            static constexpr size_t value=-1;
+            static constexpr int value=-1;
         };
-        template<size_t Count,typename Name, typename ChannelTrait, typename ...ChannelTraits>
+        template<int Count,typename Name, typename ChannelTrait, typename ...ChannelTraits>
         struct channel_index_by_name_impl<Count,Name, ChannelTrait, ChannelTraits...> {
-            static constexpr size_t value = is_same<Name, typename ChannelTrait::name_type>::value ? Count : channel_index_by_name_impl<Count+1,Name, ChannelTraits...>::value;            
+            static constexpr int value = is_same<Name, typename ChannelTrait::name_type>::value ? Count : channel_index_by_name_impl<Count+1,Name, ChannelTraits...>::value;            
         };
 
         template <typename PixelType, typename... ChannelTraits>
@@ -325,12 +325,12 @@ namespace gfx {
         
         template <
             typename PixelType,
-            size_t Index,
+            int Index,
             typename... ChannelTraits>
         struct is_equal_pixel_impl;
         template <
             typename PixelType,
-            size_t Index>
+            int Index>
         struct is_equal_pixel_impl<PixelType, Index>
         {
             // this is what we return when there
@@ -338,7 +338,7 @@ namespace gfx {
             static constexpr bool value = true;
         };
         template <typename PixelType,
-                size_t Index,
+                int Index,
                 typename ChannelTrait,
                 typename... ChannelTraits>
         struct is_equal_pixel_impl<
@@ -399,21 +399,21 @@ namespace gfx {
             return rv;
         }
         // gets the native_value of a channel without doing compile time checking on the index
-        template<typename PixelType,size_t Index>
+        template<typename PixelType,int Index>
         constexpr inline typename PixelType::template channel_by_index_unchecked<Index>::int_type get_channel_direct_unchecked(const typename PixelType::int_type& pixel_value) {
             using ch = typename PixelType::template channel_by_index_unchecked<Index>;
-            if(0>Index || Index>=PixelType::channels) return 0;
+            if(0>Index || Index>=(int)PixelType::channels) return 0;
             const typename PixelType::int_type p = pixel_value>>ch::total_bits_to_right;
             const typename ch::int_type result = typename ch::int_type(typename PixelType::int_type(p & typename PixelType::int_type(ch::value_mask)));
             return result;
             
         }
         // sets the native_value of a channel without doing compile time checking on the index
-        template<typename PixelType,size_t Index>
+        template<typename PixelType,int Index>
         constexpr inline void 
         
         set_channel_direct_unchecked(typename PixelType::int_type& pixel_value,typename PixelType::template channel_by_index_unchecked<Index>::int_type value) {
-            if(0>Index || Index>=PixelType::channels) return;
+            if(0>Index || Index>=(int)PixelType::channels) return;
             using ch = typename PixelType::template channel_by_index_unchecked<Index>;
             const typename PixelType::int_type shval = typename PixelType::int_type(typename PixelType::int_type(helpers::clamp(value,ch::min,ch::max))<<ch::total_bits_to_right);
             pixel_value=typename PixelType::int_type((pixel_value&typename ch::pixel_type::int_type(~ch::channel_mask))|shval);
@@ -470,9 +470,9 @@ namespace gfx {
             native_value=helpers::order_guard(value);
         }
         // retrieves a channel's metadata by index
-        template<size_t Index> using channel_by_index = typename helpers::channel_by_index_impl<type,Index,channels,0,ChannelTraits...>::type;
+        template<int Index> using channel_by_index = typename helpers::channel_by_index_impl<type,Index,channels,0,ChannelTraits...>::type;
         // retrieves a channel's metadata by index in cases where the checked version will cause an error
-        template<size_t Index> using channel_by_index_unchecked = typename helpers::channel_by_index_unchecked_impl<type,Index,channels,0,ChannelTraits...>::type;
+        template<int Index> using channel_by_index_unchecked = typename helpers::channel_by_index_unchecked_impl<type,Index,channels,0,ChannelTraits...>::type;
         // gets the index of the channel by the channel name
         template<typename Name> using channel_index_by_name = typename helpers::channel_index_by_name_impl<0,Name,ChannelTraits...>;
         // gets the channel by name
@@ -493,49 +493,49 @@ namespace gfx {
         // returns true if the two pixels are exactly the same
         template<typename PixelRhs> using equals_exact = typename helpers::is_same<type,PixelRhs>;
         // retrieves the integer channel value without performing compile time checking on Index
-        template<size_t Index>
+        template<int Index>
         constexpr inline typename channel_by_index_unchecked<Index>::int_type channel_unchecked() const {
             return helpers::get_channel_direct_unchecked<type,Index>(native_value);
         }
         // sets the integer channel value without performing compile time checking on Index
-        template<size_t Index>
+        template<int Index>
         constexpr inline void channel_unchecked(typename channel_by_index_unchecked<Index>::int_type value) {
             helpers::set_channel_direct_unchecked<type,Index>(native_value,value);
         }
         // retrieves the integer channel value by index
-        template<size_t Index>
+        template<int Index>
         constexpr inline typename channel_by_index<Index>::int_type channel() const {
             using ch = channel_by_index<Index>;
             return typename ch::int_type(typename ch::pixel_type::int_type(native_value & ch::channel_mask)>>ch::total_bits_to_right);
             
         }
         // sets the integer channel value by index
-        template<size_t Index>
+        template<int Index>
         constexpr inline void channel(typename channel_by_index<Index>::int_type value) {
             using ch = channel_by_index<Index>;
             const typename ch::pixel_type::int_type shval = typename ch::pixel_type::int_type(typename ch::pixel_type::int_type(helpers::clamp(value,ch::min,ch::max))<<ch::total_bits_to_right);
             native_value=typename ch::pixel_type::int_type((native_value&typename ch::pixel_type::int_type(~ch::channel_mask))|shval);
         }
         // retrieves the floating point channel value by index
-        template<size_t Index>
+        template<int Index>
         constexpr inline typename channel_by_index_unchecked<Index>::real_type channelr() const {
             using ch = channel_by_index<Index>;
             return channel<Index>()*ch::scaler;
         }
         // sets the floating point channel value by index
-        template<size_t Index>
+        template<int Index>
         constexpr inline void channelr(typename channel_by_index<Index>::real_type value) {
             using ch = channel_by_index<Index>;
             channel<Index>(value*ch::scale+.5);
         }
         // retrieves the floating point channel value by index
-        template<size_t Index>
+        template<int Index>
         constexpr inline typename channel_by_index_unchecked<Index>::real_type channelr_unchecked() const {
             using ch = channel_by_index_unchecked<Index>;
             return (typename ch::real_type)channel_unchecked<Index>()*ch::scaler;
         }
         // sets the floating point channel value by index
-        template<size_t Index>
+        template<int Index>
         constexpr inline void channelr_unchecked(typename channel_by_index<Index>::real_type value) {
             using ch = channel_by_index_unchecked<Index>;
             channel_unchecked<Index>(value*ch::scale+.5);
@@ -543,25 +543,25 @@ namespace gfx {
         // retrieves the integer channel value by name
         template<typename Name>
         constexpr inline auto channel() const {
-            const size_t index = channel_index_by_name<Name>::value;
+            const int index = channel_index_by_name<Name>::value;
             return channel<index>();
         }
         // sets the integer channel value by name
         template<typename Name>
         constexpr inline void channel(typename channel_by_index<channel_index_by_name<Name>::value>::int_type value) {
-            const size_t index = channel_index_by_name<Name>::value;
+            const int index = channel_index_by_name<Name>::value;
             channel<index>(value);
         }
         // gets the floating point channel value by name
         template<typename Name>
         constexpr inline auto channelr() const {
-            const size_t index = channel_index_by_name<Name>::value;
+            const int index = channel_index_by_name<Name>::value;
             return channelr<index>();
         }
         // sets the floating point channel value by name
         template<typename Name>
         constexpr inline void channelr(typename channel_by_name<Name>::real_type value) {
-            const size_t index = channel_index_by_name<Name>::value;
+            const int index = channel_index_by_name<Name>::value;
             channelr<index>(value);
         }
         // returns the difference between two pixels
@@ -583,7 +583,7 @@ namespace gfx {
             }
             if(type::template has_channel_names<channel_name::A>::value) {
                 
-                constexpr const size_t ai = type::channel_index_by_name<channel_name::A>::value;
+                constexpr const int ai = type::channel_index_by_name<channel_name::A>::value;
 
                 float a1 = this->template channelr_unchecked<ai>();
                 float a2 = rhs.template channelr_unchecked<ai>();
@@ -728,15 +728,15 @@ namespace gfx {
             // source color model is RGB
             using tindexR = typename PixelTypeLhs::template channel_index_by_name<channel_name::R>;
             using tchR = typename PixelTypeLhs::template channel_by_index_unchecked<tindexR::value>;
-            const size_t chiR = tindexR::value;
+            const int chiR = tindexR::value;
                 
             using tindexG = typename PixelTypeLhs::template channel_index_by_name<channel_name::G>;
             using tchG = typename PixelTypeLhs::template channel_by_index_unchecked<tindexG::value>;
-            const size_t chiG = tindexG::value;
+            const int chiG = tindexG::value;
 
             using tindexB = typename PixelTypeLhs::template channel_index_by_name<channel_name::B>;
             using tchB = typename PixelTypeLhs::template channel_by_index_unchecked<tindexB::value>;
-            const size_t chiB = tindexB::value;
+            const int chiB = tindexB::value;
             
             if(is_rhs_rgb::value && PixelTypeRhs::channels<5) {      
                 // destination color model is RGB
@@ -844,7 +844,7 @@ namespace gfx {
             // source is grayscale or monochrome
             using tindexL = typename PixelTypeLhs::template channel_index_by_name<channel_name::L>;
             using tchL = typename PixelTypeLhs::template channel_by_index_unchecked<tindexL::value>;
-            const size_t chiL = tindexL::value;
+            const int chiL = tindexL::value;
             
             if(ris_bw_candidate && ris_bw_candidate2) {
                 // destination color model is grayscale or monochrome
@@ -895,15 +895,15 @@ namespace gfx {
             // source color model is Y'UV
             using tindexY = typename PixelTypeLhs::template channel_index_by_name<channel_name::Y>;
             using tchY = typename PixelTypeLhs::template channel_by_index_unchecked<tindexY::value>;
-            const size_t chiY = tindexY::value;
+            const int chiY = tindexY::value;
                 
             using tindexU = typename PixelTypeLhs::template channel_index_by_name<channel_name::U>;
             using tchU = typename PixelTypeLhs::template channel_by_index_unchecked<tindexU::value>;
-            const size_t chiU = tindexU::value;
+            const int chiU = tindexU::value;
 
             using tindexV = typename PixelTypeLhs::template channel_index_by_name<channel_name::V>;
             using tchV = typename PixelTypeLhs::template channel_by_index_unchecked<tindexV::value>;
-            const size_t chiV = tindexV::value;
+            const int chiV = tindexV::value;
 
             if(is_rhs_yuv::value && PixelTypeRhs::channels<5) {
                 // destination color model is YUV
@@ -968,15 +968,15 @@ namespace gfx {
             // source color model is YCbCr
             using tindexY = typename PixelTypeLhs::template channel_index_by_name<channel_name::Y>;
             //using tchY = typename PixelTypeLhs::template channel_by_index_unchecked<tindexY::value>;
-            const size_t chiY = tindexY::value;
+            const int chiY = tindexY::value;
                 
             using tindexCb = typename PixelTypeLhs::template channel_index_by_name<channel_name::Cb>;
             //using tchCb = typename PixelTypeLhs::template channel_by_index_unchecked<tindexCb::value>;
-            const size_t chiCb = tindexCb::value;
+            const int chiCb = tindexCb::value;
 
             using tindexCr = typename PixelTypeLhs::template channel_index_by_name<channel_name::Cr>;
             //using tchCr = typename PixelTypeLhs::template channel_by_index_unchecked<tindexCr::value>;
-            const size_t chiCr = tindexCr::value;
+            const int chiCr = tindexCr::value;
 
             if(is_rhs_rgb::value && PixelTypeRhs::channels<5) {
                 const int CVACC = (sizeof(int) > 2) ? 1024 : 128; /* Adaptive accuracy for both 16-/32-bit systems */
@@ -1013,7 +1013,7 @@ namespace gfx {
             // now do the alpha channels
             if(has_alpha) {
                 using tindexA = typename PixelTypeLhs::template channel_index_by_name<channel_name::A>;
-                const size_t chiA = tindexA::value;
+                const int chiA = tindexA::value;
                 using tchA = typename PixelTypeLhs::template channel_by_index_unchecked<chiA>;
                 
                 // we need to blend it
@@ -1025,7 +1025,7 @@ namespace gfx {
                 }
                 if(rhas_alpha) {
                     using trindexA = typename PixelTypeRhs::template channel_index_by_name<channel_name::A>;
-                    const size_t chirA = trindexA::value;
+                    const int chirA = trindexA::value;
                     using trchA = typename PixelTypeRhs::template channel_by_index_unchecked<chirA>;
                     auto chA = helpers::convert_channel_depth<tchA,trchA>(source.template channel_unchecked<chiA>());
                     helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexA::value>(native_value,chA);

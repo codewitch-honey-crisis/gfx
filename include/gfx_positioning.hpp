@@ -248,15 +248,15 @@ namespace gfx {
         }
         constexpr inline void center_horizontal_inplace(const rectx& bounds) {
             offset_inplace((bounds.width()-width())/2,0);
-            return offset_inplace(bounds.left(),bounds.top());
+            offset_inplace(bounds.left(),bounds.top());
         }
-        constexpr inline rectx center_vertical_inplace(const rectx& bounds) {
+        constexpr inline void center_vertical_inplace(const rectx& bounds) {
             offset_inplace(0,(bounds.height()-height())/2);
-            return offset_inplace(bounds.left(),bounds.top());
+            offset_inplace(bounds.left(),bounds.top());
         }
-        constexpr inline rectx center_inplace(const rectx& bounds) {
+        constexpr inline void center_inplace(const rectx& bounds) {
             offset_inplace((bounds.width()-width())/2,(bounds.height()-height())/2);
-            return offset_inplace(bounds.left(),bounds.top());
+            offset_inplace(bounds.left(),bounds.top());
         }
         // normalizes a rectangle, such that x1<=x2 and y1<=y2
         constexpr inline rectx normalize() const {

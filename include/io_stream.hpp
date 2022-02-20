@@ -1,7 +1,16 @@
 #ifndef HTCW_STREAM_HPP
 #define HTCW_STREAM_HPP
+
 #ifdef ARDUINO
 #include <Arduino.h>
+// HACK!
+#ifdef SAMD_SERIES 
+    #define IO_NO_FS
+#endif
+#ifdef ARDUINO_ARCH_STM32
+    #define IO_NO_FS
+#endif
+
 #ifndef IO_NO_FS
     #ifdef IO_ARDUINO_SD_FS
         #include <SD.h>

@@ -10,6 +10,7 @@
 #include "gfx_font.hpp"
 #include "gfx_image.hpp"
 #include "gfx_open_font.hpp"
+#include "gfx_sprite.hpp"
 namespace gfx {
     
     enum struct bitmap_resize {
@@ -1251,7 +1252,44 @@ namespace gfx {
             out->y2=t.y2;
             return true;
         }
-        
+        template<typename Destination,typename Sprite>
+        static gfx_result sprite_impl(Destination& destination, const spoint16& location, const Sprite& source,srect16* clip = nullptr) {
+            static_assert(helpers::is_same<typename Destination::pixel_type,typename Sprite::pixel_type>::value,"Sprite and Destination pixel types must be the same");
+            const size16 size = source.dimensions();
+            const srect16 db;
+            // suspend if we can
+            helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination,false);
+            if(nullptr!=clip) {
+                for(int y = 0;y<size.height;++y) {
+                    for(int x = 0;x<size.width;++x) {
+                        typename Sprite::pixel_type px;
+                        const point16 pt=point16(uint16_t(x),uint16_t(y));
+                        const int16_t xx = int16_t(pt.x);
+                        const int16_t yy = int16_t(pt.y);
+                        const spoint16 pt2(int16_t(xx+location.x),int16_t(yy+location.y));
+                        if(clip->intersects((spoint16)pt2)) {
+                            if(source.hit_test(pt)) {        
+                                source.point(pt,&px);
+                                destination.point((point16)pt2,px);
+                            }
+                        }    
+                    }
+                }
+            } else {
+                for(int y = 0;y<size.height;++y) {
+                    for(int x = 0;x<size.width;++x) {
+                        typename Sprite::pixel_type px;
+                        const point16 pt = point16(uint16_t(x),uint16_t(y));
+                        const spoint16 pt2 = ((spoint16)pt).offset(location.x,location.y);
+                        if(source.hit_test(pt)) {        
+                            source.point(pt,&px);
+                            destination.point((point16)pt2,px);
+                        }
+                    }
+                }
+            }
+            return gfx_result::success;
+        }
         template<typename Destination,typename PixelType>
         static gfx_result ellipse_impl(Destination& destination, const srect16& rect,PixelType color,const srect16* clip,bool filled,bool async) {
             // TODO: Come up with a better ellipse drawing routine that never overlaps pixels (it's screwing with alpha blending)
@@ -1341,9 +1379,11 @@ namespace gfx {
                         r=line_impl(destination,srect16(-x + xc, y + yc+y_adj,x + xc+x_adj, y + yc+y_adj),color,clip,async);
                         if(r!=gfx_result::success)
                             return r;
-                        r=line_impl(destination,srect16(-x + xc, -y + yc,x + xc+x_adj, -y + yc),color,clip,async);
-                        if(r!=gfx_result::success)
-                            return r;
+                        if(y!=0 || 1==y_adj) {
+                            r=line_impl(destination,srect16(-x + xc, -y + yc,x + xc+x_adj, -y + yc),color,clip,async);
+                            if(r!=gfx_result::success)
+                                return r;
+                        }
                     }
                 } else {
                     if(oy!=y || ox!=x) {
@@ -1870,7 +1910,7 @@ namespace gfx {
                 const bool dhas_alpha = tdhas_alpha::value;
                 if(has_alpha && !dhas_alpha) {
                     using tindexA = typename PixelType::template channel_index_by_name<channel_name::A>;
-                    const int chiA = tindexA::value;
+                    const size_t chiA = tindexA::value;
                     using tchA = typename PixelType::template channel_by_index_unchecked<chiA>;
                     auto alp = color.template channel_unchecked<chiA>();
                     const float ar = alp*tchA::scaler;
@@ -3082,7 +3122,16 @@ namespace gfx {
             arduino_stream stm(source_stream);
             return image_impl(destination,destination_rect,&stm,source_rect,resize_type,clip,true);
         }
-#endif  
+#endif
+        template<typename Destination,typename Sprite>
+        static inline gfx_result sprite(Destination& destination, spoint16 location,const Sprite& sprite,srect16* clip=nullptr) {
+            return sprite_impl(destination,location,sprite,clip);
+        }
+        template<typename Destination,typename Source>
+        static inline gfx_result sprite_async(Destination& destination, spoint16 location, const Source& source, const gfx::bitmap<gsc_pixel<1>>& mask,srect16* clip=nullptr) {
+            // TODO: Implement async draw - for completeness. Not really that important since only the last pixel will be async typically.
+            return sprite_impl(destination,location,source,mask,clip);
+        }
         // waits for all asynchronous operations on the destination to complete
         template<typename Destination>
         static gfx_result wait_all_async(Destination& destination) {

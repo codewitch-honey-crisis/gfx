@@ -609,9 +609,14 @@ namespace gfx {
             static type create_from(const Source& source,size16 size,void* buffer)  {
                 return type(size,buffer,source.palette());
             }
-        };
-        
-    }    
+        };  
+    }
+    // retrieves a type of bitmap based on the draw target
+    template<typename Source> using bitmap_type_from=typename helpers::bitmap_from_helper<Source,Source::pixel_type::template has_channel_names<channel_name::index>::value>::type;
+    // creates a bitmap based on the draw target
+    template<typename Source> inline static bitmap_type_from<Source> create_bitmap_from(const Source& source,size16 size,void* buf) {
+        return helpers::bitmap_from_helper<Source,Source::pixel_type::template has_channel_names<channel_name::index>::value>::create_from(source,size,buf);
+    }
 }
 
 #endif

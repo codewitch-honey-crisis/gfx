@@ -9,7 +9,7 @@
 namespace gfx {
     
     template<typename PixelType,typename PaletteType = palette<PixelType,PixelType>>
-    class sprite {
+    class sprite final {
         using bitmap_type = bitmap<PixelType,PaletteType>;
         bitmap_type m_bitmap;
         using mask_type = bitmap<gsc_pixel<1>>;

@@ -469,6 +469,12 @@ namespace gfx {
         constexpr inline void value(int_type value) {
             native_value=helpers::order_guard(value);
         }
+        constexpr inline bool operator==(pixel rhs) {
+            return rhs.native_value==native_value;
+        }
+        constexpr inline bool operator!=(pixel rhs) {
+            return rhs.native_value!=native_value;
+        }
         // retrieves a channel's metadata by index
         template<int Index> using channel_by_index = typename helpers::channel_by_index_impl<type,Index,channels,0,ChannelTraits...>::type;
         // retrieves a channel's metadata by index in cases where the checked version will cause an error
@@ -587,15 +593,10 @@ namespace gfx {
 
                 float a1 = this->template channelr_unchecked<ai>();
                 float a2 = rhs.template channelr_unchecked<ai>();
-               // Serial.printf("blend a1 = %f, a2 = %f\r\n",a1,a2);
-                
                 float r2 = a1/a2;
-                //Serial.printf("blend r2 = %f\r\n",r2);
                 ratio = ratio * r2;
                 if(ratio>1.0)
-                    ratio = 1.0;
-               // Serial.printf("blend ratio = %f\r\n",ratio);
-               
+                    ratio = 1.0;               
             }
             
             helpers::pixel_blend_impl<type,0,ChannelTraits...>::blend_val(*this,rhs,ratio,out_pixel);
@@ -675,9 +676,7 @@ namespace gfx {
         channel_traits<channel_name::Cr,(BitDepth/4)>,
         channel_traits<channel_name::A,(BitDepth/4)>
     >;
-    // pixel likes to pack bits right to left, but we need left to right here.
-    //template<size_t BitDepth>
-    //using indexed_pixel=pixel<channel_traits<channel_name::index,bits::get_word_size(BitDepth),0,((BitDepth == 64) ? 0xffffffffffffffffU : (( 1 << BitDepth ) - 1))>>;
+    // creates an indexed pixel
     template<size_t BitDepth>
     using indexed_pixel=pixel<channel_traits<channel_name::index,BitDepth>>;
     
@@ -839,7 +838,7 @@ namespace gfx {
                 helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexL::value>(native_value,f);
             
                 good = true;
-            } // TODO: add destination color models other than RGB and grayscale/mono
+            } // TODO: add destination color models
         } else if(is_bw_candidate && is_bw_candidate2) {
             // source is grayscale or monochrome
             using tindexL = typename PixelTypeLhs::template channel_index_by_name<channel_name::L>;
@@ -1008,7 +1007,7 @@ namespace gfx {
                 good = true;                    
             }
 
-        } // TODO: add more source color models other than RGB and grayscale/mono
+        } // TODO: add more source color models
         if(good) {
             // now do the alpha channels
             if(has_alpha) {

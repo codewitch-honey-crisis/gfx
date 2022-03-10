@@ -2,7 +2,7 @@
 #define HTCW_GFX_POSITIONING_HPP
 #include "bits.hpp"
 namespace gfx {
-    // represents a pointx with 16-bit integer coordinates
+    // represents a pointx with integer coordinates
     template <typename T>
     struct pointx final {
         using type = pointx;
@@ -35,7 +35,7 @@ namespace gfx {
     };
     template <typename T>
     struct rectx;
-    // represents a size with 16-bit integer coordinates
+    // represents a size with integer coordinates
     template <typename T>
     struct sizex final {
         using type = sizex;
@@ -71,7 +71,7 @@ namespace gfx {
         flipped_horizontal = 2 | denormalized,
         flipped_vertical = 4 | denormalized
     };
-    // represents a rectangle with 16-bit integer coordinates
+    // represents a rectangle with integer coordinates
     template <typename T>
     struct rectx final
     {
@@ -392,6 +392,7 @@ namespace gfx {
     constexpr rectx<T> sizex<T>::bounds() const {
         return rectx<T>(pointx<T>(0,0),*this);
     }
+    // represents a path as a series of points
     template <typename T>
     struct pathx final
     {
@@ -498,15 +499,21 @@ namespace gfx {
         }
 
     };
-    
+    // represents a point with 16-bit signed integer coordinates
     using spoint16 = pointx<int16_t>;
+    // represents a size with 16-bit signed integer values
     using ssize16 = sizex<int16_t>;
+    // represents a rectangle with 16-bit signed integer coordinates
     using srect16 = rectx<int16_t>;
+    // represents a path with 16-bit signed integer coordinates
     using spath16 = pathx<int16_t>;
-
+    // represents a point with 16-bit unsigned integer coordinates
     using point16 = pointx<uint16_t>;
+    // represents a size with 16-bit unsigned integer values
     using size16 = sizex<uint16_t>;
+    // represents a rectangle with 16-bit unsigned integer coordinates
     using rect16 = rectx<uint16_t>;
+    // represents a path with 16-bit unsigned integer coordinates
     using path16 = pathx<uint16_t>;
 }
 #endif

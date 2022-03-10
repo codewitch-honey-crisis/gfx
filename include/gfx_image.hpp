@@ -167,5 +167,6 @@ namespace gfx {
         }
 #endif  
     };
+    
 }
 #endif

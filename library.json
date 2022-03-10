@@ -1,0 +1,22 @@
+{
+    "name": "htcw_gfx",
+    "version": "1.0.0",
+    "description": "A device independent graphics library for embedded and IoT devices",
+    "keywords": ["tft","graphics","spi","parallel","i2c","drawing","jpg","ttf","font"],
+    "authors": {
+        "name":"honey the codewitch",
+        "homepage": "https://www.codeproject.com/Members/code-witch"
+    },
+    "license": "MIT",
+    "frameworks": "*",
+    "platforms": "*",
+    "build": {
+        "unflags": "-std=gnu++11",
+        "flags": "-std=gnu++14"
+    },
+    "repository":
+    {
+        "type": "git",
+        "url": "https://github.com/codewitch-honey-crisis/gfx.git"
+    }
+}

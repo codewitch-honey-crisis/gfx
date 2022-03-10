@@ -949,29 +949,6 @@ namespace gfx {
                             if(gfx_result::success!=r) {
                                 return r;
                             }
-                            /*// already clipped, hence nullptr
-                            double alpha = srcpx.template channelr<channel_name::A>();
-                            if(has_alpha && alpha>=1.0) {
-                                typename Destination::pixel_type bg;
-                                r=destination.point((point16)spt,&bg);
-                                if(gfx_result::success!=r) {
-                                    return r;
-                                }
-                                typename Source::pixel_type sbgpx;
-                                r=convert_palette_to(destination,bg,&sbgpx);
-                                if(gfx_result::success!=r) {
-                                    return r;
-                                }
-                                r=srcpx.blend(sbgpx,alpha,&srcpx);
-                            }
-                            typename Destination::pixel_type dp;
-                            r=convert_palette_from(destination,srcpx,&dp);
-                            // TODO: Make this do async
-                            r=destination.point(spt,dp);
-                            //r=draw::point_impl(destination,spt,srcpx,nullptr,async);
-                            if(gfx_result::success!=r) {
-                                return r;
-                            }*/
                         }
                     }
                 }
@@ -1253,46 +1230,50 @@ namespace gfx {
             return true;
         }
         template<typename Destination,typename Sprite>
-        static gfx_result sprite_impl(Destination& destination, const spoint16& location, const Sprite& source,srect16* clip = nullptr) {
+        static gfx_result sprite_impl(Destination& destination, const spoint16& location, const Sprite& source,srect16* clip = nullptr,bool async=false) {
             static_assert(helpers::is_same<typename Destination::pixel_type,typename Sprite::pixel_type>::value,"Sprite and Destination pixel types must be the same");
             const size16 size = source.dimensions();
             const srect16 db;
             // suspend if we can
             helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination,false);
-            if(nullptr!=clip) {
-                for(int y = 0;y<size.height;++y) {
-                    for(int x = 0;x<size.width;++x) {
-                        typename Sprite::pixel_type px;
-                        const point16 pt=point16(uint16_t(x),uint16_t(y));
-                        const int16_t xx = int16_t(pt.x);
-                        const int16_t yy = int16_t(pt.y);
-                        const spoint16 pt2(int16_t(xx+location.x),int16_t(yy+location.y));
-                        if(clip->intersects((spoint16)pt2)) {
-                            if(source.hit_test(pt)) {        
-                                source.point(pt,&px);
-                                destination.point((point16)pt2,px);
+ 
+            for(int y = 0;y<size.height;++y) {
+                int run_start;
+                typename Sprite::pixel_type px,opx;
+                for(int x = 0;x<size.width;++x) {
+                    run_start = -1;
+                    const point16 pt = point16(uint16_t(x),uint16_t(y));
+                    const spoint16 pt2 = ((spoint16)pt).offset(location.x,location.y);
+                    if(source.hit_test(pt)) {
+                        if(-1==run_start) {
+                            run_start = x;
+                            opx=px;
+                        }
+                        source.point(pt,&px);
+                        if(opx!=px) {
+                            if(run_start!=-1) {
+                                line_impl(destination,{int16_t(run_start+location.x),pt2.y,int16_t(x+location.x-1),pt2.y},opx,clip,async);
                             }
-                        }    
+                            opx = px;
+                            run_start = x;
+                        }
+                        destination.point((point16)pt2,px);
+                    } else {
+                        if(run_start!=-1) {
+                            line_impl(destination,{int16_t(run_start+location.x),pt2.y,int16_t(x+location.x-1),pt2.y},opx,clip,async);
+                        }
+                        run_start = -1;
                     }
                 }
-            } else {
-                for(int y = 0;y<size.height;++y) {
-                    for(int x = 0;x<size.width;++x) {
-                        typename Sprite::pixel_type px;
-                        const point16 pt = point16(uint16_t(x),uint16_t(y));
-                        const spoint16 pt2 = ((spoint16)pt).offset(location.x,location.y);
-                        if(source.hit_test(pt)) {        
-                            source.point(pt,&px);
-                            destination.point((point16)pt2,px);
-                        }
-                    }
+                if(run_start!=-1) {
+                    line_impl(destination,{int16_t(run_start+location.x),int16_t(y+location.y),int16_t(size.width-1+location.x),int16_t(y+location.y)},opx,clip,async);
                 }
             }
+        
             return gfx_result::success;
         }
         template<typename Destination,typename PixelType>
         static gfx_result ellipse_impl(Destination& destination, const srect16& rect,PixelType color,const srect16* clip,bool filled,bool async) {
-            // TODO: Come up with a better ellipse drawing routine that never overlaps pixels (it's screwing with alpha blending)
             gfx_result r;
             using int_type = typename srect16::value_type;
             int_type x_adj =(1-(rect.width()&1));
@@ -1393,12 +1374,14 @@ namespace gfx {
                         r=point_impl(destination,spoint16(-x + xc, y + yc+y_adj),color,clip,async);
                         if(r!=gfx_result::success)
                             return r;
-                        r=point_impl(destination,spoint16(x + xc+x_adj, -y + yc),color,clip,async);
-                        if(r!=gfx_result::success)
-                            return r;
-                        r=point_impl(destination,spoint16(-x + xc, -y + yc),color,clip,async);
-                        if(r!=gfx_result::success)
-                            return r;
+                        if(y!=0 || 1==y_adj) {
+                            r=point_impl(destination,spoint16(x + xc+x_adj, -y + yc),color,clip,async);
+                            if(r!=gfx_result::success)
+                                return r;
+                            r=point_impl(destination,spoint16(-x + xc, -y + yc),color,clip,async);
+                            if(r!=gfx_result::success)
+                                return r;
+                        }
                     }
                 }
                 ox=x;
@@ -2221,6 +2204,7 @@ namespace gfx {
             PixelType color;
             PixelType backcolor;
             bool transparent_background;
+            bool no_antialiasing;
             Destination* destination;
             const srect16* clip;
             bool async;
@@ -2231,7 +2215,7 @@ namespace gfx {
                 if(c!=0) {
                     point16 pt(uint16_t(x+pst->off_x),uint16_t(y+pst->off_y));
                     if(nullptr==pst->clip||pst->clip->intersects((spoint16)pt)) {
-                        if(pst->transparent_background) {
+                        if(pst->transparent_background || pst->no_antialiasing) {
                             return (int)draw::point(*pst->destination,(spoint16)pt,pst->color);
                         } else {
                             auto px = pst->color;
@@ -2250,28 +2234,31 @@ namespace gfx {
                 if(d>0.0) {
                     point16 pt = {uint16_t(x+pst->off_x),uint16_t(y+pst->off_y)};
                     if(nullptr==pst->clip||pst->clip->intersects((spoint16)pt)) {
-                    
-                        typename Destination::pixel_type bpx;
-                        gfx_result r=pst->destination->point(pt,&bpx);
-                        if(gfx_result::success!=r) {
-                            return (int)r;
+                        if(pst->no_antialiasing) {
+                            return (int)draw::point(*pst->destination,(spoint16)pt,pst->color);
+                        } else {
+                            typename Destination::pixel_type bpx;
+                            gfx_result r=pst->destination->point(pt,&bpx);
+                            if(gfx_result::success!=r) {
+                                return (int)r;
+                            }
+                            PixelType bppx;
+                            r=convert_palette_to(*pst->destination,bpx,&bppx);
+                            if(gfx_result::success!=r) {
+                                return (int)r;
+                            }
+                            PixelType px;
+                            r = pst->color.blend(bppx,d,&px);
+                            if(gfx_result::success!=r) {
+                                return (int)r;
+                            }
+                            //return (int)draw::point(*pst->destination,(spoint16)pt,px);
+                            r= convert_palette_from(*pst->destination,px,&bpx);
+                            if(gfx_result::success!=r) {
+                                return (int)r;
+                            }
+                            return (int)pst->destination->point(pt,bpx);
                         }
-                        PixelType bppx;
-                        r=convert_palette_to(*pst->destination,bpx,&bppx);
-                        if(gfx_result::success!=r) {
-                            return (int)r;
-                        }
-                        PixelType px;
-                        r = pst->color.blend(bppx,d,&px);
-                        if(gfx_result::success!=r) {
-                            return (int)r;
-                        }
-                        //return (int)draw::point(*pst->destination,(spoint16)pt,px);
-                        r= convert_palette_from(*pst->destination,px,&bpx);
-                        if(gfx_result::success!=r) {
-                            return (int)r;
-                        }
-                        return (int)pst->destination->point(pt,bpx);
                     }
                 }
                 return 0;
@@ -2280,7 +2267,7 @@ namespace gfx {
         // this doesn't need to be a template struct but it is because we may add batching and such later
         template<typename Destination,typename PixelType>
         struct draw_open_font_helper {
-            static gfx_result do_draw(Destination& destination,const open_font& font,float scale,float shift_x,float shift_y, int glyph,const srect16& chr,PixelType color, PixelType backcolor, bool transparent_background, const srect16* clip,bool async) {
+            static gfx_result do_draw(Destination& destination,const open_font& font,float scale,float shift_x,float shift_y, int glyph,const srect16& chr,PixelType color, PixelType backcolor, bool transparent_background,bool no_antialiasing, const srect16* clip,bool async) {
                 gfx_result r = gfx_result::success;
                 // suspend if we can
                 helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination,async);
@@ -2296,6 +2283,7 @@ namespace gfx {
                 state.color = color;
                 state.backcolor = backcolor;
                 state.transparent_background = transparent_background;
+                state.no_antialiasing = no_antialiasing;
                 if(gfx_result::success!=r) {
                     return r;
                 }
@@ -2555,7 +2543,7 @@ namespace gfx {
             // suspend if we can
             helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination,async);
             // top
-            r=filled_rectangle_impl(destination,srect16(sr.x1+rw,sr.y1,sr.x2-rw,sr.y1+rh-1),color,clip,async);
+            r=filled_rectangle_impl(destination,srect16(sr.x1+rw+1,sr.y1,sr.x2-rw-1,sr.y1+rh-1),color,clip,async);
             if(gfx_result::success!=r) 
                 return r;
             // middle
@@ -2563,20 +2551,20 @@ namespace gfx {
             if(gfx_result::success!=r)
                 return r;
             // bottom
-            r=filled_rectangle_impl(destination,srect16(sr.x1+rw,sr.y2-rh,sr.x2-rw,sr.y2),color,clip,async);
+            r=filled_rectangle_impl(destination,srect16(sr.x1+rw,sr.y2-rh,sr.x2-rw-1,sr.y2),color,clip,async);
             if(gfx_result::success!=r)
                 return r;
 
-            r=arc_impl(destination,srect16(sr.top_left(),ssize16(rw+1,rh+1)),color,clip,true,async);
+            r=arc_impl(destination,srect16(sr.top_left(),ssize16(rw+1,rh)),color,clip,true,async);
             if(gfx_result::success!=r)
                 return r;
-            r=arc_impl(destination,srect16(spoint16(sr.x2-rw,sr.y1),ssize16(rw+1,rh+1)).flip_horizontal(),color,clip,true,async);
+            r=arc_impl(destination,srect16(spoint16(sr.x2-rw,sr.y1),ssize16(rw+1,rh)).flip_horizontal(),color,clip,true,async);
             if(gfx_result::success!=r)
                 return r;
             r=arc_impl(destination,srect16(spoint16(sr.x1,sr.y2-rh),ssize16(rw,rh)).flip_vertical(),color,clip,true,async);
             if(gfx_result::success!=r)
                 return r;
-            return arc_impl(destination,srect16(spoint16(sr.x2-rw,sr.y2-rh),ssize16(rw+1,rh)).flip_all(),color,clip,true,async);
+            return arc_impl(destination,srect16(spoint16(sr.x2-rw,sr.y2-rh),ssize16(rw+1,rh+1)).flip_all(),color,clip,true,async);
         }
         template<typename Destination>
         static gfx_result image_impl(Destination& destination, const srect16& destination_rect, stream* source_stream, const rect16& source_rect,bitmap_resize resize_type, srect16* clip,bool async) {
@@ -2759,7 +2747,7 @@ namespace gfx {
                         if(nullptr==clip || clip->intersects(chr)) {
                             if(chr.intersects(dest_rect)) {
                                 if(transparent_background)
-                                    r=draw_font_batch_helper<Destination,PixelType,false>::do_draw(destination,font,fc,chr,color,backcolor,transparent_background,clip,async);
+                                    r=draw_font_batch_helper<Destination,PixelType,false>::do_draw(destination,font,fc,chr,color,backcolor,transparent_background, clip,async);
                                 else
                                     r=draw_font_batch_helper<Destination,PixelType,Destination::caps::batch>::do_draw(destination,font,fc,chr,color,backcolor,transparent_background,clip,async);
                                 if(gfx_result::success!=r) {
@@ -2799,6 +2787,7 @@ namespace gfx {
             PixelType color,
             PixelType backcolor,
             bool transparent_background,
+            bool no_antialiasing,
             float scaled_tab_width,
             gfx_encoding encoding,
             srect16* clip,
@@ -2870,7 +2859,7 @@ namespace gfx {
                 chr.offset_inplace(dest_rect.left(),dest_rect.top());
                 if(nullptr==clip || clip->intersects(chr)) {
                     
-                    r=draw_open_font_helper<Destination,PixelType>::do_draw(destination,font,scale,xpos-floor(xpos),ypos-floor(ypos),gi,chr,color,backcolor,transparent_background, clip,async);
+                    r=draw_open_font_helper<Destination,PixelType>::do_draw(destination,font,scale,xpos-floor(xpos),ypos-floor(ypos),gi,chr,color,backcolor,transparent_background,no_antialiasing, clip,async);
                     if(gfx_result::success!=r) {
                         return r;
                     }
@@ -3078,10 +3067,11 @@ namespace gfx {
             PixelType color,
             PixelType backcolor=convert<::gfx::rgb_pixel<3>,PixelType>(::gfx::rgb_pixel<3>(0,0,0)),
             bool transparent_background = true,
+            bool no_antialiasing = false,
             float scaled_tab_width=0,
             gfx_encoding encoding=gfx_encoding::utf8,
             srect16* clip=nullptr) {
-            return text_impl(destination,dest_rect,offset,text,font,scale,color,backcolor,transparent_background,scaled_tab_width,encoding,clip,false);
+            return text_impl(destination,dest_rect,offset,text,font,scale,color,backcolor,transparent_background,no_antialiasing,scaled_tab_width,encoding,clip,false);
         }
         // asynchronously draws text to the specified destination rectangle with the specified font and colors and optional clipping rectangle
         template<typename Destination,typename PixelType>
@@ -3095,9 +3085,10 @@ namespace gfx {
             PixelType color,
             PixelType backcolor=convert<::gfx::rgb_pixel<3>,PixelType>(::gfx::rgb_pixel<3>(0,0,0)),
             bool transparent_background = true,
+            bool no_antialiasing = false,
             float scaled_tab_width=0,
             srect16* clip=nullptr) {
-            return text_impl(destination,dest_rect,offset,text,font,scale,color,backcolor,transparent_background,scaled_tab_width,clip,true);
+            return text_impl(destination,dest_rect,offset,text,font,scale,color,backcolor,transparent_background,no_antialiasing,scaled_tab_width,clip,true);
         }
         // draws an image from the specified stream to the specified destination rectangle with the an optional clipping rectangle
         template<typename Destination>
@@ -3125,12 +3116,11 @@ namespace gfx {
 #endif
         template<typename Destination,typename Sprite>
         static inline gfx_result sprite(Destination& destination, spoint16 location,const Sprite& sprite,srect16* clip=nullptr) {
-            return sprite_impl(destination,location,sprite,clip);
+            return sprite_impl(destination,location,sprite,clip,false);
         }
         template<typename Destination,typename Source>
         static inline gfx_result sprite_async(Destination& destination, spoint16 location, const Source& source, const gfx::bitmap<gsc_pixel<1>>& mask,srect16* clip=nullptr) {
-            // TODO: Implement async draw - for completeness. Not really that important since only the last pixel will be async typically.
-            return sprite_impl(destination,location,source,mask,clip);
+            return sprite_impl(destination,location,source,mask,clip,true);
         }
         // waits for all asynchronous operations on the destination to complete
         template<typename Destination>

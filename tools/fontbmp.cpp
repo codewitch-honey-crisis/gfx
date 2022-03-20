@@ -244,6 +244,7 @@ int generate(const open_font& f,const char* fname,const char* chars, int height,
                     return (int)gfx_result::out_of_memory;
                 }
                 bmp_type bmp(bsz,bmp_buf);
+                bmp.clear(bmp.bounds());
                 draw::text(bmp,(srect16)bmp.bounds(),{0,0},buf,f,scale,sfg,sbg,false);
                 char n[64];
                 generate_array(ident,itoa(cp,n,16),bmp_buf,bmp_len,handle);
@@ -273,6 +274,7 @@ int generate(const open_font& f,const char* fname,const char* chars, int height,
                     return (int)gfx_result::out_of_memory;
                 }
                 bmp_type bmp(bsz,bmp_buf);
+                bmp.clear(bmp.bounds());
                 draw::text(bmp,(srect16)bmp.bounds(),{0,0},buf,f,scale,sfg,sbg,false);
                 char n[64];
                 generate_array(ident,itoa(cp,n,16),bmp_buf,bmp_len,handle);
@@ -302,12 +304,13 @@ int generate(const open_font& f,const char* fname,const char* chars, int height,
                     return (int)gfx_result::out_of_memory;
                 }
                 bmp_type bmp(bsz,bmp_buf);
+                bmp.clear(bmp.bounds());
                 draw::text(bmp,(srect16)bmp.bounds(),{0,0},buf,f,scale,sfg,sbg,false);
                 char n[64];
                 generate_array(ident,itoa(cp,n,16),bmp_buf,bmp_len,handle);
                 free(bmp_buf);
 
-                OUT("static const gfx::bitmap<gfx::gsc_pixel<1>> ");
+                OUT("static const gfx::const_bitmap<gfx::gsc_pixel<1>> ");
                 OUT(ident);
                 OUT("_0x");
                 OUT(n);
@@ -328,7 +331,7 @@ int generate(const open_font& f,const char* fname,const char* chars, int height,
         sz=nsz;
     }
     OUTLN("");
-    OUT("static const gfx::bitmap<gfx::");
+    OUT("static const gfx::const_bitmap<gfx::");
     switch(fmt) {
         case 0:
             OUT("rgb_pixel<16>");
@@ -357,7 +360,7 @@ int generate(const open_font& f,const char* fname,const char* chars, int height,
         OUT("_0x");
         char n[64];
         OUT(itoa(cp,n,16));
-        OUTLN("_bmp_data");
+        OUTLN("_bmp");
         sz=nsz;
     }
     OUTLN("\t};");

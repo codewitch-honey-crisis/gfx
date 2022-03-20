@@ -431,13 +431,13 @@ namespace gfx {
         // constructs a new bitmap with the specified size and buffer
         const_bitmap(size16 dimensions,const void* buffer,const palette_type* palette=nullptr) : m_dimensions(dimensions),m_palette(palette),m_begin((const uint8_t*)buffer) {}
         // constructs a new bitmap with the specified width, height and buffer
-        bitmap(uint16_t width,uint16_t height,const void* buffer,const palette_type* palette=nullptr) : m_dimensions(width,height),m_palette(palette),m_begin((const uint8_t*)buffer) {}
-        bitmap() : m_dimensions(0,0),m_palette(nullptr),m_begin(nullptr) {
+        const_bitmap(uint16_t width,uint16_t height,const void* buffer,const palette_type* palette=nullptr) : m_dimensions(width,height),m_palette(palette),m_begin((const uint8_t*)buffer) {}
+        const_bitmap() : m_dimensions(0,0),m_palette(nullptr),m_begin(nullptr) {
             
         }
-        bitmap(const type& rhs)=default;
+        const_bitmap(const type& rhs)=default;
         type& operator=(const type& rhs)=default;
-        bitmap(type&& rhs)=default;
+        const_bitmap(type&& rhs)=default;
         type& operator=(type&& rhs) {
             m_dimensions = rhs.m_dimensions;
             m_palette = rhs.m_palette;

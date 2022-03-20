@@ -1,8 +1,8 @@
 #ifndef HTCW_GFX_FONT_HPP
 #define HTCW_GFX_FONT_HPP
 #include <stdlib.h>
-#include "bits.hpp"
-#include "io_stream.hpp"
+#include <htcw_bits.hpp>
+#include <io_stream.hpp>
 #include "gfx_positioning.hpp"
 namespace gfx {
     struct font_style {

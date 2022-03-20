@@ -1,9 +1,11 @@
 // define if windows:
 #define WINDOWS
 #define HTCW_LITTLE_ENDIAN
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <io_stream.hpp>
+using namespace io;
 #ifdef WINDOWS
 #define PATH_CHAR '\\'
 #else
@@ -134,3 +136,4 @@ int main(int argc, char** argv) {
     
     return 0;
 }
+#include "shim.hpp"

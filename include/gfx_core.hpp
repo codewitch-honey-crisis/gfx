@@ -32,8 +32,8 @@
 #ifdef GFX_ARDUINO_NO_FS
     #define IO_NO_FS
 #endif
-#include "bits.hpp"
-#include "io_stream.hpp"
+#include <htcw_bits.hpp>
+#include <io_stream.hpp>
 #ifndef ARDUINO
     #define PROGMEM 
 #endif

@@ -2,7 +2,7 @@
     "name": "htcw_gfx",
     "version": "1.0.1",
     "description": "A device independent graphics library for embedded and IoT devices",
-    "keywords": ["tft","e-paper","e-ink","graphics","spi","parallel","i2c","drawing","jpg","ttf","font"],
+    "keywords": ["tft","graphics","spi","parallel","i2c","drawing","jpg","ttf","font"],
     "authors": {
         "name":"honey the codewitch",
         "homepage": "https://www.codeproject.com/Members/code-witch"
@@ -14,9 +14,21 @@
         "unflags": "-std=gnu++11",
         "flags": "-std=gnu++14"
     },
-    "repository":
-    {
+    "repository": {
         "type": "git",
         "url": "https://github.com/codewitch-honey-crisis/gfx.git"
+    },
+    "dependencies": {
+        "codewitch-honey-crisis/htcw_bits": "^1.0.0",
+        "codewitch-honey-crisis/htcw_data": "^1.0.2",
+        "codewitch-honey-crisis/htcw_io": "^1.0.4"
+    },
+    "export": {
+        "exclude":
+        [
+            "tools/*.*",
+            ".vscode/*.*",
+            "lib/*.*"
+        ]
     }
 }

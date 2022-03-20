@@ -3,9 +3,7 @@
 #define HTCW_LITTLE_ENDIAN
 #include <stdio.h>
 #include <string.h>
-#include <gfx_font.hpp>
-#include <gfx_open_font.hpp>
-using namespace gfx;
+#include <io_stream.hpp>
 #ifdef WINDOWS
 #define PATH_CHAR '\\'
 #else
@@ -110,12 +108,12 @@ int main(int argc, char** argv) {
     
     if(argc<2) {
         fprintf(stderr,"Input file not specified");
-        return (int)font::result::invalid_argument;
+        return -1;
     }    
     fprintf(stderr,"// %s\r\n",argv[1]);
     if(argc>5) {
         fprintf(stderr,"Too many arguments specified");
-        return (int)font::result::invalid_argument;
+        return -1;
     }
     size_t index = 0;
     if(argc>2) {

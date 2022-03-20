@@ -81,7 +81,7 @@ void generate(file_stream& f,const char* filename) {
     printf("#ifndef %s_HPP\r\n",ident);
     printf("#define %s_HPP\r\n",ident);
     printf("#include <stdint.h>\r\n");
-    printf("#include <stream.hpp>\r\n\r\n");
+    printf("#include <io_stream.hpp>\r\n\r\n");
     printf("#ifndef PROGMEM\r\n\t#define PROGMEM\r\n#endif\r\n\r\n");
     printf("static const uint8_t %s_bin[] PROGMEM = {\r\n\t",ident);
     int cc=0;

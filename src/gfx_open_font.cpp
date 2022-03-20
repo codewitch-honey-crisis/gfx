@@ -4847,7 +4847,7 @@ namespace gfx {
         spoint16 offset,
         const char* text,
         float scale,
-        float scaled_tab_width) const {
+        float scaled_tab_width,gfx::gfx_encoding encoding) const {
         ssize16 result(0,0);
         if(nullptr==text || 0==*text || nullptr==m_info_data || nullptr==((stbtt::stbtt_fontinfo*)m_info_data)->stream)
             return result;
@@ -4898,7 +4898,8 @@ namespace gfx {
                 ++sz;
                 continue;
             }
-            gi = stbtt::stbtt_FindGlyphIndex(info,*sz);
+            size_t adv;
+            gi=glyph_index(sz,&adv,encoding);
             stbtt::stbtt_GetGlyphHMetrics(info,gi,&advw,&lsb);
             stbtt::stbtt_GetGlyphBitmapBoxSubpixel(info,gi,scale,scale,xpos-floor(xpos),0,&x1,&y1,&x2,&y2);
             float xe = x2-x1;
@@ -4918,13 +4919,15 @@ namespace gfx {
                 y_extent=ypos+height;
             }
             xpos+=(advw*scale);    
-            if(*(sz+1)) {
-                xpos+=(stbtt::stbtt_GetGlyphKernAdvance(info,gi,stbtt::stbtt_FindGlyphIndex(info,*(sz+1)))*scale);
+            if(*(sz+adv)) {
+               size_t adv2;
+               int gi2=glyph_index(sz+adv,&adv2,encoding);
+               xpos+=(stbtt::stbtt_GetGlyphKernAdvance(info,gi,gi2)*scale);
             }
             if(adv_line) {
                 ypos+=lgap*scale;
             }
-            ++sz;   
+            sz+=adv;
         }
         return {(int16_t)(ceil(x_extent)),(int16_t)(ceil(y_extent+abs(dsc*scale)))};
     }

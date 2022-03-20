@@ -413,6 +413,100 @@ namespace gfx {
             return gfx_result::success;
         }
     };
+    // represents an immutable in-memory bitmap
+    template<typename PixelType,typename PaletteType = palette<PixelType,PixelType>>
+    class const_bitmap final {
+        const size16 m_dimensions;
+        const PaletteType* m_palette;
+        const uint8_t* m_begin;
+    public:
+        // the type of the bitmap, itself
+        using type = const_bitmap;
+        // the type of the pixel used for the bitmap
+        using pixel_type = PixelType;
+        using palette_type = PaletteType;
+        using caps = gfx::gfx_caps< true,false,false,false,false,true,true>;
+        
+    public:
+        // constructs a new bitmap with the specified size and buffer
+        const_bitmap(size16 dimensions,const void* buffer,const palette_type* palette=nullptr) : m_dimensions(dimensions),m_palette(palette),m_begin((const uint8_t*)buffer) {}
+        // constructs a new bitmap with the specified width, height and buffer
+        bitmap(uint16_t width,uint16_t height,const void* buffer,const palette_type* palette=nullptr) : m_dimensions(width,height),m_palette(palette),m_begin((const uint8_t*)buffer) {}
+        bitmap() : m_dimensions(0,0),m_palette(nullptr),m_begin(nullptr) {
+            
+        }
+        bitmap(const type& rhs)=default;
+        type& operator=(const type& rhs)=default;
+        bitmap(type&& rhs)=default;
+        type& operator=(type&& rhs) {
+            m_dimensions = rhs.m_dimensions;
+            m_palette = rhs.m_palette;
+            m_begin = rhs.m_begin;
+            return *this;
+        }
+        inline bool initialized() const {
+            return nullptr!=m_begin;
+        }
+        gfx_result point(point16 location,pixel_type* out_pixel) const {
+            if(nullptr==begin()) {
+                return gfx_result::out_of_memory;
+            }
+            if(nullptr==out_pixel) {
+                return gfx_result::invalid_argument;
+            }
+            return bitmap<pixel_type,palette_type>::point(dimensions(),m_begin,location,out_pixel);
+        }
+        // indicates the dimensions of the bitmap
+        inline size16 dimensions() const {
+            return m_dimensions;
+        }
+        // provides a bounding rectangle for the bitmap, starting at 0,0
+        inline rect16 bounds() const {
+            return rect16(point16(0,0),dimensions());
+        }
+        // indicates the size of the bitmap, in pixels
+        inline size_t size_pixels() const {
+            return m_dimensions.height*m_dimensions.width;
+        }
+        // indicates the size of the bitmap in bytes
+        inline size_t size_bytes() const {
+            return (size_pixels()*((PixelType::bit_depth+7)/8));
+        }
+        // indicates the beginning of the bitmap buffer
+        inline const uint8_t* begin() const {
+            return m_begin;
+        }
+        // indicates just past the end of the bitmap buffer
+        inline const uint8_t* end() const {
+            return begin()+size_bytes();
+        }
+        template<typename Destination>
+        inline gfx_result copy_to(const rect16& src_rect,Destination& dst,point16 location) const {
+            if(nullptr==begin())
+                return gfx_result::out_of_memory;
+            if(!src_rect.intersects(bounds())) return gfx_result::success;
+            rect16 srcr = src_rect.crop(bounds());
+            rect16 dstr= rect16(location,srcr.dimensions()).crop(dst.bounds());
+            srcr=rect16(srcr.location(),dstr.dimensions());
+            return helpers::bmp_copy_to_helper<type,Destination,!(pixel_type::template has_channel_names<channel_name::A>::value)>::copy_to(*this,srcr,dst,dstr);
+        }
+        const palette_type *palette() const {
+            return m_palette;
+        }
+        // computes the minimum required size for a bitmap buffer, in bytes
+        constexpr inline static size_t sizeof_buffer(size16 size) {
+            return (size.width*size.height*pixel_type::bit_depth+7)/8;
+        }
+        // computes the minimum required size for a bitmap buffer, in bytes
+        constexpr inline static size_t sizeof_buffer(uint16_t width,uint16_t height) {
+            return sizeof_buffer(size16(width,height));
+        }
+        
+        // this check is already guaranteed by asserts in the pixel itself
+        // this is more so it won't compile unless PixelType is actually a pixel
+        static_assert(PixelType::channels>0,"The type is not a pixel or the pixel is invalid");
+
+    };
     template<typename PixelType,typename PaletteType=palette<PixelType,PixelType>>
     class large_bitmap final {
         size16 m_dimensions;

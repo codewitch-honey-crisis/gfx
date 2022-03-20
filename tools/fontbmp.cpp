@@ -244,13 +244,13 @@ int generate(const open_font& f,const char* fname,const char* chars, int height,
                     return (int)gfx_result::out_of_memory;
                 }
                 bmp_type bmp(bsz,bmp_buf);
-                bmp.clear(bmp.bounds());
+                draw::filled_rectangle(bmp,(srect16)bmp.bounds(),sbg);
                 draw::text(bmp,(srect16)bmp.bounds(),{0,0},buf,f,scale,sfg,sbg,false);
                 char n[64];
                 generate_array(ident,itoa(cp,n,16),bmp_buf,bmp_len,handle);
                 free(bmp_buf);
 
-                OUT("static const gfx::bitmap<gfx::rgb_pixel<16>> ");
+                OUT("static const gfx::const_bitmap<gfx::rgb_pixel<16>> ");
                 OUT(ident);
                 OUT("_0x");
                 OUT(n);
@@ -274,13 +274,13 @@ int generate(const open_font& f,const char* fname,const char* chars, int height,
                     return (int)gfx_result::out_of_memory;
                 }
                 bmp_type bmp(bsz,bmp_buf);
-                bmp.clear(bmp.bounds());
+                draw::filled_rectangle(bmp,(srect16)bmp.bounds(),sbg);
                 draw::text(bmp,(srect16)bmp.bounds(),{0,0},buf,f,scale,sfg,sbg,false);
                 char n[64];
                 generate_array(ident,itoa(cp,n,16),bmp_buf,bmp_len,handle);
                 free(bmp_buf);
 
-                OUT("static const gfx::bitmap<gfx::gsc_pixel<4>> ");
+                OUT("static const gfx::const_bitmap<gfx::gsc_pixel<4>> ");
                 OUT(ident);
                 OUT("_0x");
                 OUT(n);
@@ -304,7 +304,7 @@ int generate(const open_font& f,const char* fname,const char* chars, int height,
                     return (int)gfx_result::out_of_memory;
                 }
                 bmp_type bmp(bsz,bmp_buf);
-                bmp.clear(bmp.bounds());
+                draw::filled_rectangle(bmp,(srect16)bmp.bounds(),sbg);
                 draw::text(bmp,(srect16)bmp.bounds(),{0,0},buf,f,scale,sfg,sbg,false);
                 char n[64];
                 generate_array(ident,itoa(cp,n,16),bmp_buf,bmp_len,handle);
@@ -370,13 +370,14 @@ int generate(const open_font& f,const char* fname,const char* chars, int height,
     return 0;
 }
 void print_usage() {
-    fprintf(stderr,"USAGE: fontbmp <inputFile> <characters> <height> <forecolor> <backcolor> <format>\r\n\r\n");
+    fprintf(stderr,"USAGE: fontbmp <inputFile> <characters> <height> <forecolor> <backcolor> <format> [<outputFile>]\r\n\r\n");
     fprintf(stderr,"<inputFile>    The font file to use\r\n");
     fprintf(stderr,"<characters>   A string of characters to render\r\n");
     fprintf(stderr,"<height>       The character height in pixels\r\n");
     fprintf(stderr,"<forecolor>    The forecolor in 24-bit hex, like FFFFFF for white\r\n");
     fprintf(stderr,"<backcolor>    The backcolor in 24-bit hex\r\n");
     fprintf(stderr,"<format>       The format. Either RGB, GSC or MONO\r\n");
+    fprintf(stderr,"<outputFile>   The header file to generate. Defaults to STDOUT\r\n");
     fprintf(stderr,"\r\n");
 
 }
@@ -392,7 +393,7 @@ void print_usage() {
 }*/
 int main(int argc, char** argv) {
     
-    if(argc!=7) {
+    if(argc!=7 && argc!=8) {
         print_usage();
         fprintf(stderr,"Wrong number of arguments. Should be 6.\r\n\r\n");
         return (int)gfx_result::invalid_argument;
@@ -425,7 +426,14 @@ int main(int argc, char** argv) {
             fprintf(stderr,"Invalid format. Should be RGB, GSC, or MONO.\r\n\r\n");
         return (int)gfx_result::invalid_argument;
         }
-        return generate(f,fname,chars,height,forecolor,backcolor,fmt,stdout);
+        FILE* handle = stdout;
+        if(argc==8) {
+            handle=fopen(argv[7],"w");
+        }
+        return generate(f,fname,chars,height,forecolor,backcolor,fmt,handle);
+        if(handle!=stdout) {
+            fclose(handle);
+        }
     } else {
         fprintf(stderr,"Failed with %d\r\n",(int)r);
         return (int)r;

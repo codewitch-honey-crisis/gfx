@@ -4966,7 +4966,7 @@ namespace gfx {
             if(cache!=nullptr) {
                
             }
-            gi=glyph_index(sz,&adv,encoding);
+            gi=glyph_index(sz,&adv,encoding,cache);
             stbtt::stbtt_GetGlyphHMetrics(info,gi,&advw,&lsb);
             stbtt::stbtt_GetGlyphBitmapBoxSubpixel(info,gi,scale,scale,xpos-floor(xpos),0,&x1,&y1,&x2,&y2);
             float xe = x2-x1;
@@ -4988,7 +4988,7 @@ namespace gfx {
             xpos+=(advw*scale);    
             if(*(sz+adv)) {
                size_t adv2;
-               int gi2=glyph_index(sz+adv,&adv2,encoding);
+               int gi2=glyph_index(sz+adv,&adv2,encoding,cache);
                xpos+=(stbtt::stbtt_GetGlyphKernAdvance(info,gi,gi2)*scale);
             }
             if(adv_line) {

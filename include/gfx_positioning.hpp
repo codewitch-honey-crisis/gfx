@@ -1,5 +1,6 @@
 #ifndef HTCW_GFX_POSITIONING_HPP
 #define HTCW_GFX_POSITIONING_HPP
+#include "gfx_core.hpp"
 #include <htcw_bits.hpp>
 namespace gfx {
     // represents a pointx with integer coordinates

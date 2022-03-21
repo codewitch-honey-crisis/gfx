@@ -1,5 +1,6 @@
 #ifndef HTCW_GFX_PALETTE_HPP
 #define HTCW_GFX_PALETTE_HPP
+#include "gfx_core.hpp"
 #include "gfx_pixel.hpp"
 #include <stdlib.h>
 namespace gfx {

@@ -312,7 +312,7 @@ namespace gfx {
         }
         const uint8_t* data = m_char_data;
         for(size_t i = (uint8_t)m_first_char;i<(uint8_t)ch;++i) {
-            uint16_t w = *((uint16_t*)data);
+            uint16_t w = pgm_read_byte((uint16_t*)data);
             data+=sizeof(w);
             size_t wb = (w+7)/8;
             data+=(wb*m_height);
@@ -322,7 +322,7 @@ namespace gfx {
     uint16_t font::width(char ch) const {
         const uint8_t* p = char_data_ptr(ch);
         if(nullptr!=p) {
-            return *((uint16_t*)p);
+            return pgm_read_byte((uint16_t*)p);
         }
         return 0;
     }
@@ -330,7 +330,7 @@ namespace gfx {
     const font_char font::operator[](int ch) const {
         const uint8_t* p= char_data_ptr((char)ch);
         font_char result;
-        result.m_width = *((uint16_t*)p);
+        result.m_width = pgm_read_byte((uint16_t*)p);
         p+=sizeof(uint16_t);
         result.m_data = p;
         return result;

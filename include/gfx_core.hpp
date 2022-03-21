@@ -36,6 +36,7 @@
 #include <io_stream.hpp>
 #ifndef ARDUINO
     #define PROGMEM 
+    #define pgm_read_byte(x) (*x)
 #endif
 namespace gfx {
     static_assert(bits::endianness()!=bits::endian_mode::none,"Please define GFX_LITTLE_ENDIAN or GFX_BIG_ENDIAN before including GFX to indicate the byte order of the platform.");

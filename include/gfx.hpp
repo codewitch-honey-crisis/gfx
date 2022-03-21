@@ -8,4 +8,5 @@
 #include "gfx_drawing.hpp"
 #include "gfx_bitmap.hpp"
 #include "gfx_viewport.hpp"
+#include "gfx_sprite.hpp"
 #endif // HTCW_GFX

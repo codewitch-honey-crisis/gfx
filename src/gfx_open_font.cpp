@@ -4717,12 +4717,42 @@ static int stbtt_FindMatchingFont_internal(unsigned char *font_collection, char 
 #if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic pop
 #endif
-
+int open_font_hash(const int& value) {
+   return value;
+}
 namespace gfx {
+      void open_font_cache::deinitialize() {
+         if(m_cache!=nullptr) {
+            m_cache->clear();
+            m_cache->~cache_type();
+            m_deallocator(m_cache);
+            m_cache = nullptr;
+         }
+      }
+      bool open_font_cache::initialize() {
+         if(m_cache == nullptr) {
+            m_cache = (cache_type*)m_allocator(sizeof(cache_type));
+            if(m_cache == nullptr) {
+               return false;
+            }
+            *m_cache = cache_type(open_font_hash, m_allocator,m_reallocator,m_deallocator);
+         }
+         return true;
+      }
+      open_font_cache::open_font_cache(void*(allocator)(size_t),void*(reallocator)(void*,size_t),void(deallocator)(void*)) : m_allocator(allocator),m_reallocator(reallocator),m_deallocator(deallocator),m_cache(nullptr) {
+
+      }
+      open_font_cache::~open_font_cache() {
+         deinitialize();
+      }
+      void open_font_cache::clear() {
+         deinitialize();
+      }
+      
     open_font::open_font() {
         m_info_data = nullptr;
     }
-    open_font::open_font(stream* stream, void*(*allocator)(size_t), void(*deallocator)(void*)) :
+    open_font::open_font(stream* stream, void*(allocator)(size_t), void(deallocator)(void*)) :
       m_allocator(allocator),m_deallocator(deallocator) {
       m_info_data = m_allocator(sizeof(stbtt::stbtt_fontinfo));
       if(m_info_data==nullptr) {
@@ -4765,7 +4795,29 @@ namespace gfx {
     void open_font::bounding_box(int* x1, int* y1, int* x2, int* y2) const {
        return stbtt::stbtt_GetFontBoundingBox((const stbtt::stbtt_fontinfo*)m_info_data,x1,y1,x2,y2);
     }
-    int open_font::glyph_index(const char* sz, size_t* out_advance, gfx_encoding encoding) const {
+    // caches a string for faster drawing
+    void open_font::cache(open_font_cache* cache,const char* text,gfx_encoding encoding) {
+       if(nullptr==cache||nullptr==text) {
+          return;
+       }
+       if(!cache->initialize()) {
+          return;
+       }
+       const char* sz = text;
+       while(*sz) {
+         int cp;
+         int c = to_utf32_codepoint(sz,4,&cp,encoding);
+         if(c<0) {
+            return;
+         }
+         const int* pi = cache->m_cache->find(cp);
+         if(nullptr==pi) {
+            int result = stbtt::stbtt_FindGlyphIndex((const stbtt::stbtt_fontinfo*)m_info_data,cp);
+            cache->m_cache->insert({cp,result});
+         }
+       }
+    }
+    int open_font::glyph_index(const char* sz, size_t* out_advance, gfx_encoding encoding,open_font_cache* cache) const {
        int cp;
        int c = to_utf32_codepoint(sz,4,&cp,encoding);
        if(c<0) {
@@ -4773,7 +4825,18 @@ namespace gfx {
          return -1;
        }
        if(out_advance) *out_advance = c;
-       int result = stbtt::stbtt_FindGlyphIndex((const stbtt::stbtt_fontinfo*)m_info_data,cp);
+       int result;
+       if(cache) {
+          if(cache->initialize()) {
+             const int* pi = cache->m_cache->find(cp);
+             if(pi!=nullptr) {
+                return *pi;
+             }
+             result = stbtt::stbtt_FindGlyphIndex((const stbtt::stbtt_fontinfo*)m_info_data,cp);
+             cache->m_cache->insert({cp,result});
+          }
+       }
+       result = stbtt::stbtt_FindGlyphIndex((const stbtt::stbtt_fontinfo*)m_info_data,cp);
        return result;
     }
     void open_font::free() {
@@ -4847,7 +4910,8 @@ namespace gfx {
         spoint16 offset,
         const char* text,
         float scale,
-        float scaled_tab_width,gfx::gfx_encoding encoding) const {
+        float scaled_tab_width,gfx::gfx_encoding encoding,
+        open_font_cache* cache) const {
         ssize16 result(0,0);
         if(nullptr==text || 0==*text || nullptr==m_info_data || nullptr==((stbtt::stbtt_fontinfo*)m_info_data)->stream)
             return result;
@@ -4899,6 +4963,9 @@ namespace gfx {
                 continue;
             }
             size_t adv;
+            if(cache!=nullptr) {
+               
+            }
             gi=glyph_index(sz,&adv,encoding);
             stbtt::stbtt_GetGlyphHMetrics(info,gi,&advw,&lsb);
             stbtt::stbtt_GetGlyphBitmapBoxSubpixel(info,gi,scale,scale,xpos-floor(xpos),0,&x1,&y1,&x2,&y2);

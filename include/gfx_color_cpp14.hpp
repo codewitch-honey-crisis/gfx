@@ -1,5 +1,6 @@
 #ifndef HTCW_GFX_COLOR_CPP14_HPP
 #define HTCW_GFX_COLOR_CPP14_HPP
+#include "gfx_core.hpp"
 #include "gfx_pixel.hpp"
 namespace gfx {
         // predefined color values

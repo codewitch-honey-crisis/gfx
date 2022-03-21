@@ -2113,7 +2113,10 @@ namespace gfx {
                 for(size_t j=0;j<font.height();++j) {
                     bits::int_max m = 1 << (fc.width()-1);
                     bits::int_max accum=0;
-                    memcpy(&accum,p,wb);
+                    uint8_t* paccum = (uint8_t*)&accum;
+                    for(int i = 0;i<wb;++i) {
+                        (*paccum++)=pgm_read_byte(p+i);
+                    }
                     p+=wb;
                     int run_start_fg = -1;
                     int run_start_bg = -1;
@@ -2175,7 +2178,10 @@ namespace gfx {
                 for(size_t j=0;j<font.height();++j) {
                     bits::int_max m = 1 << (fc.width()-1);
                     bits::int_max accum=0;
-                    memcpy(&accum,p,wb);
+                    uint8_t* paccum = (uint8_t*)&accum;
+                    for(int i = 0;i<wb;++i) {
+                        (*paccum++)=pgm_read_byte(p+i);
+                    }
                     p+=wb;
                     for(size_t n=0;n<=fc.width();++n) {
                         point16 pt(n+chr.left(),j+chr.top());
@@ -2791,6 +2797,7 @@ namespace gfx {
             float scaled_tab_width,
             gfx_encoding encoding,
             srect16* clip,
+            open_font_cache* cache,
             bool async) {
             if(nullptr==text) return gfx_result::invalid_argument;
             gfx_result r=gfx_result::success;
@@ -2816,7 +2823,7 @@ namespace gfx {
             height = baseline;
             int advw;
             size_t advsz;
-            int gi= font.glyph_index(sz,&advsz,encoding);
+            int gi= font.glyph_index(sz,&advsz,encoding,cache);
             float xpos=offset.x,ypos=baseline+offset.y;
             float x_extent=0,y_extent=0;
             bool adv_line = false;
@@ -2849,7 +2856,7 @@ namespace gfx {
                         ypos+=lgap*scale;
                     }
                     sz+=advsz;
-                    gi=font.glyph_index(sz,&advsz,encoding);
+                    gi=font.glyph_index(sz,&advsz,encoding,cache);
                     continue;
                 }
                 font.glyph_hmetrics(gi,&advw,nullptr);
@@ -2882,7 +2889,7 @@ namespace gfx {
                 }
                 xpos+=(advw*scale);    
                 if(*(sz+advsz)) {
-                    int gi2=font.glyph_index(sz+advsz,&advsz,encoding);
+                    int gi2=font.glyph_index(sz+advsz,&advsz,encoding,cache);
                     xpos+=(font.kern_advance_width(gi,gi2)*scale);
                     gi=gi2;
                 }
@@ -3070,8 +3077,9 @@ namespace gfx {
             bool no_antialiasing = false,
             float scaled_tab_width=0,
             gfx_encoding encoding=gfx_encoding::utf8,
-            srect16* clip=nullptr) {
-            return text_impl(destination,dest_rect,offset,text,font,scale,color,backcolor,transparent_background,no_antialiasing,scaled_tab_width,encoding,clip,false);
+            srect16* clip=nullptr,
+            open_font_cache* cache = nullptr) {
+            return text_impl(destination,dest_rect,offset,text,font,scale,color,backcolor,transparent_background,no_antialiasing,scaled_tab_width,encoding,clip,cache,false);
         }
         // asynchronously draws text to the specified destination rectangle with the specified font and colors and optional clipping rectangle
         template<typename Destination,typename PixelType>
@@ -3087,8 +3095,9 @@ namespace gfx {
             bool transparent_background = true,
             bool no_antialiasing = false,
             float scaled_tab_width=0,
-            srect16* clip=nullptr) {
-            return text_impl(destination,dest_rect,offset,text,font,scale,color,backcolor,transparent_background,no_antialiasing,scaled_tab_width,clip,true);
+            srect16* clip=nullptr,
+            open_font_cache* cache=nullptr) {
+            return text_impl(destination,dest_rect,offset,text,font,scale,color,backcolor,transparent_background,no_antialiasing,scaled_tab_width,clip,cache,true);
         }
         // draws an image from the specified stream to the specified destination rectangle with the an optional clipping rectangle
         template<typename Destination>

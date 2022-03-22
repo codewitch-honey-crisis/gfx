@@ -1,6 +1,7 @@
 #ifndef HTCW_GFX_DRAW_HELPERS_HPP
 #define HTCW_GFX_DRAW_HELPERS_HPP
 #include "gfx_core.hpp"
+#include "gfx_pixel.hpp"
 #include "gfx_positioning.hpp"
 
 namespace gfx {

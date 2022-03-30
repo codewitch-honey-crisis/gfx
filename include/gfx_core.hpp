@@ -8,13 +8,14 @@
 #ifdef GFX_LITTLE_ENDIAN
     #define HTCW_LITTLE_ENDIAN
 #endif
-#ifdef GFX_ARDUINO_SD_FS
-    #define IO_ARDUINO_SD_FS
-#endif
-#ifdef GFX_ARDUINO_NO_FS
-    #define IO_NO_FS
-#endif
 #include <htcw_bits.hpp>
+#if !defined(GFX_BIG_ENDIAN) && !defined(GFX_LITTLE_ENDIAN)
+    #ifdef HTCW_BIG_ENDIAN
+        #define GFX_BIG_ENDIAN
+    #elif defined(HTCW_LITTLE_ENDIAN)
+        #define GFX_LITTLE_ENDIAN
+    #endif
+#endif
 #include <io_stream.hpp>
 #ifndef ARDUINO
     #define PROGMEM 
@@ -30,7 +31,7 @@ namespace gfx {
 #endif
     using buffer_stream = io::buffer_stream;
     using const_buffer_stream = io::const_buffer_stream;
-#ifndef GFX_ARDUINO_NO_FS
+#ifndef IO_NO_FS
     using file_stream = io::file_stream;
 #endif
     template<bool Blt,bool Async,bool Batch,bool CopyFrom,bool Suspend,bool Read,bool CopyTo>

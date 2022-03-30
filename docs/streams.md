@@ -1,4 +1,4 @@
-#### [← Back to index](./index.md)
+#### [← Back to index](index.md)
 
 <a name="7"></a>
 
@@ -13,7 +13,7 @@ Typically, methods accept a *pointer* to a stream rather than the stream itself 
 Different platforms initialize the file stream differently. For example, when available, `fopen()` will be used and the path and access mode can be passed in to the constructor. Under Arduino, a `File` object must be passed in.
 
 The following is an example of streaming a truetype font off an SD card under Arduino, using a `file_stream`:
-```
+```cpp
 File file = SD.open("/Maziro.ttf");
 file_stream fs(file);
 open_font::open(&fs,&f);

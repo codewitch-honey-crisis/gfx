@@ -1,4 +1,4 @@
-#### [← Back to index](./index.md)
+#### [← Back to index](index.md)
 
 <a name="3"></a>
 
@@ -13,7 +13,7 @@ Instead, you are called back with bitmaps representing small portions of the ima
 It should be noted that the `draw` class can handle the callbacks for you ([section 5.4](./drawing.md#5.4)), so you don't have to use the method that is about to be described to load an image, but it can be useful to use if you intend to do post-processing on the image:
 
 To load an image you start by passing the stream to the image loader function along with a callback (I prefer to use a "flat" lambda for this) that handles the incremental loading. You'll be called back multiple times, again, each time with a portion of the image as a bitmap, along with a location where it belongs within the image, and any state you passed along to the `load()` function. Note that to reduce overhead, a state variable is used to pass state instead of using a functor like `std::function<>`. As I do, you can use a "flat" lambda that decays to a simple function pointer, and then pass your class pointer in as the state argument, to be reconstituted inside your callback. Often times, you won't even need a state argument because everything you're after, such as the display itself, is available globally:
-```
+```cpp
 // this line may vary for different platforms
 // like arduino:
 file_stream fs("/spiffs/image.jpg");

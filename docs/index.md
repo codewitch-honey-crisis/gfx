@@ -8,11 +8,11 @@ GFX is copyright (C) 2021-2022 by honey the codewitch. GFX is licensed under the
 
 ---
 Get started using GFX by including the appropriate header:
-```
+```cpp
 #include <gfx.hpp> // for GCC C++17
 ```
 or
-```
+```cpp
 #include <gfx_cpp14.hpp> // for GCC C++14
 ```
 

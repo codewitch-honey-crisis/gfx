@@ -1,4 +1,4 @@
-#### [← Back to index](./index.md)
+#### [← Back to index](index.md)
 
 <a name="1"></a>
 
@@ -10,7 +10,7 @@ A pixel has a bit depth which is the sum of the bit depths of each [channel](#1.
 
 A pixel has a raw value of at most the maximum machine word size (including compound words) that can be represented either as a big endian or a platform specific value. You use `value()` to get the big endian value and the `native_value` field to get the platform ordered value. The type of the value is the smallest unsigned integer type that can hold the a value of the computed bit depth.
 
-```
+```cpp
 // get the pixel value in big endian form
 auto v = rgb888.value();
 // get the pixel in platform endian form
@@ -42,7 +42,7 @@ A pixel may be made up of multiple *channels*. A channel is one element of a pix
 Each channel may be a specified bit depth, and has corresponding integer and real number types that represent the value of that channel. Larger bit-depths use larger integer and real types. The real number accessors scale the channel value to a real/floating point number between 0.0 and 1.0, inclusive. Each channel also potentially has a custom minimum, maximum and default value. Furthermore, each channel has a corresponding index and name, either of which can be used to reference it. Typically, you manipulate color values by manipulating individual channels.
 
 You can access channel values like this:
-```
+```cpp
 // set channel by index
 rgb888.template channel<0>(255); // max
 // set channel by name
@@ -66,7 +66,7 @@ Sometimes the compiler will complain because it can't guarantee that a particula
 GFX provides a palette of named X11 colors to choose from. These colors are available in any pixel format except for indexed pixels, converting to the appropriate format (such as grayscale or YUV).
 
 You can access a psuedo enumeration of named colors like this:
-```
+```cpp
 // get the color enumeration in the
 // 16-bit RGB format
 using color16 = color<rgb_pixel<16>>;
@@ -105,7 +105,7 @@ When converting from a non-indexed pixel type to an indexed pixel type using a g
 
 Sometimes the shorthand declarations for common pixels will not be detailed enough to represent your precise pixel. A good example might be a 7-color e-paper display. Such a display may use 4 bits per pixel, but valid values are only zero through 7. You can define this using *channel traits*, which declare the properties for a channel. You feed one or more channel traits into a pixel definition in order to declare the channels.
 
-```
+```cpp
 // declare a 4-bit 7-color pixel
 // parameters: name, index, bit depth, [min], [max], [default], [scale]
 using index7 = gfx::pixel<gfx::channel_traits<gfx::channel_name::index,4,0,6>>;

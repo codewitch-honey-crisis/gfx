@@ -1,4 +1,4 @@
-#### [← Back to index](./index.md)
+#### [← Back to index](index.md)
 
 <a name="2"></a>
 
@@ -29,7 +29,7 @@ In addition to being part of the type signature, the pixel type determines the b
 
 Declaring a bitmap and an associated buffer looks like this:
 
-```
+```cpp
 using bmp_type = bitmap<rgb_pixel<16>>;
 constexpr static const size16 bmp_size(16,16);
 uint8_t bmp_buf[bmp_type::sizeof_buffer(bmp_size)];
@@ -46,7 +46,7 @@ A const bitmap operates like a standard bitmap except there are no draw destinat
 
 Declaring one is similar to declaring a bitmap as above:
 
-```
+```cpp
 using bmp_type = const_bitmap<rgb_pixel<16>>;
 // the rest of the code is the same as bitmap<>
 ```
@@ -60,7 +60,7 @@ On little devices there's not a lot of heap, and while it may seem like you shou
 In GFX large bitmaps can created using the `large_bitmap<>` template class. It is a composition of a lot of smaller bitmaps such that it presents a facade of one unified draw source/destination. Using this is pretty much the same as the regular bitmap as far as GFX is concerned, even though it doesn't have all the members that standard bitmaps do.
 
 Create it like a normal bitmap except you need to pass in the segment height, in lines as the second parameter. A large bitmap is composed of a bunch of smaller bitmaps (referred to as segments) of the same width stacked vertically. Therefore, each segment is a number of lines high. Every segment but the last one (which may be smaller) has the same number of lines. Unlike normal bitmaps, you do not allocate your own memory for this but you can use custom allocator and deallocator functions if you need special platform specific heap options. Declaring them looks like this:
-```
+```cpp
 constexpr static const size16 bmp_size(320,240);
 using bmp_type = large_bitmap<rgb_pixel<16>>;
 bmp_type bmp(bmp_size,1);
@@ -79,7 +79,7 @@ Drivers are not included with GFX. See the documentation and/or demo code for yo
 ## 2.4 Viewports
 
 A viewport allows you to rotate or offset drawing operations. You can specify an offset, a center point, and a rotation angle in degrees and any draw operation targeting that viewport will be transformed based on how you configured it. They are useful for doing things like drawing text at an angle. You have to be careful how you configure it to get the center correct for your rotation. When you instantiate it, you give it an existing draw target like a bitmap or a driver, and then set the transformation configuration for subsequent draws:
-```
+```cpp
 viewport<bmp_type> view(bmp);
 view.rotation(90);    
 view.offset({45,5});
@@ -97,7 +97,7 @@ sr = sr.clamp_top_left_to_at_least_zero();
 
 A sprite has both a bitmap and an associated monochrome bitmap mask draw target. The sprite acts as a draw source only so it must be initialized with a pre-drawn bitmap and mask. Sprites have a `bool hit_test(point16) const` function which will use the mask to determine if a point intersects with the visible portion of the bitmap - that is a portion of the bitmap whose mask area is set. The mask also determines which part of the bitmap is actually drawn and which is not. The bitmap and mask must be the same size or the results are undefined. Declaring one is something like follows:
 
-```
+```cpp
 constexpr static const size16 sprite_size(16,16);
 // declare a monochrome bitmap.
 using mask_type = bitmap<gsc_pixel<1>>;
@@ -126,12 +126,12 @@ In addition to the above, you can create your own draw targets by creating a cla
 All draw targets have a core collection of members needed define them.
 
 The first is the pixel_type alias which is used to express the native pixel type of the draw target. Declare it as follows:
-```
+```cpp
 // declare a 16-bit RGB native pixel type
 using pixel_type = rgb_pixel<16>;
 ```
 If the pixel type is an indexed type, the target must expose the following:
-```
+```cpp
 // declares the palette to be of type mypalette
 using palette_type = mypalette;
 // retrieves the instance of the palette
@@ -140,7 +140,7 @@ const palette_type* palette() const;
 ```
 
 A draw target also exports metrics that determine its dimensions and bounds:
-```
+```cpp
 // retrieves the dimensions of the draw target
 size16 dimensions() const;
 // retrieves the bounding rectangle anchored to (0,0)
@@ -148,7 +148,7 @@ rect16 bounds() const;
 ```
 
 If your target supports asynchronous operations you must also provide
-```
+```cpp
 gfx_result wait_all_async();
 ```
 This waits for all pending asynchronous operations to complete. We'll cover async below.
@@ -160,7 +160,7 @@ This waits for all pending asynchronous operations to complete. We'll cover asyn
 Finally, a draw target must expose a `gfx_caps<>` instantiation to tell GFX the target's capabilities.
 
 It looks something like this
-```
+```cpp
 using caps = gfx::gfx_caps<false,true,true,true,false,true,true>;
 ```
 
@@ -175,13 +175,13 @@ Also, we still don't have members for producing and consuming pixel data, but we
 To be a draw source, that is, a producer of pixels, first your `caps` must have at least `read` and possibly `copy_to` set to `true`.
 
 Once you do that, you must implement at least the following method:
-```
+```cpp
 gfx_result point(point16 location, pixel_type* out_pixel) const;
 ```
 This method retrieves the pixel at the given location. Or `success` and an empty/default pixel if the `location` was out of bounds.
 
 If you selected `copy_to` in the `caps` you must also implement the following:
-```
+```cpp
 template<typename Destination>
 gfx_result copy_to(const rect16& src_rect,Destination& dst,point16 location) const
 ```
@@ -190,7 +190,7 @@ This copies pixel data from the window indicated by `src_rect` to the draw desti
 If you selected `async` in your `caps` as well as `copy_to` you must also implement `copy_to_async` with the same signature. It should attempt to perform the copy operation asynchronously but can do so synchronously if asynchronous execution isn't possible.
 
 If you selected `blt` in your caps you will also have to expose two methods to retrieve the beginning and just past the end of your target's pixel data memory:
-```
+```cpp
 uint8_t* begin(); // can be const
 uint8_t* end(); // can be const
 ```
@@ -201,7 +201,7 @@ uint8_t* end(); // can be const
 
 For performance reasons, draw destinations can expose quite a few more members than draw sources. At their simplest however, they need just a few members specific to draw destinations:
 
-```
+```cpp
 // draws a single pixel of the specified color at the location
 // returns `success` without drawing if the pixel is out 
 // of bounds
@@ -223,7 +223,7 @@ gfx_result clear_async(const rect16& bounds);
 Beyond those, there may be additional members depending on the caps.
 
 If you selected blt you must provide `begin()` and `end()` accessors to gain access to the beginning and just past the end of your pixel memory buffer:
-```
+```cpp
 uint8_t* begin();
 uint8_t* end();
 ```
@@ -231,7 +231,7 @@ uint8_t* end();
 If you selected `batch` you must allow for setting a destination writing window, writing out pixels to that window in order from left to right, top to bottom, and then committing that batch operation when all the pixel data has been written.
 
 You'll be declaring the following methods:
-```
+```cpp
 // begins a batch operation targeting the specified window.
 gfx_result begin_batch(const rect16& rect);
 // and if async is specified
@@ -255,7 +255,7 @@ gfx_result commit_batch_async();
 
 If you selected `copy_from` in your caps you must provide a performant way to copy pixel data from a draw source to your draw destination. This is basically the corollary to `copy_to` for draw destinations.
 
-```
+```cpp
 // copies from a draw source src window as specified by 
 // src_rect to the specified location within this draw 
 // destination.
@@ -270,7 +270,7 @@ gfx_result copy_from_async(const rect16& src_rect,const Source& src,point16 loca
 If you selected `suspend` you must be able to suspend all drawing output until resumed. Suspend and resume calls should balance. Typically on the last resume call you will update the display with the frame buffer data.
 
 You must implement the following:
-```
+```cpp
 // suspends drawing. Suspends are counted and balanced, 
 // so for every suspend call, you must make a corresponding 
 // resume() call.

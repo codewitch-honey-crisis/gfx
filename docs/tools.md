@@ -1,4 +1,4 @@
-#### [← Back to index](./index.md)
+#### [← Back to index](index.md)
 
 <a name="9"></a>
 
@@ -41,10 +41,10 @@ Again, there is the caveat that on Windows the `#define WINDOWS` directive must 
 
 Once you've included the generated *test.hpp* file you can use it like
 
-```
+```cpp
 const font& f = test_fon;
 ```
 or
-```
+```cpp
 const open_font& f = test_ttf;
 ```

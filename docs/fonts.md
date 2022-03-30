@@ -1,4 +1,4 @@
-#### [← Back to index](./index.md)
+#### [← Back to index](index.md)
 
 <a name="4"></a>
 
@@ -22,14 +22,14 @@ But first, you need to scale down the font, because at their native scale, the f
 
 You can use the font's `float scale(float pixel_height) const` to find the scale for a font to be displayed at the given height in pixels:
 
-```
+```cpp
 // make characters 40 pixels high
 float scale = myfont.scale(40);
 ```
 
 You can then use the `open_font`'s `measure_text()` to determine the area needed to display the text:
 
-```
+```cpp
 // returns the size needed to display the text
 ssize16 measure_text(
     // the total size of the potential
@@ -52,7 +52,7 @@ ssize16 measure_text(
     open_font_cache* cache = nullptr) const;
 ```
 You use it like this:
-```
+```cpp
 ssize16 text_size = myfont.measure_text(
     (ssize16)screen.dimensions(),
     {0,0},
@@ -76,7 +76,7 @@ Another option is to embed the font as a header generated using fontgen ([sectio
 Finally, for devices with enough RAM, you can read the entire font stream into RAM and then work off of that, but these font files are typically at least 250kB.
 
 Read a font from a (file) stream like this:
-```
+```cpp
 // the following line varies
 // depending on platform:
 file_stream fs("/spiffs/Maziro.ttf");
@@ -86,7 +86,7 @@ open_font::open(&fs,&maziro);
 // maziro now contains the font
 ```
 Embed a font in a header using fontgen and the use it like this:
-```
+```cpp
 #include "Maziro.h"
 ...
 const open_font& maziro = Maziro_ttf;
@@ -103,7 +103,7 @@ Storage primarily dictates performance. Working from something like SPIFFS or SD
 Rendering TrueType on IoT ties up a lot of resources. You should use this text sparingly, animating as infrequently as possible. You should ideally use this on draw destinations that support alpha-blending/are also draw sources or use a non-transparent background in order to facilitate anti-aliasing. You can use a font cache to speed up glyph lookups, although it will only help in situations with slow storage.
 
 Declare a cache like this:
-```
+```cpp
 open_font_cache fcache;
 ```
 You can then pass it to `draw::text<>()` and `open_font`'s `measure_text()` in order to speed up glyph lookups. You can use `open_font`'s `cache()` method to preload the cache with a string. Use the cache's `clear()` method to reclaim the memory used by the cache and erase its contents. The cache is cleared when it goes out of scope via RAII.
@@ -119,7 +119,7 @@ Windows 3.1 used 16-bit raster .fon files. So does GFX. Using them is a little s
 ### 4.2.1 Layout
 
 It's pretty easy to lay out a raster font. Once you have a font open you can use `measure_text()` to compute the dimensions of some text:
-```
+```cpp
 // measures the size of the text 
 // within the destination size
 ssize16 measure_text(
@@ -144,7 +144,7 @@ ssize16 text_size = myfont.measure_text(screen.dimensions(), text);
 Raster fonts either reside in RAM or program space. You can load .FON files from a file via SPIFFS (ESP32) or an SD library in which case they will be kept in a RAM buffer, or you can embed them as a header in which case they remain in program flash space. Generally raster files should be embedded as a header on account of nobody actually using .FON files for modern content that's likely to appear on something such as an SD card. That being said, if you ever need it, it's not a problem.
 
 Read a font from a (file) stream like this:
-```
+```cpp
 // the following line varies
 // depending on platform:
 file_stream fs("/spiffs/Bm437_Acer_VGA_8x8.FON");

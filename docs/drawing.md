@@ -1,4 +1,4 @@
-#### [← Back to index](./index.md)
+#### [← Back to index](index.md)
 
 <a name="5"></a>
 
@@ -18,7 +18,7 @@ When drawing, the colors and draw sources used can be specified using nearly any
 
 Basic drawing elements include points and lines as well as rectangles, elipses, arcs, rounded rectangles and polygons plus filled versions of the same. These are again, all accessed as static methods off the draw class.
 
-```
+```cpp
 // draws a point at the specified 
 // location and of the specified color, 
 // with an optional clipping rectangle
@@ -145,7 +145,7 @@ The `draw::bitmap<>()` function takes all or a portion of a draw source and draw
 That's quite a bit to keep track of, but you don't have to. The bottom line is GFX is written so you can *just draw* and it takes care of the complicated details like converting pixel formats, alpha blending, and choosing the most efficient way possible to transfer pixels.
 
 All of this is handled by the aforementioned method:
-```
+```cpp
 // draws a bitmap from the specified rectangle
 // within a source to a location within a destination
 // optionally resizing, flipping, drawing with a 
@@ -178,7 +178,7 @@ There is also an `_async` method for this, and unlike the other async methods th
 Text is drawn using one of the `draw::text<>()` overloads depending on which type of font is being used. This will draw text to a given area, wrapping as necessary, although word breaking is not performed.
 
 For `open_font` vector fonts use this overload:
-```
+```cpp
 template<typename Destination,typename PixelType>
 static gfx_result text(
     // the destination to draw to
@@ -220,7 +220,7 @@ static gfx_result text(
     open_font_cache* cache = nullptr)
 ```
 For `font` raster fonts use this overload:
-```
+```cpp
 template<typename Destination,typename PixelType>
 static gfx_result text(
     // the destination to draw to
@@ -255,7 +255,7 @@ There are also `_async` versions of these methods.
 ## 5.4 Images
 
 As mentioned in [section 3](./images.md), images are not draw sources because they are loaded incrementally and cannot provide random access access to their pixel data. Due to that, there is a `draw::image<>()` method for images that works in lieu of `draw::bitmap<>()`. Rather than take a draw source like `draw::bitmap<>()`, `draw::image<>()` takes a `stream` as its input pixel source. The stream must be in JPG format.
-```
+```cpp
 template<typename Destination>
 static gfx_result image(
     // the destination to draw to
@@ -283,7 +283,7 @@ There is also an `_async` version of this method. Unlike drawing a bitmap, this 
 ## 5.5 Sprites
 
 Sprites are useful for animating simple non-rectangular figures. In addition to a bitmap representing the actual figure, a sprite also has a monochrome mask indicating which pixels in the bitmap rectangle are actually a visible part of the figure and which parts are not drawn. By creating a mask in the shape of your figure you can animate it as though it was non-rectangular. Besides being able to be drawn, sprites also have a `bool hit_test(point16 location) const` method which can determine if the given location within the sprite is part of the mask or not. Once you create a sprite as in [section 2.5](./draw_targets.md#2.5) you can draw it to the screen:
-```
+```cpp
 static gfx_result sprite(
     // the destination to draw to
     Destination& destination, 
@@ -304,7 +304,7 @@ There is also an `_async` version of this method, thought it is mostly synchrono
 
 Alpha blending occurs whenever a pixel with an alpha channel is drawn to a supporting draw target - that is a draw target which can act as both a draw source and a draw destination. To enable alpha blending, simply declare a pixel that carries an alpha channel and then use that to perform your drawing.
 
-```
+```cpp
 // draw an alpha blended rectangle
 // to bmp:
 // declare a pixel w/ alpha channel:
@@ -342,7 +342,7 @@ A draw target that can alpha blend must be both a draw source and a draw destina
 
 Double buffering for supported displays is facilitated through `draw::suspend<>()` and `draw::resume<>()`. Once suspend is called, subsequent drawing operations will not show up on the draw destination until resume is called on that destination. Repeated calls to `suspend<>()` must be balanced with the same number of repeated calls to `resume<>()` so that the calls can be nested. GFX automatically suspends during intrinsic drawing operations so that a line for example will be drawn all at once. However, you can use these calls to extend the suspension across several drawing operations:
 
-```
+```cpp
 // suspend the destination
 template<typename Destination>
 static gfx_result suspend(

@@ -4,7 +4,7 @@
 
 # Draw Targets
 
-A draw target is an abstract concept that consumes or produces pixel data. Rather than inherit from a base class, they report which operations they support, and GFX will call the appropriate method. Usually you do not interact with instances of these classes. Rather, GFX operates them on your behalf, typically via you using `draw` class. For more on the `draw` class, see [section 5](./drawing.md).
+A draw target is an abstract concept that consumes or produces pixel data. Rather than inherit from a base class, they report which operations they support, and GFX will call the appropriate method. Usually you do not interact with instances of these classes. Rather, GFX operates them on your behalf, typically via you using `draw` class. For more on the `draw` class, see [section 5](drawing.md).
 
 
 <a name="2.1"></a>

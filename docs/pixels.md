@@ -29,7 +29,7 @@ You can declare an RGB pixel using `rgb_pixel<N>` where `N` is the bit depth of 
 
 A grayscale pixel can be declared using `gsc_pixel<N>` where `N` again is the bit depth. This will declare a pixel with a single channel named L (luminosity).
 
-``rgba_pixel<N>`` declares an RGB pixel with an [alpha channel](#1.5) that can be used for [alpha blending](./drawing.md#5.6).
+``rgba_pixel<N>`` declares an RGB pixel with an [alpha channel](#1.5) that can be used for [alpha blending](drawing.md#5.6).
 
 There are also shorthands for yuv, ycbcr (used by JPG) and indexed pixels.
 
@@ -87,7 +87,7 @@ A color model is a particular representation of a color. It identifies the "colo
 
 ## 1.5 The alpha channel
 
-Declaring a pixel with an alpha channel, as described in [section 1.1](#1.1) enables alpha blending on supporting [draw targets](./draw_targets.md). This basically allows colors underneath where you're drawing the "bleed through" so that you can see them underneath, like using a highlighter pen. In order to alpha blend, the draw target must be both a *draw destination* to facilitate the actual drawing operation, and a *draw source* to enable reading the pixel data back in order to blend it. We cover the actual process of drawing with these pixels in [section 5.6](./drawing.md#5.6)
+Declaring a pixel with an alpha channel, as described in [section 1.1](#1.1) enables alpha blending on supporting [draw targets](draw_targets.md). This basically allows colors underneath where you're drawing the "bleed through" so that you can see them underneath, like using a highlighter pen. In order to alpha blend, the draw target must be both a *draw destination* to facilitate the actual drawing operation, and a *draw source* to enable reading the pixel data back in order to blend it. We cover the actual process of drawing with these pixels in [section 5.6](drawing.md#5.6)
 
 <a name="1.6"></a>
 
@@ -95,7 +95,7 @@ Declaring a pixel with an alpha channel, as described in [section 1.1](#1.1) ena
 
 Historically older PC displays such as EGA used an indexed color scheme in order to use a smaller frame buffer. Indexed colors are basically a palette of colors selected from a much larger palette, such as a selection of palette of 256 colors drawn from a palette of 262,144, as was common with VGA and SVGA. While it's not common to see TFT/LCD/OLED displays with indexed color schemes on IoT these days, with color e-paper displays it's universal. This is because e-paper displays cannot blend different primary colors into new colors, leaving a small amount of fixed colors to choose from - at most 7, including black and white - that I've seen.
 
-Indexed pixels must have an associated [draw target](./draw_targets.md) in order to resolve to be converted to another pixel type. The reason is that there is simply not enough information to do this conversion without access to the associated palette mapping (palette). This palette is held by the draw target.
+Indexed pixels must have an associated [draw target](draw_targets.md) in order to resolve to be converted to another pixel type. The reason is that there is simply not enough information to do this conversion without access to the associated palette mapping (palette). This palette is held by the draw target.
 
 When converting from a non-indexed pixel type to an indexed pixel type using a given draw target, automatic color matching will occur, such that if the display's palette has a bright red color, similar colors, such as dark red, will be represented with it. This allows you to do things like load color JPGs onto devices with indexed colors.
 

@@ -71,7 +71,7 @@ Later we'll cover drawing text using these fonts with `draw`.
 
 It's easiest to load a truetype font from something like SPIFFS (ESP32) or an SD card. However, doing so comes with a significant performance penalty.
 
-Another option is to embed the font as a header generated using fontgen ([section 9.2](./tools.md#9.2)) and then simply reference that.
+Another option is to embed the font as a header generated using fontgen ([section 9.2](tools.md#9.2)) and then simply reference that.
 
 Finally, for devices with enough RAM, you can read the entire font stream into RAM and then work off of that, but these font files are typically at least 250kB.
 

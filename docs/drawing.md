@@ -254,7 +254,7 @@ There are also `_async` versions of these methods.
 
 ## 5.4 Images
 
-As mentioned in [section 3](./images.md), images are not draw sources because they are loaded incrementally and cannot provide random access access to their pixel data. Due to that, there is a `draw::image<>()` method for images that works in lieu of `draw::bitmap<>()`. Rather than take a draw source like `draw::bitmap<>()`, `draw::image<>()` takes a `stream` as its input pixel source. The stream must be in JPG format.
+As mentioned in [section 3](images.md), images are not draw sources because they are loaded incrementally and cannot provide random access access to their pixel data. Due to that, there is a `draw::image<>()` method for images that works in lieu of `draw::bitmap<>()`. Rather than take a draw source like `draw::bitmap<>()`, `draw::image<>()` takes a `stream` as its input pixel source. The stream must be in JPG format.
 ```cpp
 template<typename Destination>
 static gfx_result image(
@@ -282,7 +282,7 @@ There is also an `_async` version of this method. Unlike drawing a bitmap, this 
 
 ## 5.5 Sprites
 
-Sprites are useful for animating simple non-rectangular figures. In addition to a bitmap representing the actual figure, a sprite also has a monochrome mask indicating which pixels in the bitmap rectangle are actually a visible part of the figure and which parts are not drawn. By creating a mask in the shape of your figure you can animate it as though it was non-rectangular. Besides being able to be drawn, sprites also have a `bool hit_test(point16 location) const` method which can determine if the given location within the sprite is part of the mask or not. Once you create a sprite as in [section 2.5](./draw_targets.md#2.5) you can draw it to the screen:
+Sprites are useful for animating simple non-rectangular figures. In addition to a bitmap representing the actual figure, a sprite also has a monochrome mask indicating which pixels in the bitmap rectangle are actually a visible part of the figure and which parts are not drawn. By creating a mask in the shape of your figure you can animate it as though it was non-rectangular. Besides being able to be drawn, sprites also have a `bool hit_test(point16 location) const` method which can determine if the given location within the sprite is part of the mask or not. Once you create a sprite as in [section 2.5](draw_targets.md#2.5) you can draw it to the screen:
 ```cpp
 static gfx_result sprite(
     // the destination to draw to

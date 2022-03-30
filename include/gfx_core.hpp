@@ -2,24 +2,6 @@
 #define HTCW_GFX_CORE_HPP
 #include <string.h>
 #include <stdint.h>
-#ifdef ARDUINO_ARCH_STM32
-    #define GFX_LITTLE_ENDIAN
-    #ifndef GFX_ARDUINO_SD_FS
-        #define GFX_ARDUINO_NO_FS
-    #endif
-#endif
-#if defined(ARDUINO_ARCH_SAMD) && defined(SEEED_GROVE_UI_WIRELESS)
-    #define GFX_LITTLE_ENDIAN
-    #define GFX_ARDUINO_NO_FS
-#endif
-#if !defined(GFX_BIG_ENDIAN) && !defined(GFX_LITTLE_ENDIAN)
-    #ifdef ESP_PLATFORM
-        #define GFX_LITTLE_ENDIAN
-    #endif
-    #ifdef _WIN32_WINNT
-        #define GFX_LITTLE_ENDIAN
-    #endif
-#endif
 #ifdef GFX_BIG_ENDIAN
     #define HTCW_BIG_ENDIAN
 #endif

@@ -3019,7 +3019,7 @@ namespace gfx {
         }
         // draws a filled polygon with the specified path and color, with an optional clipping rectangle
         template<typename Destination,typename PixelType>
-        inline static gfx_result filled_polygon_async(Destination& destination,const spath16& path,size_t path_size, PixelType color,const srect16* clip=nullptr)  {
+        inline static gfx_result filled_polygon_async(Destination& destination,const spath16& path, PixelType color,const srect16* clip=nullptr)  {
             return filled_polygon_impl(destination,path,color,clip,true);
         }
         // draws a portion of a bitmap or display buffer to the specified rectangle with an optional clipping rentangle

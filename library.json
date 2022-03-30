@@ -20,7 +20,7 @@
     },
     "dependencies": {
         "codewitch-honey-crisis/htcw_bits": "^1.0.1",
-        "codewitch-honey-crisis/htcw_data": "^1.0.2",
+        "codewitch-honey-crisis/htcw_data": "^1.0.3",
         "codewitch-honey-crisis/htcw_io": "^1.0.6"
     },
     "export": {

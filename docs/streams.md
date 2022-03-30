@@ -1,3 +1,5 @@
+#### [← Back to index](./index.md)
+
 <a name="7"></a>
 
 # 7. Streams

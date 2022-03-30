@@ -1,3 +1,5 @@
+#### [← Back to index](./index.md)
+
 <a name="1"></a>
 
 # 1. Pixels

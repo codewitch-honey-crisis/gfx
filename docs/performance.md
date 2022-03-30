@@ -1,3 +1,5 @@
+#### [← Back to index](./index.md)
+
 <a name="8"></a>
 
 # 8. Performance

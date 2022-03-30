@@ -6,7 +6,7 @@ Pixels in GFX are diverse elements for representing colors, color models, and bi
 
 A pixel has a bit depth which is the sum of the bit depths of each [channel](#1.2). 
 
-A pixel has a raw value of at most the maximum machine word size (including compound words) that can be represented either as a big endian or a platform specific value. You use `value()` to get the big endian value and the 'native_value' field to get the platform ordered value. The type of the value is the smallest unsigned integer type that can hold the a value of the computed bit depth.
+A pixel has a raw value of at most the maximum machine word size (including compound words) that can be represented either as a big endian or a platform specific value. You use `value()` to get the big endian value and the `native_value` field to get the platform ordered value. The type of the value is the smallest unsigned integer type that can hold the a value of the computed bit depth.
 
 ```
 // get the pixel value in big endian form

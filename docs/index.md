@@ -23,7 +23,7 @@ build_flags=-std=gnu++14
 ```
 Above the last 4 entries starting at `lib_deps` are what include GFX and make it available, in this case by way of including the htcw_ili9341 driver library for GFX, which will also include GFX in your project. The build flags are to update C++ to GNU C++14 which is necessary for GFX to be used with the Arduino framework.
 
-including the appropriate header:
+Finally include the appropriate header:
 ```cpp
 #include <gfx.hpp> // for GCC C++17
 ```

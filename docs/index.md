@@ -7,7 +7,7 @@ GFX is a feature rich, cross platform graphics library geared for IoT devices. U
 GFX is copyright (C) 2021-2022 by honey the codewitch. GFX is licensed under the MIT license.
 
 ---
-Get started using GFX by referencing one of the drivers for it from your platformio project:
+Get started using GFX by referencing one of the drivers for it from your PlatformIO project's INI file:
 ```ini
 [env:esp32-ILI9341]
 platform = espressif32

@@ -103,7 +103,7 @@ When converting from a non-indexed pixel type to an indexed pixel type using a g
 
 ## 1.7 Declaring custom pixels
 
-Sometimes the shorthand declarations for common pixels will not be detailed enough to represent your precise pixel. A good example might be a 7-color e-paper display. Such a display may use 4 bits per pixel, but valid values are only zero through 7. You can define this using *channel traits*, which declare the properties for a channel. You feed one or more channel traits into a pixel definition in order to declare the channels.
+Sometimes the shorthand declarations for common pixels will not be detailed enough to represent your precise pixel. A good example might be a 7-color e-paper display. Such a display may use 4 bits per pixel, but valid values are only zero through six. You can define this using *channel traits*, which declare the properties for a channel. You feed one or more channel traits into a pixel definition in order to declare the channels.
 
 ```cpp
 // declare a 4-bit 7-color pixel

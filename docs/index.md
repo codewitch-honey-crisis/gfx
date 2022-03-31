@@ -29,7 +29,7 @@ including the appropriate header:
 ```
 or
 ```cpp
-#include <gfx_cpp14.hpp> // for GCC C++14
+#include <gfx_cpp14.hpp> // for GCC C++14 - use this one probably
 ```
 and then access the `gfx` namespace, optionally importing it:
 ```cpp

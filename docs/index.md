@@ -7,7 +7,23 @@ GFX is a feature rich, cross platform graphics library geared for IoT devices. U
 GFX is copyright (C) 2021-2022 by honey the codewitch. GFX is licensed under the MIT license.
 
 ---
-Get started using GFX by including the appropriate header:
+Get started using GFX by referencing one of the drivers for it from your platformio project:
+```ini
+[env:esp32-ILI9341]
+platform = espressif32
+board = node32s
+framework = arduino
+monitor_speed = 115200
+upload_speed = 921600
+lib_deps = 
+	codewitch-honey-crisis/htcw_ili9341@^1.0.1
+lib_ldf_mode = deep
+build_unflags=-std=gnu++11
+build_flags=-std=gnu++14
+```
+Above the last 4 entries starting at `lib_deps` are what include GFX and make it available, in this case by way of including the htcw_ili9341 driver library for GFX, which will also include GFX in your project. The build flags are to update C++ to GNU C++14 which is necessary for GFX to be used with the Arduino framework.
+
+including the appropriate header:
 ```cpp
 #include <gfx.hpp> // for GCC C++17
 ```
@@ -15,7 +31,10 @@ or
 ```cpp
 #include <gfx_cpp14.hpp> // for GCC C++14
 ```
-
+and then access the `gfx` namespace, optionally importing it:
+```cpp
+using namespace gfx;
+```
 ___
 
 ## Contents

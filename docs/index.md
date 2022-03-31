@@ -2,7 +2,7 @@
 # [GFX](https://honeythecodewitch.com/gfx)
 
 
-GFX is a feature rich, cross platform graphics library geared for IoT devices. Unlike many graphics libraries, GFX is not tied intrinsically to the devices it can operate with - you can provide drivers for it, or use one of the many available drivers for common devices. GFX is equally suited for TFT/LCD, OLED and e-paper displays. Some notable features of GFX include Truetype font support, Win 3.1 FON support, JPG support, an X11 color palette, alpha blending, arbitrary binary pixel formats and color models, automatic conversion between them, and automatic color matching for paletted/indexed color displays.
+GFX is a feature rich, cross platform graphics library geared for IoT devices. Unlike many graphics libraries, GFX is not tied intrinsically to the devices it can operate with - you can provide drivers for it, or [use one of the many available drivers for common devices.](https://github.com/codewitch-honey-crisis/gfx_libraries) GFX is equally suited for TFT/LCD, OLED and e-paper displays. Some notable features of GFX include Truetype font support, Win 3.1 FON support, JPG support, an X11 color palette, alpha blending, arbitrary binary pixel formats and color models, automatic conversion between them, and automatic color matching for paletted/indexed color displays.
 
 GFX is copyright (C) 2021-2022 by honey the codewitch. GFX is licensed under the MIT license.
 

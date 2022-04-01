@@ -4,7 +4,9 @@ A device independent graphics library for embedded and IoT devices
 
 Draw on anything
 
-Read more here: https://www.codeproject.com/Articles/5302085/GFX-Forever-The-Complete-Guide-to-GFX-for-IoT
+Documentation: https://honeythecodewitch.com/gfx/wiki/index.md
+
+General Guide: https://www.codeproject.com/Articles/5302085/GFX-Forever-The-Complete-Guide-to-GFX-for-IoT
 
 ```
            @@@@@@@@@@                                                                                                           
@@ -52,43 +54,7 @@ I wanted a graphics library that was faster and better than what I had found for
 
 GFX on the other hand, isn't tied to anything. It can draw anywhere, on any platform. It's basically standard C++, and things like line drawing and font drawing algorithms. Without a driver, it can only draw to in memory bitmaps, but once you add a driver to the mix, you can draw directly onto displays the same way you do to bitmaps.
 
-**Update:** Some minor bugfixes, SPI drivers are refactored to use a common base, more drivers are now added, and one click configuration for generic ESP32 boards is now available
-
-**Update 2:** Included support for the LilyGo TTGO board, as well as the green tab 128x128 1.44" ST7735 display (though other green tab models may work too they have not been tested)
-
-**Update 3:** Added `transparent_color` argument to `draw::bitmap<>()` so you can do sprites.
-
-**Update 4:** GFX `draw::rectangle<>()` bugfix and added experimental MAX7219 driver
-
-**Update 5:** Bug fixes with bitmap drawing
-
-**Update 6:** Fixed some of the demos that were failing the build
-
-**Update 7:** Added alpha blending support!
-
-**Update 8:** Some API changes, added `large_bitmap<>` support and edged a little closer to adaptive indexed color support. I also used the large bitmap for the frame buffer in the demos, and changed that code to be easier to understand at the cost of raw pixel throughput.
-
-**Update 9:** Added polygon and path support, and cleaned up the API here and there a bit
-
-**Update 10:** Fixed several build errors with the last update. Mea culpa.
-
-**Update 11:** Added bilinear and bicubic resampling for `draw::bitmap<>()` resizing options, and fixed the nearest neighbor drawing. Also improved the performance of the drawing during resize (though bicubic could stand to be optimized to use ints instead of floats). Added image `dimensions` to `jpeg_image::load()`'s callback.
-
-**Update 12:** Easy of use update. I've compiled all of the includes into a single includable header, and I've added `draw::image<>()` which deals with the progressive loading so you don't need to do it yourself.
-
-**Update 13:** Service release. Certain draw operations between certain draw targets would fail to compile
-
-**Update 14:** Added palette/CLUT support! (still a baby, not quite complete but I'll mature it as I go)
-
-**Update 15:** Service release. Fixed `large_bitmap<>` out of bounds crashing issue
-
-**Update 16:** Added Arduino framework support and several drivers. I have not tested the Arduino framework support with anything other than an ESP32, but it will not necessarily compile on all Arduinos. 
-
-**Update 17:** Added support for two e-ink/e-paper displays: the DEP0290B (and the associated LilyGo T5 2.2 board) as well as the GDEH0154Z90 (WaveShare 1.54 inch 3-color black/white/red display). The former only works on the Arduino Framework for now, until I hunt down the issue under the ESP-IDF that prevents it from working.
-
-**Update 18:** Added dithering support for e-paper displays
-
-**Update 19:** Added TrueType font support!
+**Note**: This is a guide as a long single page. The official documentation wiki is [here](https://honeythecodewitch.com/gfx/wiki/index.md).
 
 Concepts
 --------

@@ -1238,7 +1238,7 @@ namespace gfx {
             helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination,false);
  
             for(int y = 0;y<size.height;++y) {
-                int run_start;
+                int run_start=-1;
                 typename Sprite::pixel_type px,opx;
                 for(int x = 0;x<size.width;++x) {
                     run_start = -1;

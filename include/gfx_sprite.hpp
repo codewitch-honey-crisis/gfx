@@ -25,7 +25,7 @@ namespace gfx {
         }
 
         inline size16 dimensions() const { return m_bitmap.dimensions(); }
-        inline size16 bounds() const { return dimensions().bounds(); }
+        inline rect16 bounds() const { return dimensions().bounds(); }
 
         inline gfx_result point(point16 location,PixelType* out_color) const {
             return m_bitmap.point(location,out_color);

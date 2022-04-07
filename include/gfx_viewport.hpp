@@ -41,7 +41,7 @@ namespace gfx {
         double m_ctheta;
         double m_stheta;
         viewport(Destination& destination) : m_destination(destination),m_offset(0,0), m_center(0,0), m_rotation(0.0) {
-
+            rotation(0);
         }
         viewport(const type& rhs)=default;
         type& operator=(const type& rhs)=default;
@@ -108,7 +108,7 @@ namespace gfx {
             return m_destination.point(location,out_pixel);
         }
         gfx_result fill(const rect16& dst,pixel_type pixel) {
-            if((m_rotation==0 && m_center.x==0 && m_center.y==0) || (dst.x1==dst.x2&&dst.y1==dst.y2)) {
+            if((m_offset.x==0 &&m_offset.y==0) && ((m_rotation==0 && m_center.x==0 && m_center.y==0) || (dst.x1==dst.x2&&dst.y1==dst.y2))) {
                 return m_destination.fill(dst,pixel);
             }
             spoint16 points[4];

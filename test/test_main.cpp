@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <unity.h>
 #include <gfx_cpp14.hpp>
+static const uint8_t mono_bmp_buf[] = {0x80,0x00,0x00,0x00,
+                                       0x00,0x00,0x00,0x00};
 using namespace gfx;
 template<typename Source, bool CopyTo>
 struct copy_to_helper {};
@@ -70,11 +72,26 @@ void test_bmp_source_point() {
     TEST_ASSERT_EQUAL(px.value(),bmp_color::black.value());
     free(buf);
 }
-void test_large_bmp_source_point() {
+void test_const_bmp_source_point() {
+    using bmp_type = const_bitmap<gsc_pixel<1>>;
+    using bmp_color = color<typename bmp_type::pixel_type>;
+    constexpr static const size16 sz = {8,8};
+    constexpr static const size_t len = bmp_type::sizeof_buffer(sz);
+    bmp_type bmp(sz,mono_bmp_buf);
+    typename bmp_type::pixel_type px;
+    bmp.point({0,0},&px);
+    TEST_ASSERT_EQUAL(px.value(),bmp_color::white.value());
+    bmp.point({1,0},&px);
+    TEST_ASSERT_EQUAL(px.value(),bmp_color::black.value());
+    bmp.point({0,1},&px);
+    TEST_ASSERT_EQUAL(px.value(),bmp_color::black.value());
+}
+
+void test_large_bmp_source_destination_point() {
     using bmp_type = large_bitmap<rgb_pixel<16>>;
     using bmp_color = color<typename bmp_type::pixel_type>;
     constexpr static const size16 sz = {64,64};
-    constexpr static const size_t len = bmp_type::sizeof_buffer({64,64});
+    constexpr static const size_t len = bmp_type::sizeof_buffer(sz);
     bmp_type bmp(sz,1);
     bmp.clear(bmp.bounds());
     bmp.point({0,0},bmp_color::white);
@@ -91,7 +108,7 @@ void test_bmp_source_copy_to() {
     using bmp_type = bitmap<rgb_pixel<16>>;
     using bmp_color = color<typename bmp_type::pixel_type>;
     constexpr static const size16 sz = {64,64};
-    constexpr static const size_t len = bmp_type::sizeof_buffer({64,64});
+    constexpr static const size_t len = bmp_type::sizeof_buffer(sz);
     uint8_t* buf = (uint8_t*)malloc(len);
     TEST_ASSERT_NOT_NULL(buf);
     memset(buf,0,len);
@@ -99,14 +116,59 @@ void test_bmp_source_copy_to() {
     buf[1]=0xFF;
     bmp_type bmp(sz,buf);
     copy_to_helper<bmp_type,bmp_type::caps::copy_to>::test_copy_to(bmp);
+    free(buf);
 }
+void test_bmp_destination_point() {
+using bmp_type = bitmap<rgb_pixel<16>>;
+    using bmp_color = color<typename bmp_type::pixel_type>;
+    constexpr static const size16 sz = {64,64};
+    constexpr static const size_t len = bmp_type::sizeof_buffer(sz);
+    uint8_t* buf = (uint8_t*)malloc(len);
+    TEST_ASSERT_NOT_NULL(buf);
+    memset(buf,0,len);
+    bmp_type bmp(sz,buf);
+    bmp.point({1,1},bmp_color::white);
+    typename bmp_type::pixel_type px;
+    bmp.point({1,1},&px);
+    TEST_ASSERT_EQUAL(px.value(),bmp_color::white.value());    
+    free(buf);
+}
+void test_bmp_destination_fill() {
+    using bmp_type = bitmap<rgb_pixel<16>>;
+    using bmp_color = color<typename bmp_type::pixel_type>;
+    constexpr static const size16 sz = {64,64};
+    constexpr static const size_t len = bmp_type::sizeof_buffer(sz);
+    uint8_t* buf = (uint8_t*)malloc(len);
+    TEST_ASSERT_NOT_NULL(buf);
+    memset(buf,0,len);
+    bmp_type bmp(sz,buf);
+    bmp.fill({1,1,sz.width-2,sz.height-2},bmp_color::white);
+    typename bmp_type::pixel_type px;
+    bmp.point({1,1},&px);
+    TEST_ASSERT_EQUAL(px.value(),bmp_color::white.value());    
+    bmp.point({1,0},&px);
+    TEST_ASSERT_EQUAL(px.value(),bmp_color::black.value());    
+    bmp.point({sz.width/2,sz.height/2},&px);
+    TEST_ASSERT_EQUAL(px.value(),bmp_color::white.value());    
+    bmp.point({sz.width-2,sz.height-2},&px);
+    TEST_ASSERT_EQUAL(px.value(),bmp_color::white.value());    
+    bmp.point({sz.width-1,sz.height-1},&px);
+    TEST_ASSERT_EQUAL(px.value(),bmp_color::black.value());    
+    free(buf);
+}
+
 int main(int argc, char** argv) {
 
     UNITY_BEGIN();    // IMPORTANT LINE!
     RUN_TEST(test_pixel);
     RUN_TEST(test_bmp_source_point);
     RUN_TEST(test_bmp_source_copy_to);
-    RUN_TEST(test_large_bmp_source_point);
+    RUN_TEST(test_large_bmp_source_destination_point);
+    RUN_TEST(test_const_bmp_source_point);
+    RUN_TEST(test_bmp_destination_point);
+    RUN_TEST(test_bmp_destination_fill);
+    // suspend, copy_from, etc are usually driver calls, so they can't be tested here
+    
     UNITY_END(); // stop unit testing
 }
 

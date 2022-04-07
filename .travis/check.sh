@@ -23,6 +23,16 @@ LATEST_VERSION=$(echo ${PIO_JSON} | jq '.version.name')
 
 echo "Latest published version is ${LATEST_VERSION}"
 
+echo "Running pre-publish tests..."
+
+pio test -v
+TEST_RESULT=$?
+
+if [[ "${TEST_RESULT}" != "0"]]; then
+  echo "One or more tests failed. Aborting."
+  exit 1
+fi
+
 if [[ "${LATEST_VERSION}" = "${LIBRARY_VERSION}" ]]; then
   echo "No need to publish!"
   exit 1

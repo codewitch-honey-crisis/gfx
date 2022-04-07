@@ -132,7 +132,7 @@ namespace gfx {
         constexpr static const PixelType sienna = convert<source_type,PixelType>(source_type(true,0.627450980392157,0.32156862745098,0.176470588235294));
         constexpr static const PixelType silver = convert<source_type,PixelType>(source_type(true,0.752941176470588,0.752941176470588,0.752941176470588));
         constexpr static const PixelType sky_blue = convert<source_type,PixelType>(source_type(true,0.529411764705882,0.807843137254902,0.92156862745098));
-        constexpr static const PixelType steel_blue = convert<source_type,PixelType>(source_type(true,0.415686274509804,0.352941176470588,0.803921568627451));
+        constexpr static const PixelType slate_blue = convert<source_type,PixelType>(source_type(true,0.415686274509804,0.352941176470588,0.803921568627451));
         constexpr static const PixelType slate_gray = convert<source_type,PixelType>(source_type(true,0.43921568627451,0.501960784313725,0.564705882352941));
         constexpr static const PixelType snow = convert<source_type,PixelType>(source_type(true,1,0.980392156862745,0.980392156862745));
         constexpr static const PixelType spring_green = convert<source_type,PixelType>(source_type(true,0,1,0.498039215686275));

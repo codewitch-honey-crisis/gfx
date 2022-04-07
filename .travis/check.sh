@@ -1,11 +1,3 @@
-version_less_equal() {
-  [ "$1" = "`echo -e "$1\n$2" | sort -V | head -n1`" ]
-}
-
-version_less() {
-  [ "$1" = "$2" ] && return 1 || version_less_equal $1 $2
-}
-
 if [[ -z "${PLATFORMIO_AUTH_TOKEN}" ]]
 then
   echo "PLATFORMIO_AUTH_TOKEN is empty"
@@ -31,7 +23,10 @@ LATEST_VERSION=$(echo ${PIO_JSON} | jq '.version.name')
 
 echo "Latest published version is ${LATEST_VERSION}"
 
-version_less LIBRARY_VERSION LATEST_VERSION && echo "No need to publish" && exit 1
+if [[ "${LATEST_VERSION}" = "${LIBRARY_VERSION}" ]]; then
+  echo "No need to publish!"
+  exit 1
+fi
 
 echo "Publishing..."
 exit 0

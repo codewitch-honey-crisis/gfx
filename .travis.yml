@@ -1,0 +1,24 @@
+language: python
+python:
+  - "3.9"
+sudo: false
+cache:
+  directories:
+    - "~/.platformio"
+    - $HOME/.cache/pip
+install:
+  - pip install -U platformio
+  - pio update
+before_script:
+  - ./.travis/check.sh
+script:
+  - pio package pack
+  - pio package publish
+deploy:
+  provider: releases
+  api_key: $GITHUB_TOKEN
+  file_glob: true
+  file: htcw_gfx-*.tar.gz
+  skip_cleanup: true
+  on:
+    tags: true

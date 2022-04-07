@@ -63,3 +63,6 @@ void test_bounds(const Target& target,gfx::rect16 expected) {
     TEST_ASSERT_EQUAL(b.x2,expected.x2);
     TEST_ASSERT_EQUAL(b.y2,expected.y2);
 }
+void test_fail() {
+    TEST_ASSERT_EQUAL(2+2,5);
+}

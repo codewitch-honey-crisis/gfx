@@ -120,10 +120,10 @@ namespace gfx {
             stream->seek(pos+0x58);
             uint16_t pxheight = order_guard(stream->template read<uint16_t>());
             stream->seek(pos+0x5F);
-            uint8_t fc = (uint8_t)stream->getc();
-            uint8_t lc = (uint8_t)stream->getc();
-            uint8_t dc = (uint8_t)stream->getc()+fc;
-            uint8_t bc = (uint8_t)stream->getc()+fc;
+            uint8_t fc = (uint8_t)stream->getch();
+            uint8_t lc = (uint8_t)stream->getch();
+            uint8_t dc = (uint8_t)stream->getch()+fc;
+            uint8_t bc = (uint8_t)stream->getch()+fc;
             if((uint8_t)first_char<fc)
                 first_char = fc;
             if(dc<(uint8_t)first_char) {
@@ -168,17 +168,17 @@ namespace gfx {
         out_font->m_internal_leading=order_guard(stream->template read<uint16_t>());
         out_font->m_external_leading=order_guard(stream->template read<uint16_t>());
         out_font->m_style = {0,0,0};
-        if(0<stream->getc()) {
+        if(0<stream->getch()) {
             out_font->m_style.italic = 1;
         }
-        if(0<stream->getc()) {
+        if(0<stream->getch()) {
             out_font->m_style.underline = 1;
         }
-        if(0<stream->getc()) {
+        if(0<stream->getch()) {
             out_font->m_style.strikeout = 1;
         }
         out_font->m_weight = order_guard(stream->template read<uint16_t>());
-        int gc = stream->getc();
+        int gc = stream->getch();
         if(0>gc)
             return result::unexpected_end_of_stream;
         out_font->m_charset = (uint8_t)gc;
@@ -192,19 +192,19 @@ namespace gfx {
             stream->seek(2,io::seek_origin::current);    
         // skip max_width
         stream->seek(2,io::seek_origin::current);
-        gc = stream->getc();
+        gc = stream->getch();
         if(0>gc)
             return result::unexpected_end_of_stream;
         out_font->m_first_char = (char)gc;
-        gc = stream->getc();
+        gc = stream->getch();
         if(0>gc)
             return result::unexpected_end_of_stream;
         out_font->m_last_char = (char)gc;
-        gc = stream->getc();
+        gc = stream->getch();
         if(0>gc)
             return result::unexpected_end_of_stream;
         out_font->m_default_char = (char)gc+out_font->m_first_char;
-        gc = stream->getc();
+        gc = stream->getch();
         if(0>gc)
             return result::unexpected_end_of_stream;
         out_font->m_break_char = (char)gc+out_font->m_first_char;

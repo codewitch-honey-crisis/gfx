@@ -14,7 +14,7 @@ before_script:
   - ./.travis/check.sh
 script:
   - pio package pack
-  - pio package publish --no-interactive
+  - pio package publish --non-interactive
 deploy:
   provider: releases
   api_key: $GITHUB_TOKEN

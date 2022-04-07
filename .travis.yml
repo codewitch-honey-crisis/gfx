@@ -13,6 +13,7 @@ before_script:
   - chmod +x ./.travis/check.sh
   - ./.travis/check.sh
 script:
+  - pio test
   - pio package pack
   - pio package publish --non-interactive
 deploy:

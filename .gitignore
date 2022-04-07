@@ -18,3 +18,11 @@ lib/bits/
 tools/test.ttf
 lib/htcw_data
 lib/htcw_io
+.pio/
+.pio/build/project.checksum
+.pio/build/native/.sconsign39.dblite
+.pio/build/native/libUnityTestLib.a
+.pio/build/native/program.exe
+.pio/build/native/test/test_main.o
+.pio/build/native/test/tmp_pio_test_transport.o
+.pio/build/native/UnityTestLib/unity.o

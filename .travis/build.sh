@@ -1,7 +1,7 @@
 if [[ -z "${PLATFORMIO_AUTH_TOKEN}" ]]
 then
-  echo "PLATFORMIO_AUTH_TOKEN is empty"
-  exit 1
+  echo "PLATFORMIO_AUTH_TOKEN is empty, skipping publish"
+  exit 0
 fi
 
 OUTPUT=$(pio account show 2>&1)

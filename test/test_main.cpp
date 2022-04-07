@@ -26,8 +26,9 @@ int main(int argc, char** argv) {
     RUN_TEST(test_view_metrics);
     RUN_TEST(test_view_rotate);
     RUN_TEST(test_view_offset);
+    RUN_TEST(test_sprite_metrics);
+    RUN_TEST(test_sprite_hit_test);
     // suspend, copy_from, etc are usually driver calls, so they can't be tested here
-    RUN_TEST(test_fail);
     UNITY_END(); // stop unit testing
 }
 

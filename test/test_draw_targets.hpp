@@ -218,3 +218,39 @@ void test_view_offset() {
     bmp.point({0,0},&px);
     TEST_ASSERT_EQUAL(bmp_color::black.value(),px.value());
 }
+void test_sprite_metrics() {
+    using bmp_type = gfx::bitmap<gfx::gsc_pixel<8>>;
+    using bmp_color = gfx::color<typename bmp_type::pixel_type>;
+    using mask_type = gfx::bitmap<gfx::gsc_pixel<1>>;
+    using mask_color = gfx::color<typename mask_type::pixel_type>;
+    using sprite_type = gfx::sprite<typename bmp_type::pixel_type>;;
+    constexpr static const gfx::size16 sz = {8,8};
+    constexpr static const size_t len = bmp_type::sizeof_buffer(sz);
+    uint8_t bmp_buf[len];
+    constexpr static const size_t mask_len = mask_type::sizeof_buffer(sz);
+    uint8_t mask_buf[len];
+    bmp_type bmp(sz,bmp_buf);
+    mask_type mask(sz,mask_buf);
+    sprite_type spr(sz,bmp_buf,mask_buf);
+    test_dimensions(spr,sz);
+    test_bounds(spr,gfx::rect16(0,0,sz.width-1,sz.height-1));   
+}
+void test_sprite_hit_test() {
+    using bmp_type = gfx::bitmap<gfx::gsc_pixel<8>>;
+    using bmp_color = gfx::color<typename bmp_type::pixel_type>;
+    using mask_type = gfx::bitmap<gfx::gsc_pixel<1>>;
+    using mask_color = gfx::color<typename mask_type::pixel_type>;
+    using sprite_type = gfx::sprite<typename bmp_type::pixel_type>;;
+    constexpr static const gfx::size16 sz = {8,8};
+    constexpr static const size_t len = bmp_type::sizeof_buffer(sz);
+    uint8_t bmp_buf[len];
+    constexpr static const size_t mask_len = mask_type::sizeof_buffer(sz);
+    uint8_t mask_buf[len];
+    bmp_type bmp(sz,bmp_buf);
+    mask_type mask(sz,mask_buf);
+    mask.clear(mask.bounds());
+    mask.fill(mask.bounds().inflate(-1,-1),mask_color::white);
+    sprite_type spr(sz,bmp_buf,mask_buf);
+    TEST_ASSERT_FALSE(spr.hit_test({0,0}));
+    TEST_ASSERT_TRUE(spr.hit_test({1,1}));
+}

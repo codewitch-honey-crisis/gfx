@@ -283,7 +283,7 @@ namespace gfx {
             using pach = typename pixel_type::template channel_by_name_unchecked<channel_name::A>;
             using chindex = typename pixel_type::template channel_index_by_name<channel_name::A>;
             const size_t chi = chindex::value;
-            if(pixel_type::template has_channel_names<channel_name::A>::value && pach::max!=pixel.template channel_unchecked<chi>()) {
+            if(pixel_type::template has_channel_names<channel_name::A>::value) {
                 pixel_type bgpx;
                 rect16 rc = dst.normalize().crop(bounds());
                 point16 pt;
@@ -304,6 +304,7 @@ namespace gfx {
                         }
                     }    
                 }
+            
                 return gfx_result::success;    
             } 
             if(nullptr==begin()) {
@@ -675,7 +676,6 @@ namespace gfx {
         }
         gfx_result clear(const rect16& bounds) {
             pixel_type p;
-            p.native_value = 0;
             return fill(bounds,p);
         }
         const palette_type *palette() const {

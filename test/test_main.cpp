@@ -70,6 +70,22 @@ void test_bmp_source_point() {
     TEST_ASSERT_EQUAL(px.value(),bmp_color::black.value());
     free(buf);
 }
+void test_large_bmp_source_point() {
+    using bmp_type = large_bitmap<rgb_pixel<16>>;
+    using bmp_color = color<typename bmp_type::pixel_type>;
+    constexpr static const size16 sz = {64,64};
+    constexpr static const size_t len = bmp_type::sizeof_buffer({64,64});
+    bmp_type bmp(sz,1);
+    bmp.clear(bmp.bounds());
+    bmp.point({0,0},bmp_color::white);
+    typename bmp_type::pixel_type px;
+    bmp.point({0,0},&px);
+    TEST_ASSERT_EQUAL(px.value(),bmp_color::white.value());
+    bmp.point({1,0},&px);
+    TEST_ASSERT_EQUAL(px.value(),bmp_color::black.value());
+    bmp.point({0,1},&px);
+    TEST_ASSERT_EQUAL(px.value(),bmp_color::black.value());
+}
 
 void test_bmp_source_copy_to() {
     using bmp_type = bitmap<rgb_pixel<16>>;
@@ -82,7 +98,7 @@ void test_bmp_source_copy_to() {
     buf[0]=0xFF;
     buf[1]=0xFF;
     bmp_type bmp(sz,buf);
-    copy_to_helper<bmp_type,true>::test_copy_to(bmp);
+    copy_to_helper<bmp_type,bmp_type::caps::copy_to>::test_copy_to(bmp);
 }
 int main(int argc, char** argv) {
 
@@ -90,6 +106,7 @@ int main(int argc, char** argv) {
     RUN_TEST(test_pixel);
     RUN_TEST(test_bmp_source_point);
     RUN_TEST(test_bmp_source_copy_to);
+    RUN_TEST(test_large_bmp_source_point);
     UNITY_END(); // stop unit testing
 }
 

@@ -4,7 +4,36 @@
 #include <unity.h>
 #include <gfx_cpp14.hpp>
 using namespace gfx;
-// This doesn't work because GFX has dependencies and pio test apparently doesn't support that.
+template<typename Source, bool CopyTo>
+struct copy_to_helper {};
+template<typename Source>
+struct copy_to_helper<Source,false> {
+    static void test_copy_to(const Source& source) {
+
+    }
+};
+template<typename Source>
+struct copy_to_helper<Source,true> {
+    static void test_copy_to(const Source& source) {
+        size16 sz = source.dimensions();
+        size_t len = (sz.width*sz.height*Source::pixel_type::bit_depth+7)/8;
+        uint8_t* buf = (uint8_t*)malloc(len);
+        TEST_ASSERT_NOT_NULL(buf);
+        auto bmp = create_bitmap_from<Source>(source,sz,buf);
+        source.copy_to(source.bounds(),bmp,{0,0});
+        point16 pt;
+        for(pt.y=0;pt.y<source.dimensions().height;++pt.y) {
+            for(pt.x=0;pt.x<source.dimensions().width;++pt.x) {
+                typename Source::pixel_type spx;
+                source.point(pt,&spx);
+                typename Source::pixel_type dpx;
+                bmp.point(pt,&dpx);
+                TEST_ASSERT_EQUAL(spx.value(),dpx.value());
+            }
+        }
+        free(buf);
+    }
+};
 
 void test_pixel() {
     rgb_pixel<24> px;
@@ -21,10 +50,46 @@ void test_pixel() {
     rgba_pixel<32> px3;
     TEST_ASSERT_EQUAL(px3.channel<3>(),255);
 }
+void test_bmp_source_point() {
+    using bmp_type = bitmap<rgb_pixel<16>>;
+    using bmp_color = color<typename bmp_type::pixel_type>;
+    constexpr static const size16 sz = {64,64};
+    constexpr static const size_t len = bmp_type::sizeof_buffer({64,64});
+    uint8_t* buf = (uint8_t*)malloc(len);
+    TEST_ASSERT_NOT_NULL(buf);
+    memset(buf,0,len);
+    buf[0]=0xFF;
+    buf[1]=0xFF;
+    bmp_type bmp(sz,buf);
+    typename bmp_type::pixel_type px;
+    bmp.point({0,0},&px);
+    TEST_ASSERT_EQUAL(px.value(),bmp_color::white.value());
+    bmp.point({1,0},&px);
+    TEST_ASSERT_EQUAL(px.value(),bmp_color::black.value());
+    bmp.point({0,1},&px);
+    TEST_ASSERT_EQUAL(px.value(),bmp_color::black.value());
+    free(buf);
+}
+
+void test_bmp_source_copy_to() {
+    using bmp_type = bitmap<rgb_pixel<16>>;
+    using bmp_color = color<typename bmp_type::pixel_type>;
+    constexpr static const size16 sz = {64,64};
+    constexpr static const size_t len = bmp_type::sizeof_buffer({64,64});
+    uint8_t* buf = (uint8_t*)malloc(len);
+    TEST_ASSERT_NOT_NULL(buf);
+    memset(buf,0,len);
+    buf[0]=0xFF;
+    buf[1]=0xFF;
+    bmp_type bmp(sz,buf);
+    copy_to_helper<bmp_type,true>::test_copy_to(bmp);
+}
 int main(int argc, char** argv) {
 
     UNITY_BEGIN();    // IMPORTANT LINE!
     RUN_TEST(test_pixel);
+    RUN_TEST(test_bmp_source_point);
+    RUN_TEST(test_bmp_source_copy_to);
     UNITY_END(); // stop unit testing
 }
 

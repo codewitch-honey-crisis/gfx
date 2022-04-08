@@ -36,6 +36,7 @@ int main(int argc, char** argv) {
     
     RUN_TEST(test_font_read);
     RUN_TEST(test_font_measure_text);
+    RUN_TEST(test_open_font_open);
     // suspend, copy_from, etc are usually driver calls, so they can't be tested here
     UNITY_END(); // stop unit testing
 }

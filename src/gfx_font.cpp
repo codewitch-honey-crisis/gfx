@@ -405,88 +405,57 @@ namespace gfx {
         ssize16 dest_size,
         const char* text,
         unsigned int tab_width) const {
-        ssize16 result(0,0);
-        if(nullptr==text || 0==*text)
-            return result;
-        const char*sz=text;
+        if(nullptr==text || 0==*text) {
+            return {0,0};
+        }
+        int mw = 0;
+        int w = 0;
+        int h = 0;
         int cw;
-        uint16_t rw;
-        srect16 chr(spoint16(0,0),ssize16(width(*sz),height()));
-        
-        font_char fc = (*this)[*sz];
+        const char*sz=text;
         while(*sz) {
+            if(h==0) {
+                h=height();
+            }
+            font_char fc = (*this)[*sz];
             switch(*sz) {
-                case '\r':
-                    chr.x1=0;
-                    ++sz;
-                    if(*sz) {
-                        font_char nfc = (*this)[*sz];
-                        chr.x2=chr.x1+nfc.width()-1;
-                        fc=nfc;
-                    }  
-                    if(chr.x2>=result.width)
-                        result.width=chr.x2+1;
-                    if(chr.y2>=result.height)
-                        result.height=chr.y2+1;    
-                    break;
                 case '\n':
-                    chr.x1=0;
-                    ++sz;
-                    if(*sz) {
-                        font_char nfc = (*this)[*sz];
-                        chr.x2=chr.x1+nfc.width()-1;
-                        fc=nfc;
+                    if(w>mw) {
+                        mw = w;
                     }
-                    chr=chr.offset(0,height());
-                    if(chr.y2>=dest_size.height) {    
-                        return dest_size;
+                    h+=height();
+                    w=0;
+                    break;
+                case '\r':
+                    if(w>mw) {
+                        mw = w;
                     }
+                    w=0;
                     break;
                 case '\t':
-                    ++sz;
-                    if(*sz) {
-                        font_char nfc = (*this)[*sz];
-                        rw=chr.x1+nfc.width()-1;
-                        fc=nfc;
-                    } else
-                        rw=chr.width();
                     cw = average_width()*tab_width;
-                    chr.x1=((chr.x1/cw)+1)*cw;
-                    chr.x2=chr.x1+rw-1;
-                    if(chr.right()>=dest_size.width) {
-                        chr.x1=0;
-                        chr=chr.offset(0,height());
-                    } 
-                    if(chr.x2>=result.width)
-                        result.width=chr.x2+1;
-                    if(chr.y2>=result.height)
-                        result.height=chr.y2+1;    
-                    if(chr.y2>=dest_size.height)
-                        return dest_size;
-                    
-                    break;
-                default:
-                    chr=chr.offset(fc.width(),0);
-                    ++sz;
-                    if(*sz) {
-                        font_char nfc = (*this)[*sz];
-                        chr.x2=chr.x1+nfc.width()-1;
-                        if(chr.right()>=dest_size.width) {
-                            
-                            chr.x1=0;
-                            chr=chr.offset(0,height());
-                        }
-                        if(chr.x2>=result.width)
-                            result.width=chr.x2+1;
-                        if(chr.y2>=result.height)
-                            result.height=chr.y2+1;    
-                        if(chr.y2>dest_size.height)
-                            return dest_size;
-                        fc=nfc;
+                    w=((w/cw)+1)*cw;
+                    if(w>dest_size.width) {
+                        h+=height();
+                        if(w>mw) {
+                            mw = w;
+                        }   
+                        w=0;
                     }
                     break;
+                default:
+                    w+=fc.width();
+                    if(w>dest_size.width) {
+                        h+=height();
+                        w=fc.width();
+                    }
+                    if(w>mw) {
+                        mw = w;
+                    }   
+                    break;
             }
+            ++sz;
         }
-        return result;
+        return gfx::ssize16(mw,h);
     }
 }

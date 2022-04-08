@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <unity.h>
 #include <gfx_cpp14.hpp>
+#include "test_helpers.hpp"
 static const uint8_t mono_bmp_buf[] = {0x80,0x00,0x00,0x00,
                                        0x00,0x00,0x00,0x00};
 

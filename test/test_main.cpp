@@ -5,13 +5,16 @@
 #include "test_helpers.hpp"
 #include "test_pixels.hpp"
 #include "test_draw_targets.hpp"
-using namespace gfx;
+#include "test_images.hpp"
+#include "test_fonts.hpp"
 
+using namespace gfx;
 
 int main(int argc, char** argv) {
 
     UNITY_BEGIN();    // IMPORTANT LINE!
     RUN_TEST(test_pixel_channels);
+
     RUN_TEST(test_bmp_metrics);
     RUN_TEST(test_bmp_source_point);
     RUN_TEST(test_bmp_source_copy_to);
@@ -28,6 +31,11 @@ int main(int argc, char** argv) {
     RUN_TEST(test_view_offset);
     RUN_TEST(test_sprite_metrics);
     RUN_TEST(test_sprite_hit_test);
+    
+    RUN_TEST(test_image_load);
+    
+    RUN_TEST(test_font_read);
+    RUN_TEST(test_font_measure_text);
     // suspend, copy_from, etc are usually driver calls, so they can't be tested here
     UNITY_END(); // stop unit testing
 }

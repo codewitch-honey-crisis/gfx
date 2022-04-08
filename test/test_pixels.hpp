@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <unity.h>
 #include <gfx_cpp14.hpp>
-
+#include "test_helpers.hpp"
 void test_pixel_channels() {
     gfx::rgb_pixel<24> px;
     px.channel<0>(255);

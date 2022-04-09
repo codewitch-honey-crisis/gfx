@@ -280,9 +280,6 @@ namespace gfx {
         // fills a region of the bitmap with the specified pixel
         gfx_result fill(const rect16& dst,pixel_type pixel) {
             if(!dst.intersects(bounds())) return gfx_result::success;
-            using pach = typename pixel_type::template channel_by_name_unchecked<channel_name::A>;
-            using chindex = typename pixel_type::template channel_index_by_name<channel_name::A>;
-            const size_t chi = chindex::value;
             if(pixel_type::template has_channel_names<channel_name::A>::value) {
                 pixel_type bgpx;
                 rect16 rc = dst.normalize().crop(bounds());

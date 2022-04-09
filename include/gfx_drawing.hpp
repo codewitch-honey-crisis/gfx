@@ -2179,7 +2179,7 @@ namespace gfx {
                     bits::int_max m = 1 << (fc.width()-1);
                     bits::int_max accum=0;
                     uint8_t* paccum = (uint8_t*)&accum;
-                    for(int i = 0;i<wb;++i) {
+                    for(size_t i = 0;i<wb;++i) {
                         (*paccum++)=pgm_read_byte(p+i);
                     }
                     p+=wb;

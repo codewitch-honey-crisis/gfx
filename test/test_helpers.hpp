@@ -2,8 +2,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unity.h>
+#include "test_common.hpp"
 #include <gfx_cpp14.hpp>
-
 // prints a source as 4-bit grayscale ASCII
 template <typename Source>
 void print_source(const Source& src) {

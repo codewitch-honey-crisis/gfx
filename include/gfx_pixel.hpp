@@ -960,11 +960,9 @@ namespace gfx {
                 cmax = cR>cmax?cR:cmax;
                 double chroma = cmax-cmin;
                 
-                double h, s, l = (cmax + cmin) / 2.0;
+                double h =0, s=0, l = (cmax + cmin) / 2.0;
 
-                if(cmax == cmin){
-                    h = s = 0; // achromatic
-                } else {
+                if(cmax != cmin){
                     double chroma = cmax - cmin;
                     s = l > 0.5 ? chroma / (2.0 - cmax - cmin) : chroma / (cmax + cmin);
                     if(cmax==cR) {
@@ -1229,7 +1227,7 @@ namespace gfx {
                 double p = chV * (1 - chS);
                 double q = chV * (1 - f * chS);
                 double t = chV * (1 - (1 - f) * chS);
-                double r,g,b;
+                double r=0,g=0,b=0;
                 switch(i % 6){
                     case 0: r = chV; g = t; b = p; break;
                     case 1: r = q; g = chV, b = p; break;

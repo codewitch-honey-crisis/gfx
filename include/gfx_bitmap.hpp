@@ -460,7 +460,7 @@ namespace gfx {
         }
         // indicates the size of the bitmap in bytes
         inline size_t size_bytes() const {
-            return (size_pixels()*((PixelType::bit_depth+7)/8));
+            return (size_pixels()*pixel_type::bit_depth+7)/8;
         }
         // indicates the beginning of the bitmap buffer
         inline const uint8_t* begin() const {

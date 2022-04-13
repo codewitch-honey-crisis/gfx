@@ -918,13 +918,11 @@ namespace gfx {
                 cmax = cR>cmax?cR:cmax;
                 double chroma = cmax-cmin;
                 
-                double h, s, v = cmax;
+                double v = cmax;
 
-                s = cmax == 0 ? 0 : chroma / cmax;
-
-                if(cmax == cmin){
-                    h = 0; // achromatic
-                }else{
+                double s = cmax == 0 ? 0 : chroma / cmax;
+                double h = 0; // achromatic
+                if(cmax != cmin){
                     if(cmax==cR) {
                         h=(cG-cB)/chroma+(cG<cB?6:0);
                     } else if(cmax==cG) {

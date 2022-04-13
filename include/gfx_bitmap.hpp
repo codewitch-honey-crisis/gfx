@@ -7,10 +7,8 @@
 #include "gfx_draw_helpers.hpp"
 #include "gfx_palette.hpp"
 
-
 namespace gfx {
     namespace helpers {
-        
         template<typename Source,typename Destination, bool AllowBlt=true>
         struct bmp_copy_to_helper {
             static inline gfx_result copy_to(const Source& src,const rect16& srcr,Destination& dst,const rect16& dstr) {
@@ -108,8 +106,6 @@ namespace gfx {
                         ++dy;
                     }
                 }
-                
-            
                 // TODO:
                 // clear any bits we couldn't copy 
                 // on account of being out of bounds?
@@ -269,7 +265,6 @@ namespace gfx {
                     const size_t offs = (((dstr.top()+dy)*dimensions().width+dstr.left())*pixel_type::bit_depth);
                     const size_t offs_bytes = offs / 8;
                     const size_t offs_bits = offs % 8;
-
                     uint8_t* pdst = begin()+offs_bytes;
                     bits::set_bits(pdst,offs_bits,line_len_bits,false);
                     ++dy;
@@ -301,7 +296,6 @@ namespace gfx {
                         }
                     }    
                 }
-            
                 return gfx_result::success;    
             } 
             if(nullptr==begin()) {
@@ -315,7 +309,6 @@ namespace gfx {
                 while(dy<dye) {
                 uint8_t* pdst = begin()+(((dstr.top()+dy)*dimensions().width+dstr.left())*pixel_type::packed_size); 
                 for(size_t x = 0;x<line_len;x+=pixel_type::packed_size) {
-                    
                     memcpy(pdst,&be_val,pixel_type::packed_size);
                     pdst+=pixel_type::packed_size;
                 }
@@ -353,8 +346,7 @@ namespace gfx {
                     bits::set_bits(pdst,offs%8,line_len_bits,set);
                     ++dy;
                 }
-            } 
-        
+            }
             return gfx_result::success;
         }
         template<typename Destination>
@@ -527,7 +519,6 @@ namespace gfx {
             m_deallocate(m_segments);
             m_segments = nullptr;
         }
-
     public:
         using type = large_bitmap;
         using pixel_type = PixelType;
@@ -535,8 +526,7 @@ namespace gfx {
         using caps = gfx_caps< false,false,false,false,false,true,false>;
         using segment_type = bitmap<pixel_type,palette_type>;
         large_bitmap(size16 dimensions,uint16_t segment_height, const palette_type* palette=nullptr, void*(allocate)(size_t)=::malloc,void(deallocate)(void*)=::free) 
-            : m_dimensions(dimensions), m_segment_height(segment_height),m_palette(palette),m_deallocate(deallocate)
-        {
+            : m_dimensions(dimensions), m_segment_height(segment_height),m_palette(palette),m_deallocate(deallocate) {
             if(m_segment_height==0)
                 m_segment_height=1;
             if(m_segment_height>m_dimensions.height)
@@ -566,8 +556,7 @@ namespace gfx {
                 }
             }
         }
-        large_bitmap() : m_dimensions(0,0),m_segment_height(0),m_palette(nullptr), m_segments(nullptr) {
-            
+        large_bitmap() : m_dimensions(0,0),m_segment_height(0),m_palette(nullptr), m_segments(nullptr) {    
         }
         large_bitmap(const type& rhs)=delete;
         type& operator=(const type& rhs)=delete;
@@ -678,7 +667,6 @@ namespace gfx {
         const palette_type *palette() const {
             return m_palette;
         }
-
         // computes the minimum required size for a bitmap buffer, in bytes
         constexpr inline static size_t sizeof_buffer(size16 size) {
             return (size.width*size.height*pixel_type::bit_depth+7)/8;
@@ -709,5 +697,4 @@ namespace gfx {
         return helpers::bitmap_from_helper<Source,Source::pixel_type::template has_channel_names<channel_name::index>::value>::create_from(source,size,buf);
     }
 }
-
 #endif

@@ -1393,7 +1393,8 @@ namespace gfx {
     template<typename PixelTypeLhs,typename PixelTypeRhs>
     constexpr inline static PixelTypeRhs convert(PixelTypeLhs lhs, const PixelTypeRhs* background=nullptr) {
         PixelTypeRhs result;
-        if(gfx_result::success!=convert(lhs,&result,background)) {
+        gfx_result r = convert(lhs,&result,background);
+        if(gfx_result::success!=r) {
             result.native_value = 0;
         }
         return result;

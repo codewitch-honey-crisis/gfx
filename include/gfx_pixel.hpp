@@ -765,7 +765,7 @@ namespace gfx {
             return p;
         }
 		inline constexpr double clampcymk(double value) {
-            if(isnan(value) || value < 0.0) {
+            if((value!=value) || value < 0.0) {
                 return 0.0;
             }
             return value;

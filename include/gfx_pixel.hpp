@@ -459,6 +459,8 @@ namespace gfx {
         constexpr inline pixel() : native_value(0) {
             helpers::pixel_init_impl<type,0,ChannelTraits...>::init(*this);
         }
+        constexpr inline pixel(int_type native_value,bool dummy) : native_value(native_value) {
+        }
         // initializes the pixel with a set of channel values
         constexpr inline pixel(typename ChannelTraits::int_type... values) : native_value(0) {
             helpers::pixel_init_impl<type,0,ChannelTraits...>::init(*this,values...);
@@ -1378,7 +1380,7 @@ namespace gfx {
     // converts a pixel to the destination pixel type. background is optional and is for alpha blending
     template<typename PixelTypeLhs,typename PixelTypeRhs>
     constexpr inline static PixelTypeRhs convert(PixelTypeLhs lhs, const PixelTypeRhs* background=nullptr) {
-        PixelTypeRhs result=gfx::gfx_result::success;
+        PixelTypeRhs result(0,false);
         if(gfx_result::success!=convert(lhs,&result,background)) {
             result.native_value = 0;
         }

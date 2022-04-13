@@ -1002,13 +1002,12 @@ namespace gfx {
                 const double cR = source.template channelr_unchecked<chiR>();
                 const double cG = source.template channelr_unchecked<chiG>();
                 const double cB = source.template channelr_unchecked<chiB>();
-                double c,m,y,k;
                 double cmax = cR>cG?cR:cG;
                 cmax = cmax>cB?cmax:cB;
-                k = helpers::clampcymk(1 - cmax);
-                c = helpers::clampcymk((1 - cR - k) / (1 - k));
-                m = helpers::clampcymk((1 - cG - k) / (1 - k));
-                y = helpers::clampcymk((1 - cB - k) / (1 - k));
+                double k = helpers::clampcymk(1 - cmax);
+                double c = helpers::clampcymk((1 - cR - k) / (1 - k));
+                double m = helpers::clampcymk((1 - cG - k) / (1 - k));
+                double y = helpers::clampcymk((1 - cB - k) / (1 - k));
 
                 const typename trchC::int_type cC =helpers::clamp(typename trchC::int_type(c*trchC::scale+.5),trchC::min,trchC::max);
                 helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexC::value>(native_value,cC);
@@ -1270,7 +1269,7 @@ namespace gfx {
                 const auto chH = source.template channelr_unchecked<chiH>();
                 const auto chS = source.template channelr_unchecked<chiS>();
                 const auto chL = source.template channelr_unchecked<chiL>();
-                double r,g,b;
+                double r=0,g=0,b=0;
                 if(chS == 0){
                     r = g = b = chL; // achromatic
                 } else {
@@ -1314,10 +1313,10 @@ namespace gfx {
                 const double chM = source.template channelr_unchecked<chiM>();
                 const double chY = source.template channelr_unchecked<chiY>();
                 const double chK = source.template channelr_unchecked<chiK>();
-                double r,g,b;
-                r = (1.0 - chC) * (1.0 - chK);
-                g = (1.0 - chM) * (1.0 - chK);
-                b = (1.0 - chY) * (1.0 - chK);
+                
+                double r = (1.0 - chC) * (1.0 - chK);
+                double g = (1.0 - chM) * (1.0 - chK);
+                double b = (1.0 - chY) * (1.0 - chK);
                 const auto sr = typename trchR::int_type(r*trchR::scale);
                 helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexR::value>(native_value,sr);
                 const auto sg = typename trchG::int_type(g*trchG::scale);

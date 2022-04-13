@@ -1392,7 +1392,7 @@ namespace gfx {
     // converts a pixel to the destination pixel type. background is optional and is for alpha blending
     template<typename PixelTypeLhs,typename PixelTypeRhs>
     constexpr inline static PixelTypeRhs convert(PixelTypeLhs lhs, const PixelTypeRhs* background=nullptr) {
-        PixelTypeRhs result(0,false);
+        PixelTypeRhs result;
         if(gfx_result::success!=convert(lhs,&result,background)) {
             result.native_value = 0;
         }

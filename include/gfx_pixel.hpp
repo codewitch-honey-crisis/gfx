@@ -756,8 +756,20 @@ namespace gfx {
             static const int* bayer_16;
         };
         // for HSL conversion
-        double hue2rgb(double p, double q, double t);
-        double clampcymk(double value);
+        inline constexpr double hue2rgb(double p, double q, double t){
+            if(t < 0.0) t += 1.0;
+            if(t > 1.0) t -= 1.0;
+            if(t < 1.0/6.0) return p + (q - p) * 6.0 * t;
+            if(t < 1.0/2.0) return q;
+            if(t < 2.0/3.0) return p + (q - p) * (2.0/3.0 - t) * 6.0;
+            return p;
+        }
+		inline constexpr double clampcymk(double value) {
+            if(isnan(value) || value < 0.0) {
+                return 0.0;
+            }
+            return value;
+        }
     }
 
     

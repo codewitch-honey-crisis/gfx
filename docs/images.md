@@ -35,3 +35,9 @@ If you don't know the dimensions you can pass `size16(-1,-1)`.
 You probably won't understand some of the calls in this as they will covered in sections [5](drawing.md) and [6](positioning.md), but it should give you a general idea of what is being covered.
 
 Note that these bitmaps have a pixel type that is reflective of the native pixel format of the image. For JPG that's YCbCr, not RGB. Fortunately `draw` handles that conversion automatically.
+
+
+[→ Fonts](fonts.md)
+
+[← Draw targets](draw_targets.md)
+

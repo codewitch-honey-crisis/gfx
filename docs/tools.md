@@ -48,3 +48,6 @@ or
 ```cpp
 const open_font& f = test_ttf;
 ```
+
+[← Performance](performance.md)
+

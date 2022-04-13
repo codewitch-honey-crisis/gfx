@@ -31,7 +31,7 @@ A grayscale pixel can be declared using `gsc_pixel<N>` where `N` again is the bi
 
 ``rgba_pixel<N>`` declares an RGB pixel with an [alpha channel](#1.5) that can be used for [alpha blending](drawing.md#5.6).
 
-There are also shorthands for yuv, ycbcr (used by JPG) and indexed pixels.
+There are also shorthands for yuv, ycbcr (used by JPG), hsl, hsv, cmyk, and indexed pixels.
 
 <a name="1.2"></a>
 
@@ -76,12 +76,18 @@ rgb_pixel<16> px2 = color16::red;
 ```
 
 You can also get an RGB color of the machine's maximum word size using the `color_max` pseudo-enumaration.
+```cpp
+// get the color in largest RGB pixel the machine can support
+auto px = color_max::steel_blue;
+```
+
+Note that when you draw (as in [section 5](drawing.md)) you can pass any type of pixel - bit depth and color model conversions will be automatically applied as necessary. If the draw destination is indexed, color matching will occur.
 
 <a name="1.4"></a>
 
 ## 1.4 Color models
 
-A color model is a particular representation of a color. It identifies the "color space" map that the color appears on. Think of a color space as a sort of color wheel in which a color is located. RGB is probably the most common color model, but there is also grayscale, YUV, YCbCr and more. When necessary GFX identifies the color model of your pixel by the names of the channels it contains, disregarding the order of the channels, and ignoring the alpha channel. You can use the [metadata](#1.9) template "function" `has_channel_names<{channel name ","}>` to determine the color model.
+A color model is a particular representation of a color. It identifies the "color space" map that the color appears on. Think of a color space as a sort of color wheel in which a color is located. RGB is probably the most common color model, but there is also grayscale, YUV, YCbCr, HSL, HSV, CMYK and potentially more. When necessary GFX identifies the color model of your pixel by the names of the channels it contains, disregarding the order of the channels, and ignoring the alpha channel. You can use the [metadata](#1.9) template "function" `has_channel_names<{channel name ","}>` to determine the color model.
 
 <a name="1.5"></a>
 
@@ -135,4 +141,8 @@ For indexed pixels you have `convert_palette_from<>()` to convert from a non-ind
 Pixels and channels contain a host of metadata about the element in question. This is accessible of the type for the pixel or the channel.
 
 You shouldn't need this information most of the time, so in the interest of brevity, see the comments in the code in *gfx_pixel.hpp* for the individual functions. Editors like VS Code will report these comments automatically.
+
+[→ Draw targets](draw_targets.md)
+
+[← Index](index.md)
 

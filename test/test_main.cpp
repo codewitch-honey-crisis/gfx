@@ -14,7 +14,7 @@ int main(int argc, char** argv) {
 
     UNITY_BEGIN();    // IMPORTANT LINE!
     RUN_TEST(test_pixel_channels);
-
+    RUN_TEST(test_pixel_convert);
     RUN_TEST(test_bmp_metrics);
     RUN_TEST(test_bmp_source_point);
     RUN_TEST(test_bmp_source_copy_to);

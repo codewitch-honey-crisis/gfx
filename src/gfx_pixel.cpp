@@ -19,5 +19,19 @@ namespace gfx {
                 	 42, 233,  26, 217,  38, 229,  22, 213,  41, 232,  25, 216,  37, 228,  21, 212	,
                 	169, 106, 153,  90, 165, 102, 149,  86, 168, 105, 152,  89, 164, 101, 148,  85	};
         const int* dither::bayer_16 = dither_bayer_16_array;
-    }
+    	double hue2rgb(double p, double q, double t){
+            if(t < 0.0) t += 1.0;
+            if(t > 1.0) t -= 1.0;
+            if(t < 1.0/6.0) return p + (q - p) * 6.0 * t;
+            if(t < 1.0/2.0) return q;
+            if(t < 2.0/3.0) return p + (q - p) * (2.0/3.0 - t) * 6.0;
+            return p;
+        }
+		double clampcymk(double value) {
+            if(isnan(value) || value < 0.0) {
+                return 0.0;
+            }
+            return value;
+        }
+	}
 }

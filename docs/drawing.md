@@ -356,3 +356,8 @@ static gfx_result resume(
     Destination& destination, 
     bool force=false)
 ```
+
+[→ Positioning](positioning.md)
+
+[← Fonts](fonts.md)
+

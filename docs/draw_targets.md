@@ -290,3 +290,9 @@ gfx_result resume_async(bool force=false)
 ### 2.6.5 Initialization
 
 If a draw destination requires initialization, it should be done the first time any drawing operation takes place. Draw source members may return `gfx_result::invalid_state` if not initialized.
+
+
+[→ Images](images.md)
+
+[← Pixels](pixels.md)
+

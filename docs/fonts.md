@@ -167,3 +167,7 @@ const font& acer8x8 = Bm437_Acer_VGA_8x8_FON;
 
 Raster fonts are generally much faster than TrueType fonts and faster still when loaded into RAM versus being included in a header. They are also more quickly drawn when they do not have a transparent background.
 
+[→ Drawing](drawing.md)
+
+[← Images](images.md)
+

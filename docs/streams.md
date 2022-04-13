@@ -22,3 +22,9 @@ open_font::open(&fs,&f);
 // free the font
 fs.close();
 ```
+
+
+[→ Performance](performance.md)
+
+[← Positioning](positioning.md)
+

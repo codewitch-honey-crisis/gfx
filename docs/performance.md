@@ -43,3 +43,9 @@ Due to GFX simplifying asynchronous calls, and due to the different characterist
 The primary method to benefit from this feature is `draw::bitmap_async<>()`. The other methods are provided for a couple of reasons. First, in the future it may be possible to make the other operations much more asynchronous, pending future hardware. Second, on some platforms, like the ESP-IDF switching from an asynchronous operation to a synchronous operation requires the framework to wait for all pending asynchronous operations to complete before the synchronous operation can be started. Therefore, to keep things asynchronous, it may be desirable to continue asynchronous draws so you don't end up blocking during a DMA transfer.
 
 For your DMA transfer to be beneficial you need the amount of data you are transferring to be significant enough that it overcomes the extra upfront overhead of transferring it using DMA. Asynchronously transferring a 320x16@16-bit buffer will get you better results than a 16x16@16-bit one. As before, you cannot crop, convert, flip, or resize if you want full asynchronicity. Transfer the entire draw source to the destination unchanged. Furthermore, with most MCUs, the buffer must be in DMA capable RAM or the transfer will fail.
+
+
+[→ Tools](tools.md)
+
+[← Streams](streams.md)
+

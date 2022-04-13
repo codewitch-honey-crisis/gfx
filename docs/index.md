@@ -99,3 +99,5 @@ ___
 9. [Tools](tools.md)
    - 9.1 [Bingen](tools.md#9.1)
    - 9.2 [Fontgen](tools.md#9.2)
+
+[Pixels](pixels.md) →

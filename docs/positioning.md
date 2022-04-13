@@ -66,3 +66,8 @@ spath16 path(3,path_points);
 path.offset_inplace(10,20); 
 ```
 It should be noted that unlike other structures, path manipulation members do not return a copy of the path. This is because doing so would require allocating memory - something GFX is loathe to do for you except as required, and usually temporarily. Avoiding casual allocations like this keeps heap fragmentation down.
+
+[→ Streams](streams.md)
+
+[← Drawing](drawing.md)
+

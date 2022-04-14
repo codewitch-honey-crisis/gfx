@@ -583,7 +583,7 @@ namespace gfx {
             return sqrt(helpers::pixel_diff_impl<type,0,ChannelTraits...>::diff_sum(*this,rhs));
         }
         // blends two pixels. ratio is between zero and one. larger ratio numbers favor this pixel
-        constexpr gfx_result blend(type rhs,double ratio,type* out_pixel) {
+        constexpr gfx_result blend(const type rhs,double ratio,type* out_pixel) const {
             if(out_pixel==nullptr) {
                 return gfx_result::invalid_argument;
             }
@@ -611,7 +611,7 @@ namespace gfx {
             return gfx_result::success;
         }
         // blends two pixels. ratio is between zero and one. larger ratio numbers favor this pixel
-        type blend(type rhs,double ratio) {
+        type blend(const type rhs,double ratio) const {
             type result;
             blend(rhs,ratio,&result);
             return result;

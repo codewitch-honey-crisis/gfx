@@ -1,6 +1,6 @@
 {
     "name": "htcw_gfx",
-    "version": "1.0.9",
+    "version": "1.1.0",
     "description": "A device independent graphics library for embedded and IoT devices",
     "keywords": ["tft", "graphics", "spi", "parallel", "i2c", "drawing", "jpg", "ttf", "font"],
     "authors": {
@@ -21,7 +21,7 @@
     "dependencies": {
         "codewitch-honey-crisis/htcw_bits": "^1.0.3",
         "codewitch-honey-crisis/htcw_data": "^1.0.4",
-        "codewitch-honey-crisis/htcw_io": "^1.0.10"
+        "codewitch-honey-crisis/htcw_io": "^1.1.0"
     },
     "export": {
         "exclude":

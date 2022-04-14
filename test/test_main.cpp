@@ -7,7 +7,7 @@
 #include "test_draw_targets.hpp"
 #include "test_images.hpp"
 #include "test_fonts.hpp"
-
+#include "test_drawing.hpp"
 using namespace gfx;
 
 int main(int argc, char** argv) {
@@ -37,7 +37,9 @@ int main(int argc, char** argv) {
     RUN_TEST(test_font_read);
     RUN_TEST(test_font_measure_text);
     RUN_TEST(test_open_font_open);
-    // suspend, copy_from, etc are usually driver calls, so they can't be tested here
+
+    RUN_TEST(test_draw_rectangle);
+    RUN_TEST(test_draw_ellipse);
     UNITY_END(); // stop unit testing
 }
 

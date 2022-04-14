@@ -2381,23 +2381,31 @@ namespace gfx {
         }
         template<typename Destination,typename PixelType>
         static gfx_result rectangle_impl(Destination& destination, const srect16& rect,PixelType color,const srect16* clip,bool async) {
+            if(rect.x1==rect.x2) {
+                if(rect.y1==rect.y2) {
+                    return point_impl(destination,rect.top_left(),color,clip,async);
+                }
+                return line_impl(destination,rect,color,clip,async);
+            } else if(rect.y1==rect.y2) {
+                return line_impl(destination,rect,color,clip,async);
+            }
             gfx_result r;
             // suspend if we can
             helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination,async);
             // top or bottom
-            r=line_impl(destination,srect16(rect.x1,rect.y1,rect.x2,rect.y1),color,clip,async);
+            r=line_impl(destination,srect16(rect.x1+1,rect.y1,rect.x2,rect.y1),color,clip,async);
             if(r!=gfx_result::success)
                 return r;
             // left or right
-            r=line_impl(destination,srect16(rect.x1,rect.y1,rect.x1,rect.y2),color,clip,async);
+            r=line_impl(destination,srect16(rect.x1,rect.y1,rect.x1,rect.y2-1),color,clip,async);
             if(r!=gfx_result::success)
                 return r;
             // right or left
-            r=line_impl(destination,srect16(rect.x2,rect.y1,rect.x2,rect.y2),color,clip,async);
+            r=line_impl(destination,srect16(rect.x2,rect.y1+1,rect.x2,rect.y2),color,clip,async);
             if(r!=gfx_result::success)
                 return r;
             // bottom or top
-            return line_impl(destination,srect16(rect.x1,rect.y2,rect.x2,rect.y2),color,clip,async);
+            return line_impl(destination,srect16(rect.x1,rect.y2,rect.x2-1,rect.y2),color,clip,async);
         }
         static bool get_poly_rect(const spoint16* path,size_t path_size,srect16* result) {
             if(0==path_size) return false;

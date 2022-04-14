@@ -972,7 +972,6 @@ namespace gfx {
                 cmin = cR<cmin?cR:cmin;
                 double cmax = cG>cB?cG:cB;
                 cmax = cR>cmax?cR:cmax;
-                double chroma = cmax-cmin;
                 
                 double h =0, s=0, l = (cmax + cmin) / 2.0;
 

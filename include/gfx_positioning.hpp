@@ -23,12 +23,22 @@ namespace gfx {
         constexpr inline explicit operator pointx<bits::unsignedx<value_type>>() const {
             return pointx<bits::unsignedx<value_type>>(bits::unsignedx<value_type>(x),bits::unsignedx<value_type>(y));
         }
+        // offsets the point by the specified amounts.
         constexpr inline pointx offset(bits::signedx<value_type> x, bits::signedx<value_type> y) const {
             return type(this->x+x,this->y+y);
         }
+        // offsets in-place the point by the specified amounts.
         constexpr inline void offset_inplace(bits::signedx<value_type> x, bits::signedx<value_type> y) {
             this->x+=x;
             this->y+=y;
+        }
+        // offsets the point by the specified amounts.
+        constexpr inline pointx offset(pointx<bits::signedx<value_type>> adjust) const {
+            return offset(adjust.x,adjust.y);
+        }
+        // offsets in-place the point by the specified amounts.
+        constexpr inline void offset_inplace(pointx<bits::signedx<value_type>> adjust) {
+            offset_inplace(adjust.x,adjust.y);
         }
         constexpr inline bool operator==(const type& rhs) const { 
             return x==rhs.x && y==rhs.y;   
@@ -237,6 +247,14 @@ namespace gfx {
             y1+=y;
             x2+=x;
             y2+=y;
+        }
+        // offsets the rectangle by the specified amounts.
+        constexpr inline rectx offset(pointx<bits::signedx<value_type>> adjust) const {
+            return offset(adjust.x,adjust.y);
+        }
+        // offsets in-place the rectangle by the specified amounts.
+        constexpr inline void offset_inplace(pointx<bits::signedx<value_type>> adjust) {
+            offset_inplace(adjust.x,adjust.y);
         }
         constexpr inline rectx center_horizontal(const rectx& bounds) const {
             return offset((bounds.width()-width())/2,0).offset(bounds.left(),bounds.top());
@@ -468,11 +486,15 @@ namespace gfx {
             if(0==m_size) return sizex<value_type>(0,0);
             return bounds().dimensions();
         }
-        // performs an inplace offset on point
+        // performs an inplace offset on a path
         void offset_inplace(bits::signedx<value_type> x,bits::signedx<value_type> y) {
             for(size_t i = 0;i<m_size;++i) {
                 m_points[i]=m_points[i].offset(x,y);
             }
+        }
+        // performs an inplace offset on a path
+        inline void offset_inplace(pointx<bits::signedx<value_type>> adjust) {
+            offset_inplace(adjust.x,adjust.y);
         }
         // indicates whether a point intersects this path or polygon
         bool intersects(point_type location,bool polygon = false) const {

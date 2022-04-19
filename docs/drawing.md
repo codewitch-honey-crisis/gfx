@@ -357,7 +357,7 @@ static gfx_result resume(
     bool force=false)
 ```
 
-<a name="5.7"></a>
+<a name="5.8"></a>
 
 ## 5.8 Batching
 

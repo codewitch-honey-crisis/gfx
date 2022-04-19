@@ -3,6 +3,7 @@
 #include "gfx_pixel.hpp"
 #include "gfx_color_cpp14.hpp"
 #include "gfx_positioning.hpp"
+#include "gfx_palette.hpp"
 #include "gfx_font.hpp"
 #include "gfx_image.hpp"
 #include "gfx_drawing.hpp"

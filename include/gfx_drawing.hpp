@@ -3656,13 +3656,29 @@ namespace gfx {
             return image_impl(destination,destination_rect,&stm,source_rect,resize_type,clip,true);
         }
 #endif
+        // draws a sprite to the destination at the specified location with an optional clipping rectangle
         template<typename Destination,typename Sprite>
         static inline gfx_result sprite(Destination& destination, spoint16 location,const Sprite& sprite,srect16* clip=nullptr) {
             return sprite_impl(destination,location,sprite,clip,false);
         }
+        // asynchronously draws a sprite to the destination at the specified location with an optional clipping rectangle
         template<typename Destination,typename Sprite>
         static inline gfx_result sprite_async(Destination& destination, spoint16 location, Sprite& sprite,srect16* clip=nullptr) {
             return sprite_impl(destination,location,sprite,clip,true);
+        }
+        // retrieves a batch writer that can be used to write a batch operation to the display
+        template<typename Destination>
+        static inline batch_writer<Destination> batch(Destination& destination, const srect16& bounds) {
+            batch_writer<Destination> result(destination,bounds);
+            result.begin(false);
+            return result;
+        }
+        // retrieves a batch writer that can be used to asynchronously write a batch operation to the display
+        template<typename Destination>
+        static inline batch_writer<Destination> batch_async(Destination& destination, const srect16& bounds) {
+            batch_writer<Destination> result(destination,bounds);
+            result.begin(true);
+            return result;
         }
         // waits for all asynchronous operations on the destination to complete
         template<typename Destination>
@@ -3689,19 +3705,7 @@ namespace gfx {
         static gfx_result resume_async(Destination& destination,bool force=false) {
             return helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async>::resume_async(destination);
         }
-        template<typename Destination>
-        static inline batch_writer<Destination> batch(Destination& destination, const srect16& bounds) {
-            batch_writer<Destination> result(destination,bounds);
-            result.begin(false);
-            return result;
-        }
-        template<typename Destination>
-        static inline batch_writer<Destination> batch_async(Destination& destination, const srect16& bounds) {
-            batch_writer<Destination> result(destination,bounds);
-            result.begin(true);
-            return result;
-        }
-
+        
         // draws a point at the specified location and of the specified color, with an optional clipping rectangle
         template<typename Destination,typename PixelType>
         inline static gfx_result point(Destination& destination, point16 location,PixelType color,const srect16* clip=nullptr) {
@@ -3906,18 +3910,22 @@ namespace gfx {
             return image_async(destination,(srect16)destination_rect,source_stream,source_rect,resize_type,clip);
         }
 #endif
+        // draws a sprite to the destination at the location with an optional clipping rectangle
         template<typename Destination,typename Sprite>
         static inline gfx_result sprite(Destination& destination, point16 location,const Sprite& sprite,srect16* clip=nullptr) {
             return sprite(destination,(spoint16)location,sprite,clip);
         }
+        // asynchronously draws a sprite to the destination at the location with an optional clipping rectangle
         template<typename Destination,typename Sprite>
         static inline gfx_result sprite_async(Destination& destination, point16 location, const Sprite& sprite,srect16* clip=nullptr) {
             return sprite_async(destination,(spoint16)location,sprite,clip);
         }  
+        // retrieves a batch writer that can be used to write to the destination
         template<typename Destination>
         static inline batch_writer<Destination> batch(Destination& destination, const rect16& bounds) {
             return batch_writer<Destination>(destination,(srect16)bounds,false);
         }
+        // retrieves a batch writer that can be used to asynchronously write to the destination
         template<typename Destination>
         static inline batch_writer<Destination> batch_async(Destination& destination, const rect16& bounds) {
             return batch_writer<Destination>(destination,(srect16)bounds,true);

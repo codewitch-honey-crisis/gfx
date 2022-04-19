@@ -357,6 +357,26 @@ static gfx_result resume(
     bool force=false)
 ```
 
+<a name="5.7"></a>
+
+## 5.8 Batching
+
+Batching can dramatically speed up complicated draw operations by avoiding sending redundant coordinate data to a device, or - memory permitting, by using a temporary memory buffer to hold the batched draws, and sending it to the target all at once.
+
+It should be noted that you cannot alpha blend with batch operations.
+
+```cpp
+// retrieves a batch writer that can be used to write a batch operation to the display
+template<typename Destination>
+static inline batch_writer<Destination> batch(Destination& destination, 
+                                                const srect16& bounds) {
+        batch_writer<Destination> result(destination,bounds);
+        result.begin(false);
+        return result;
+}
+```
+You use it by specifying calling `batch` to get a writer, and then calling `write` on that writer until you are done. The pixels will be written out left to right, top to bottom until the entire rectangle is filled. The batch is committed either when the writer goes out of scope or `commit` is called on the writer. If you do any other operations that write to the destination outside of the batch operation itself, the results are undefined.
+
 [→ Positioning](positioning.md)
 
 [← Fonts](fonts.md)

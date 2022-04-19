@@ -75,10 +75,16 @@ rgb_pixel<16> px = color16::old_lace;
 rgb_pixel<16> px2 = color16::red;
 ```
 
-You can also get an RGB color of the machine's maximum word size using the `color_max` pseudo-enumaration.
+You can also get an RGB or RGBA color using one of several shorthands:
 ```cpp
 // get the color in largest RGB pixel the machine can support
 auto px = color_max::steel_blue;
+// get the color in 16-bit RGB format
+auto px2 = color16::old_lace;
+// get the color in 24-bit RGB format
+auto px3 = color24::brown;
+// get the color in 32-bit RGBA format
+auto px4 = color32::yellow;
 ```
 
 Note that when you draw (as in [section 5](drawing.md)) you can pass any type of pixel - bit depth and color model conversions will be automatically applied as necessary. If the draw destination is indexed, color matching will occur.
@@ -101,7 +107,7 @@ Declaring a pixel with an alpha channel, as described in [section 1.1](#1.1) ena
 
 Historically older PC displays such as EGA used an indexed color scheme in order to use a smaller frame buffer. Indexed colors are basically a palette of colors selected from a much larger palette, such as a selection of palette of 256 colors drawn from a palette of 262,144, as was common with VGA and SVGA. While it's not common to see TFT/LCD/OLED displays with indexed color schemes on IoT these days, with color e-paper displays it's universal. This is because e-paper displays cannot blend different primary colors into new colors, leaving a small amount of fixed colors to choose from - at most 7, including black and white - that I've seen.
 
-Indexed pixels must have an associated [draw target](draw_targets.md) in order to resolve to be converted to another pixel type. The reason is that there is simply not enough information to do this conversion without access to the associated palette mapping (palette). This palette is held by the draw target.
+Indexed pixels must have an associated [draw target](draw_targets.md) in order to be converted to another pixel type. The reason is that there is simply not enough information to do this conversion without access to the associated palette mapping (palette). This palette is held by the draw target.
 
 When converting from a non-indexed pixel type to an indexed pixel type using a given draw target, automatic color matching will occur, such that if the display's palette has a bright red color, similar colors, such as dark red, will be represented with it. This allows you to do things like load color JPGs onto devices with indexed colors.
 

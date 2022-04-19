@@ -1282,13 +1282,14 @@ namespace gfx {
                 if(chS == 0){
                     r = g = b = chL; // achromatic
                 } else {
-                    double q = chL < 0.5 ? chL * (1.0 + chS) : chL + chS - chL * chS;
-                    double p = 2.0 * chL - q;
+                    double q = chL < 0.5 ? chL * (1 + chS) : chL + chS - chL * chS;
+                    double p = 2 * chL - q;
                     r = helpers::hue2rgb(p, q, chH + 1.0/3.0);
                     g = helpers::hue2rgb(p, q, chH);
                     b = helpers::hue2rgb(p, q, chH - 1.0/3.0);
                 }
 
+                printf("r: %f, g: %f, b: %f\n",r,g,b);
                 const auto sr = typename trchR::int_type(r*trchR::scale);
                 helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexR::value>(native_value,sr);
                 const auto sg = typename trchG::int_type(g*trchG::scale);

@@ -148,6 +148,7 @@ namespace gfx {
         constexpr static const PixelType white_smoke = convert<source_type,PixelType>(color<PixelType>::source_type(true, 0.96078431372549, 0.96078431372549, 0.96078431372549));
         constexpr static const PixelType yellow = convert<source_type,PixelType>(color<PixelType>::source_type(true, 1, 1, 0));
         constexpr static const PixelType yellow_green = convert<source_type,PixelType>(color<PixelType>::source_type(true, 0.603921568627451, 0.803921568627451, 0.196078431372549));
+
         // ensure colors can be converted to destination type:
         static_assert(0!=white.native_value || 0!=black.native_value,"Color type is not convertible from RGB");
     };

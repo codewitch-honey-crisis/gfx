@@ -52,7 +52,7 @@ namespace gfx {
         constexpr void rotation(float value) {
             m_rotation = value;
             // PI is inconsistently declared!
-            double rads = m_rotation * (3.1415926535 / 180.0);
+            double rads = m_rotation * (3.1415926536 / 180.0);
             m_ctheta = cos(rads);
             m_stheta = sin(rads);
         }

@@ -369,7 +369,7 @@ It should be noted that you cannot alpha blend with batch operations.
 // retrieves a batch writer that can be used to write a batch operation to the display
 template<typename Destination>
 static inline batch_writer<Destination> batch(Destination& destination, 
-                                                const srect16& bounds);
+                                                const srect16& bounds)
 ```
 You use it by specifying calling `batch` to get a writer, and then calling `write` on that writer until you are done. The pixels will be written out left to right, top to bottom until the entire rectangle is filled. The batch is committed either when the writer goes out of scope or `commit` is called on the writer. If you do any other operations that write to the destination outside of the batch operation itself, the results are undefined.
 

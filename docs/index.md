@@ -84,7 +84,7 @@ ___
       - 5.6.1 [Performance considerations](drawing.md#5.6.1)
       - 5.6.2 [Draw target considerations](drawing.md#5.6.2)
     - 5.7 [Suspend and resume](drawing.md#5.7)
-    - 5.8 [Batch](drawing.md#5.8)
+    - 5.8 [Batching](drawing.md#5.8)
 6. [Positioning](positioning.md)
     - 6.1 [Points](positioning.md#6.1)
     - 6.2 [Sizes](positioning.md#6.2)

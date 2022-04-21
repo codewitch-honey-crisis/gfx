@@ -778,17 +778,16 @@ namespace gfx {
         Destination& m_destination;
         srect16 m_bounds;
         
-        batch_writer(Destination& destination,const srect16& bounds) : m_destination(destination){
-            m_async= false;
+        batch_writer(Destination& destination,const srect16& bounds,bool async) : m_destination(destination){
+            m_async= async;
             m_state = 0;
             m_bounds = bounds;
         }
-        gfx_result begin(bool async) {
+        gfx_result begin() {
             if(m_state!=0) {
                 return gfx_result::invalid_state;
                 
             }
-            m_async = async;
             gfx_result r= m_batch.begin(m_destination,m_bounds,m_async);
             if(r!=gfx_result::success) {
                 return r;
@@ -802,7 +801,7 @@ namespace gfx {
             static_assert(!PixelType::template has_channel_names<channel_name::A>::value,"Batching cannot be combined with alpha blending");
             gfx_result r;
             if(m_state==0) {
-                r=begin(m_async);
+                r=begin();
                 if(r!=gfx_result::success) {
                     return r;
                 }
@@ -818,6 +817,12 @@ namespace gfx {
             return m_batch.write(px,m_async);
         }
         gfx_result commit() {
+            if(m_state==0) {
+                gfx_result r = begin();
+                if(r!=gfx_result::success) {
+                    return r;
+                }
+            }
             if(m_state==1) {
                 gfx_result r = m_batch.commit(m_async);
                 if(r!=gfx_result::success) {
@@ -3669,16 +3674,12 @@ namespace gfx {
         // retrieves a batch writer that can be used to write a batch operation to the display
         template<typename Destination>
         static inline batch_writer<Destination> batch(Destination& destination, const srect16& bounds) {
-            batch_writer<Destination> result(destination,bounds);
-            result.begin(false);
-            return result;
+            return batch_writer<Destination>(destination,bounds,false);
         }
         // retrieves a batch writer that can be used to asynchronously write a batch operation to the display
         template<typename Destination>
         static inline batch_writer<Destination> batch_async(Destination& destination, const srect16& bounds) {
-            batch_writer<Destination> result(destination,bounds);
-            result.begin(true);
-            return result;
+            return batch_writer<Destination>(destination,bounds,true);
         }
         // waits for all asynchronous operations on the destination to complete
         template<typename Destination>

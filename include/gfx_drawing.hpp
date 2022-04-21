@@ -575,6 +575,7 @@ namespace gfx {
                 return *m_destination;
             }
             gfx_result begin(Destination& destination, srect16 bounds,bool async) {
+                
                 m_bounds = bounds.normalize();
                 m_clipped = (rect16)m_bounds.crop((srect16)destination.bounds());
                 m_location = spoint16(0,0);
@@ -772,6 +773,7 @@ namespace gfx {
     class batch_writer final {
         friend draw;
         using batch_type = helpers::batch_impl<Destination,Destination::caps::batch,Destination::caps::copy_from&&!Destination::caps::blt,Destination::caps::async>;
+        using sus_type = helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async>;
         batch_type m_batch;
         bool m_async;
         uint8_t m_state;
@@ -788,6 +790,7 @@ namespace gfx {
                 return gfx_result::invalid_state;
                 
             }
+            sus_type::suspend(m_async);
             gfx_result r= m_batch.begin(m_destination,m_bounds,m_async);
             if(r!=gfx_result::success) {
                 return r;
@@ -825,6 +828,7 @@ namespace gfx {
             }
             if(m_state==1) {
                 gfx_result r = m_batch.commit(m_async);
+                sus_type::resume(m_async);
                 if(r!=gfx_result::success) {
                     return r;
                 }
@@ -3369,6 +3373,7 @@ namespace gfx {
             ssize16 dest_size = dest_rect.dimensions();
 
             while(*sz) {
+                //Serial.printf("gi: %d\n",(int)gi);
                 if(*sz<32) {
                     int ti;
                     switch(*sz) {
@@ -3402,7 +3407,7 @@ namespace gfx {
                 srect16 chr(x1+xpos,y1+ypos,x2+xpos,y2+ypos);
                 chr.offset_inplace(dest_rect.left(),dest_rect.top());
                 if(nullptr==clip || clip->intersects(chr)) {
-                    
+                    //Serial.printf("draw char %c at (%d,%d)-(%d,%d)\n",*sz, (int)chr.x1,(int)chr.y1,(int)chr.x2,(int)chr.y2);
                     r=draw_open_font_helper<Destination,PixelType>::do_draw(destination,font,scale,xpos-floor(xpos),ypos-floor(ypos),gi,chr,color,backcolor,transparent_background,no_antialiasing, clip,async);
                     if(gfx_result::success!=r) {
                         return r;
@@ -3427,7 +3432,9 @@ namespace gfx {
                 xpos+=(advw*scale);    
                 if(*(sz+advsz)) {
                     int gi2=font.glyph_index(sz+advsz,&advsz,encoding,cache);
-                    xpos+=(font.kern_advance_width(gi,gi2)*scale);
+                    int a = (font.kern_advance_width(gi,gi2)*scale);
+                    
+                    xpos+=a;
                     gi=gi2;
                 }
                 if(adv_line) {
@@ -3835,7 +3842,7 @@ namespace gfx {
             bool transparent_background = true,
             unsigned int tab_width=4,
             srect16* clip=nullptr) {
-            return text(destination,(srect16)dest_rect,text,font,color,backcolor,transparent_background,tab_width,clip);
+            return draw::text(destination,(srect16)dest_rect,text,font,color,backcolor,transparent_background,tab_width,clip);
         }
         // asynchronously draws text to the specified destination rectangle with the specified font and colors and optional clipping rectangle
         template<typename Destination,typename PixelType>
@@ -3868,7 +3875,7 @@ namespace gfx {
             gfx_encoding encoding=gfx_encoding::utf8,
             srect16* clip=nullptr,
             open_font_cache* cache = nullptr) {
-            return text(destination,(srect16)dest_rect,offset,text,font,scale,color,backcolor,transparent_background,no_antialiasing,scaled_tab_width,encoding,clip);
+            return draw::text(destination,(srect16)dest_rect,offset,text,font,scale,color,backcolor,transparent_background,no_antialiasing,scaled_tab_width,encoding,clip);
         }
         // asynchronously draws text to the specified destination rectangle with the specified font and colors and optional clipping rectangle
         template<typename Destination,typename PixelType>
@@ -3887,7 +3894,7 @@ namespace gfx {
             gfx_encoding encoding=gfx_encoding::utf8,
             srect16* clip=nullptr,
             open_font_cache* cache=nullptr) {
-            return text(destination,(srect16)dest_rect,offset,text,font,scale,color,backcolor,transparent_background,no_antialiasing,scaled_tab_width,encoding,clip);
+            return draw::text(destination,(srect16)dest_rect,offset,text,font,scale,color,backcolor,transparent_background,no_antialiasing,scaled_tab_width,encoding,clip);
         }
         // draws an image from the specified stream to the specified destination rectangle with the an optional clipping rectangle
         template<typename Destination>

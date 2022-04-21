@@ -16,7 +16,7 @@ framework = arduino
 monitor_speed = 115200
 upload_speed = 921600
 lib_deps = 
-	codewitch-honey-crisis/htcw_ili9341@^1.0.9
+	codewitch-honey-crisis/htcw_ili9341
 lib_ldf_mode = deep
 build_unflags=-std=gnu++11
 build_flags=-std=gnu++14

@@ -874,6 +874,36 @@ namespace gfx {
         jd->result=jd->out(size16(decoder->width,decoder->height), r,point16(rect->left,rect->top),jd->state);
         return (gfx_result::success!=jd->result)?0:1;
     }
+    gfx_result jpeg_image::dimensions(stream* input, size16* out_dimensions) {
+        if(nullptr==input)
+            return gfx_result::invalid_argument;
+        if(nullptr==out_dimensions)
+            return gfx_result::invalid_argument;
+        char* work = (char*)calloc(WORKSZ, 1);
+        if (work == nullptr) {
+            return gfx_result::out_of_memory;
+        }
+
+        JDEC decoder;
+        decoder.width = 0;
+        decoder.height = 0;
+        JpegDev jd;
+        jd.input_stream=input;
+        jd.state = nullptr;
+        jd.out = nullptr;
+        jd.result = gfx_result::success;
+        //Prepare and decode the jpeg.
+        jd_prepare(&decoder, infunc, work, WORKSZ, (void *)&jd);
+        if(decoder.width>0&&decoder.height>0) {
+            out_dimensions->width = decoder.width;
+            out_dimensions->height = decoder.height;
+            ::free(work);
+            return gfx_result::success;
+        }
+        ::free(work);
+        return gfx_result::unknown_error;
+        
+    }
     gfx_result jpeg_image::load(stream* input,callback out_func,void* state) {
         if(nullptr==input)
             return gfx_result::invalid_argument;

@@ -268,9 +268,14 @@ namespace gfx {
             constexpr static inline void blend_val(PixelType lhs,PixelType rhs,double amount,PixelType* out_pixel) {
                 constexpr const size_t index = Count;
                 if(ChannelTrait::bit_depth==0) return;
-                const double l = lhs.template channelr<index>()*amount;
-                const double r = rhs.template channelr<index>()*(1.0-amount);
-                out_pixel->template channelr<index>(l+r);
+                //const double l = lhs.template channelr<index>()*amount;
+                //const double r = rhs.template channelr<index>()*(1.0-amount);
+                //out_pixel->template channelr<index>(l+r);
+                auto l = lhs.template channel<index>();
+                l=l*amount+.5;
+                auto r = rhs.template channel<index>();
+                r=r*(1.0-amount)+.5;
+                out_pixel->template channel<index>(l+r);
                 next::blend_val(lhs,rhs,amount,out_pixel);
             }
         };

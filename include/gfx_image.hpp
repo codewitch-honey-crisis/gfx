@@ -159,6 +159,7 @@ namespace gfx {
 
         static int outfunc(JDEC *decoder, void *bitmap, JRECT *rect);
     public:
+        static gfx_result dimensions(stream* input, size16* out_dimensions);
         static gfx_result load(stream* input,callback out_func,void* state=nullptr);
 #ifdef ARDUINO
         inline static gfx_result load(Stream* input,callback out_func,void* state=nullptr) {

@@ -773,7 +773,8 @@ namespace gfx {
     class batch_writer final {
         friend draw;
         using batch_type = helpers::batch_impl<Destination,Destination::caps::batch,Destination::caps::copy_from&&!Destination::caps::blt,Destination::caps::async>;
-        using sus_type = helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async>;
+        using sus_type_async = helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async>;
+        using sus_type = helpers::suspender<Destination,Destination::caps::suspend,false>;
         batch_type m_batch;
         bool m_async;
         uint8_t m_state;
@@ -790,7 +791,11 @@ namespace gfx {
                 return gfx_result::invalid_state;
                 
             }
-            sus_type::suspend(m_async);
+            if(m_async) {
+                sus_type_async::suspend(m_destination);
+            } else {
+                sus_type::suspend(m_destination);
+            }
             gfx_result r= m_batch.begin(m_destination,m_bounds,m_async);
             if(r!=gfx_result::success) {
                 return r;
@@ -828,7 +833,12 @@ namespace gfx {
             }
             if(m_state==1) {
                 gfx_result r = m_batch.commit(m_async);
-                sus_type::resume(m_async);
+                if(m_async) {
+                    sus_type_async::resume(m_destination);
+                } else {
+                    sus_type::resume(m_destination);
+                }
+                
                 if(r!=gfx_result::success) {
                     return r;
                 }

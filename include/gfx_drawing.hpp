@@ -2503,15 +2503,28 @@ namespace gfx {
                         constexpr static const bool indexed = dstpt::template has_channel_names<typename channel_name::index>::value;
                         using bmp_type = typename helpers::bitmap_from_helper<Destination,indexed>::type;
                         size_t buflen = bmp_type::sizeof_buffer(sz);
+                        size_t linelen = bmp_type::sizeof_buffer({sz.width,uint16_t(1)});
+                        size_t lines = sz.height;
+                        bool odd = lines&1;
+                        lines+=odd;
                         bool entire = true;
                         if(sz.width>2 && !Destination::caps::blt) {
-                            buf = (uint8_t*)malloc(buflen);
-                            if(nullptr==buf) {
-                                entire = false;
-                                sz = {uint16_t(rr.x2-rr.x1+1),1};
-                                buflen = bmp_type::sizeof_buffer(sz);
-                                buf = (uint8_t*)malloc(buflen);
+                            size_t len = buflen;
+                            while(lines) {
+                                buf = (uint8_t*)malloc(len);
+                                if(buf!=nullptr) {
+                                    break;
+                                }
+                                lines>>=1;
+                                len=bmp_type::sizeof_buffer({sz.width,uint16_t(lines)});
                             }
+                            if(len<buflen) {
+                                entire = false;
+                                lines = len/linelen;
+                            }
+                        }
+                        if(odd) {
+                            lines-=1;
                         }
                         if(buf==nullptr) {
                             for(int y=rr.y1;y<=rr.y2;++y) {
@@ -2524,7 +2537,6 @@ namespace gfx {
                                         first = false;
                                         r=rect_blend_helper<Destination,Destination::pixel_type::template has_channel_names<channel_name::index>::value>::do_blend( destination,cpx,ar,bpx,&bbpx);
                                         if(gfx_result::success!=r) {
-                                            free(buf);
                                             return r;
                                         }
                                     }
@@ -2573,26 +2585,32 @@ namespace gfx {
                                     return r;
                                 }
                             } else {
-                                for(int y=rr.y1;y<=rr.y2;++y) {
-                                    r=destination.copy_to({rr.x1,uint16_t(y),rr.x2,uint16_t(y)},bmp,{0,0});
+                                for(int y=rr.y1;y<=rr.y2;y+=lines) {
+                                    int l = lines-1;
+                                    if(lines+y>rr.y2) {
+                                        l=rr.y2-y;
+                                    }
+                                    r=destination.copy_to({rr.x1,uint16_t(y),rr.x2,uint16_t(y+l)},bmp,{0,0});
                                     if(gfx_result::success!=r) {
                                         free(buf);
                                         return r;
                                     }
-                                    for(int x = 0;x<bmp.dimensions().width;++x) {
-                                        bmp.point({uint16_t(x),0},&bpx);
-                                        if(first||bpx.native_value!=obpx.native_value) {
-                                            first = false;
-                                            r=rect_blend_helper<Destination,Destination::pixel_type::template has_channel_names<channel_name::index>::value>::do_blend( destination,cpx,ar,bpx,&bbpx);
+                                    for(int yy=0;yy<=l;++yy) { 
+                                        for(int x = 0;x<bmp.dimensions().width;++x) {
+                                            bmp.point({uint16_t(x),uint16_t(yy)},&bpx);
+                                            if(first||bpx.native_value!=obpx.native_value) {
+                                                first = false;
+                                                r=rect_blend_helper<Destination,Destination::pixel_type::template has_channel_names<channel_name::index>::value>::do_blend( destination,cpx,ar,bpx,&bbpx);
+                                                if(gfx_result::success!=r) {
+                                                    return r;
+                                                }
+                                            }
+                                            obpx=bpx;
+                                            r=destination.point({uint16_t(x+rr.x1),uint16_t(y+yy)},bbpx);
                                             if(gfx_result::success!=r) {
+                                                free(buf);
                                                 return r;
                                             }
-                                        }
-                                        obpx=bpx;
-                                        r=destination.point({uint16_t(x+rr.x1),uint16_t(y)},bbpx);
-                                        if(gfx_result::success!=r) {
-                                            free(buf);
-                                            return r;
                                         }
                                     }
                                 }

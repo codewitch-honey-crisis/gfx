@@ -2484,7 +2484,6 @@ namespace gfx {
                     using tchA = typename PixelType::template channel_by_index_unchecked<chiA>;
                     auto alp = color.template channel_unchecked<chiA>();
                     const float ar = alp*tchA::scaler;
-                    typename Destination::pixel_type bpx,obpx,bbpx;
                     bool first=true;
                     if(alp!=tchA::max) {
                         if(alp==tchA::min) {
@@ -2499,9 +2498,9 @@ namespace gfx {
                         
                         uint8_t* buf = nullptr;
                         size16 sz= rr.dimensions();
-                        using dstpt = typename Destination::pixel_type;
-                        constexpr static const bool indexed = dstpt::template has_channel_names<typename channel_name::index>::value;
-                        using bmp_type = typename helpers::bitmap_from_helper<Destination,indexed>::type;
+                        //using dstpt = typename Destination::pixel_type;
+                        //constexpr static const bool indexed = dstpt::template has_channel_names<typename channel_name::index>::value;
+                        using bmp_type = gfx::bitmap_type_from<Destination>;
                         size_t buflen = bmp_type::sizeof_buffer(sz);
                         size_t linelen = bmp_type::sizeof_buffer({sz.width,uint16_t(1)});
                         size_t lines = sz.height;
@@ -2527,6 +2526,7 @@ namespace gfx {
                             lines-=1;
                         }
                         if(buf==nullptr) {
+                            typename Destination::pixel_type bpx,obpx,bbpx;
                             for(int y=rr.y1;y<=rr.y2;++y) {
                                 for(int x=rr.x1;x<=rr.x2;++x) {
                                     r= read_point_helper<Destination,Destination::caps::read>::do_read(destination,{uint16_t(x),uint16_t(y)},&bpx);
@@ -2554,6 +2554,7 @@ namespace gfx {
                                 return r;
                             }
                             if(entire) {
+                                typename Destination::pixel_type bpx,obpx,bbpx;
                                 r=destination.copy_to(rr,bmp,{0,0});
                                 if(gfx_result::success!=r) {
                                     free(buf);
@@ -2585,7 +2586,9 @@ namespace gfx {
                                     return r;
                                 }
                             } else {
+                                typename bmp_type::pixel_type bpx,obpx,bbpx;
                                 for(int y=rr.y1;y<=rr.y2;y+=lines) {
+                                    first = true;
                                     int l = lines-1;
                                     if(lines+y>rr.y2) {
                                         l=rr.y2-y;
@@ -2597,21 +2600,24 @@ namespace gfx {
                                     }
                                     for(int yy=0;yy<=l;++yy) { 
                                         for(int x = 0;x<bmp.dimensions().width;++x) {
+                                            
                                             bmp.point({uint16_t(x),uint16_t(yy)},&bpx);
-                                            if(first||bpx.native_value!=obpx.native_value) {
+                                            if(first || bpx.native_value!=obpx.native_value) {
                                                 first = false;
                                                 r=rect_blend_helper<Destination,Destination::pixel_type::template has_channel_names<channel_name::index>::value>::do_blend( destination,cpx,ar,bpx,&bbpx);
                                                 if(gfx_result::success!=r) {
+                                                    free(buf);
                                                     return r;
                                                 }
                                             }
                                             obpx=bpx;
-                                            r=destination.point({uint16_t(x+rr.x1),uint16_t(y+yy)},bbpx);
-                                            if(gfx_result::success!=r) {
-                                                free(buf);
-                                                return r;
-                                            }
+                                            bmp.point({uint16_t(x),uint16_t(yy)},bbpx);
                                         }
+                                    }
+                                    r=copy_to_fast<Destination,bmp_type,true>::do_copy(destination,bmp,{0,0,uint16_t(rr.x2-rr.x1),uint16_t(l)},{rr.x1,uint16_t(y)});
+                                    if(gfx_result::success!=r) {
+                                        free(buf);
+                                        return r;
                                     }
                                 }
                             }

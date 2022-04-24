@@ -690,11 +690,22 @@ namespace gfx {
             }
         };  
     }
+    template<typename PixelType,typename PaletteType=palette<PixelType,PixelType>> inline static bitmap<PixelType,PaletteType> create_bitmap(size16 size, void*(allocator)(size_t)=::malloc) {
+        using bmp_type = bitmap<PixelType,PaletteType>;
+        size_t sz = bmp_type::sizeof_buffer(size);
+        return bmp_type(size,allocator(sz));
+    }
+    
     // retrieves a type of bitmap based on the draw target
     template<typename Source> using bitmap_type_from=typename helpers::bitmap_from_helper<Source,Source::pixel_type::template has_channel_names<channel_name::index>::value>::type;
     // creates a bitmap based on the draw target
     template<typename Source> inline static bitmap_type_from<Source> create_bitmap_from(const Source& source,size16 size,void* buf) {
         return helpers::bitmap_from_helper<Source,Source::pixel_type::template has_channel_names<channel_name::index>::value>::create_from(source,size,buf);
     }
+    template<typename Source> inline static bitmap_type_from<Source> create_bitmap_from(const Source& source,size16 size) {
+        size_t sz = helpers::bitmap_from_helper<Source,Source::pixel_type::template has_channel_names<channel_name::index>::value>::type::sizeof_buffer(size);
+        return helpers::bitmap_from_helper<Source,Source::pixel_type::template has_channel_names<channel_name::index>::value>::create_from(source,size,::malloc(sz));
+    }
+    
 }
 #endif

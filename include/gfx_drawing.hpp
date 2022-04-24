@@ -301,127 +301,11 @@ namespace gfx {
             }
             return convert_palette_from(source,rpx,out_pixel);
         }
-        template<typename Destination,bool Batch,bool CopyFrom,bool Async>
-        struct batch_impl {};
-        template<typename Destination>
-        struct batch_impl<Destination,true,false,false> {
-            srect16 m_bounds;
-            rect16 m_clipped;
-            spoint16 m_location;
-            Destination* m_destination;
-            inline Destination& destination() {
-                return *m_destination;
-            }
-            gfx_result begin(Destination& destination, srect16 bounds,bool async) {
-                m_bounds = bounds.normalize();
-                m_clipped = (rect16)m_bounds.crop((srect16)destination.bounds());
-                m_location = spoint16(0,0);
-                m_destination = &destination;
-                gfx_result r = m_destination->begin_batch(m_clipped);
-                if(r!=gfx_result::success) {
-                    return r;
-                }
-                return gfx_result::success;
-            }
-            gfx_result write(typename Destination::pixel_type color,bool async) {
-                if(((srect16)m_clipped).intersects(m_location)) {   
-                    gfx_result r = m_destination->batch_write(color);
-                    if(r!=gfx_result::success) {
-                        return r;
-                    }
-                }
-                ++m_location.x;
-                if(m_location.x>m_bounds.x2) {
-                    m_location.x = m_bounds.x1;
-                    ++m_location.y;
-                }
-                return gfx_result::success;
-            }
-            gfx_result commit(bool async) {
-                gfx_result r ;
-                while(m_location.y<=m_bounds.y2) {
-                    r = write(typename Destination::pixel_type(),async);
-                    if(r!=gfx_result::success) {
-                        return r;
-                    }
-                }
-                return m_destination->commit_batch();
-            }
-        };
-        template<typename Destination>
-        struct batch_impl<Destination,true,true,false> {
-            using bmp_type = bitmap_type_from<Destination>;
-            srect16 m_bounds;
-            rect16 m_clipped;
-            spoint16 m_location;
-            uint8_t *m_buffer;
-            Destination *m_destination;
-            inline Destination& destination() {
-                return *m_destination;
-            }
-            gfx_result begin(Destination& destination, srect16 bounds,bool async) {
-                m_bounds = bounds.normalize();
-                m_clipped = (rect16)m_bounds.crop((srect16)destination.bounds());
-                m_location = spoint16(0,0);
-                m_destination = &destination;
-                size_t buflen = bmp_type::sizeof_buffer(m_clipped.dimensions());
-                //size_t linelen = buflen/bounds.height();
-                m_buffer = nullptr;
-                //while(m_buffer==nullptr && buflen>linelen) {}
-                m_buffer = (uint8_t*)malloc(buflen);
-                if(m_buffer==nullptr) {
-                    gfx_result r = m_destination->begin_batch(m_clipped);
-                    if(r!=gfx_result::success) {
-                        return r;
-                    }
-                }
-                return gfx_result::success;
-            }
-            gfx_result write(typename Destination::pixel_type color,bool async) {
-                if(((srect16)m_clipped).intersects(m_location)) {   
-                    if(m_buffer!=nullptr) {
-                        auto bmp = create_bitmap_from(*m_destination,m_clipped.dimensions(),m_buffer);
-                        bmp.point(point16(m_location.x-m_bounds.x1,m_location.y-m_bounds.y1),color);
-                    } else {
-                        gfx_result r = m_destination->write_batch(color);
-                        if(r!=gfx_result::success) {
-                            return r;
-                        }
-                    }
-                }
-                ++m_location.x;
-                if(m_location.x>m_bounds.x2) {
-                    m_location.x = m_bounds.x1;
-                    ++m_location.y;
-                }
-            
-                return gfx_result::success;
-            }
-            gfx_result commit(bool async) {
-                gfx_result r ;
-                while(m_location.y<=m_bounds.y2) {
-                    r = write(typename Destination::pixel_type(),async);
-                    if(r!=gfx_result::success) {
-                        if(m_buffer!=nullptr) {
-                            free(m_buffer);
-                        }
-                        return r;
-                    }
-                }
-                if(m_buffer!=nullptr) {
-                    auto bmp = create_bitmap_from(*m_destination,m_clipped.dimensions(),m_buffer);
-                    gfx_result r = m_destination->copy_from(bmp.bounds(),bmp,(point16)m_clipped.top_left());
-                    free(m_buffer);
-                    m_buffer = nullptr;
-                    return r;
-                } else {
-                    return m_destination->commit_batch();
-                }
-            }
-        };
+        template<typename Destination,bool Batch,bool Async,bool CopyFrom>
+        struct batch_impl {};        
         template<typename Destination, bool Batch,bool Async>
-        struct batch_impl<Destination,Batch,false,Async> {
-            using batcher_type = batcher<Destination,Batch,true>;
+        struct batch_impl<Destination,Batch,Async,false> {
+            using batcher_type = batcher<Destination,Batch,Async>;
             srect16 m_bounds;
             rect16 m_clipped;
             spoint16 m_location;
@@ -468,6 +352,109 @@ namespace gfx {
                 return m_batch.commit_batch(*m_destination,async);
             }
         };
+        // sync w/ copy
+        template<typename Destination,bool Batch>
+        struct batch_impl<Destination,Batch,false,true> {
+            using bmp_type = bitmap_type_from<Destination>;
+            using batcher_type = batcher<Destination,Batch,false>;
+            srect16 m_bounds;
+            rect16 m_clipped;
+            spoint16 m_location;
+            uint8_t *m_buffer;
+            Destination *m_destination;
+            batcher_type m_batch;
+            uint16_t m_lines;
+            inline Destination& destination() {
+                return *m_destination;
+            }
+            gfx_result begin(Destination& destination, srect16 bounds,bool async) {
+                m_bounds = bounds.normalize();
+                m_clipped = (rect16)m_bounds.crop((srect16)destination.bounds());
+                m_location = spoint16(0,0);
+                m_destination = &destination;
+                m_lines = 0;
+                uint16_t lines = m_clipped.dimensions().height;
+                size_t buflen;
+                while(lines>1) {
+                    buflen = bmp_type::sizeof_buffer(size16(m_clipped.dimensions().width,lines));
+                    m_buffer = (uint8_t*)malloc(buflen);
+                    if(m_buffer!=nullptr) {
+                        break;
+                    }
+                    lines=uint16_t((float)lines/2.0+.5);
+                }
+                if(m_buffer!=nullptr) {
+                    m_lines = lines;
+                } else {
+                    if(m_buffer==nullptr) {
+                        gfx_result r = m_batch.begin_batch(*m_destination,m_clipped,async);
+                        if(r!=gfx_result::success) {
+                            return r;
+                        }
+                    }
+                }
+
+                return gfx_result::success;
+            }
+            gfx_result write(typename Destination::pixel_type color,bool async) {
+                if(((srect16)m_clipped).intersects(m_location)) {
+                    if(m_buffer!=nullptr) {
+                        auto bmp = create_bitmap_from(*m_destination,size16(m_clipped.dimensions().width,m_lines),m_buffer);
+                        uint16_t x = m_location.x-m_clipped.x1;
+                        uint16_t y = (m_location.y-m_clipped.y1)%m_lines;
+                        bmp.point(point16(x,y),color);
+                    } else {
+                        gfx_result r = m_batch.write_batch(*m_destination,(point16)m_location,color,async);
+                        if(r!=gfx_result::success) {
+                            return r;
+                        }
+                    }
+                }
+                ++m_location.x;
+                if(m_location.x>m_bounds.x2) {
+                    m_location.x = m_bounds.x1;
+                    ++m_location.y;
+                    if(m_buffer!=nullptr&&((m_location.y<=m_clipped.y2 && (((m_location.y-m_clipped.y1)%m_lines)==0))|| m_location.y==m_clipped.y2+1)) {
+                        // commit what we have so far
+                        gfx_result r;
+                        auto bmp = create_bitmap_from(*m_destination,size16(m_clipped.dimensions().width,m_lines),m_buffer);
+                        point16 pt = m_clipped.top_left().offset(0,m_location.y-bmp.dimensions().height);
+                        r = m_destination->copy_from(rect16(0,0,bmp.dimensions().width-1,m_lines-1),bmp,pt);
+                        if(async && r==gfx_result::success) {
+                            r=m_destination->wait_all_async();
+                        }
+                        if(r!=gfx_result::success) {
+                            return r;
+                        }
+                    }
+                }
+            
+                return gfx_result::success;
+            }
+            gfx_result commit(bool async) {
+                gfx_result r ;
+                while(m_location.y<=m_bounds.y2) {
+                    r = write(typename Destination::pixel_type(),async);
+                    if(r!=gfx_result::success) {
+                        if(m_buffer!=nullptr) {
+                           free(m_buffer);
+                        }
+                        return r;
+                    }
+                }
+                if(m_buffer!=nullptr) {
+                    gfx_result r;
+                    free(m_buffer);
+                    m_buffer = nullptr;
+                    return r;
+                } else {
+                    return m_batch.commit_batch(*m_destination,async);
+                }
+                return gfx_result::success;
+            }
+        };
+     
+        // async w/ copy
         template<typename Destination,bool Batch>
         struct batch_impl<Destination,Batch,true,true> {
             using batcher_type = batcher<Destination,Batch,true>;
@@ -621,102 +608,11 @@ namespace gfx {
                 return m_batch.commit_batch(*m_destination,async);
             }
         };
-        template<typename Destination>
-        struct batch_impl<Destination,false,true,false> {
-            using bmp_type = bitmap_type_from<Destination>;
-            srect16 m_bounds;
-            rect16 m_clipped;
-            spoint16 m_location;
-            uint8_t *m_buffer;
-            Destination *m_destination;
-            uint16_t m_lines;
-            inline Destination& destination() {
-                return *m_destination;
-            }
-            gfx_result begin(Destination& destination, srect16 bounds,bool async) {
-                m_bounds = bounds.normalize();
-                m_clipped = (rect16)m_bounds.crop((srect16)destination.bounds());
-                m_location = spoint16(0,0);
-                m_destination = &destination;
-                m_lines = 0;
-                uint16_t lines = m_clipped.dimensions().height;
-                size_t buflen;
-                while(lines>1) {
-                    buflen = bmp_type::sizeof_buffer(size16(m_clipped.dimensions().width,lines));
-                    m_buffer = (uint8_t*)malloc(buflen);
-                    if(m_buffer!=nullptr) {
-                        break;
-                    }
-                    lines=uint16_t((float)lines/2.0+.5);
-                }
-                if(m_buffer!=nullptr) {
-                    m_lines = lines;
-                }
-
-                return gfx_result::success;
-            }
-            gfx_result write(typename Destination::pixel_type color,bool async) {
-                if(((srect16)m_clipped).intersects(m_location)) {
-                    if(m_buffer!=nullptr) {
-                        auto bmp = create_bitmap_from(*m_destination,size16(m_clipped.dimensions().width,m_lines),m_buffer);
-                        uint16_t x = m_location.x-m_clipped.x1;
-                        uint16_t y = (m_location.y-m_clipped.y1)%m_lines;
-                        bmp.point(point16(x,y),color);
-                    } else {
-                        gfx_result r = m_destination->point((point16)m_location,color);
-                        if(r!=gfx_result::success) {
-                            return r;
-                        }
-                    }
-                }
-                ++m_location.x;
-                if(m_location.x>m_bounds.x2) {
-                    m_location.x = m_bounds.x1;
-                    ++m_location.y;
-                    if(m_buffer!=nullptr&&((m_location.y<=m_clipped.y2 && (((m_location.y-m_clipped.y1)%m_lines)==0))|| m_location.y==m_clipped.y2+1)) {
-                        // commit what we have so far
-                        gfx_result r;
-                        auto bmp = create_bitmap_from(*m_destination,size16(m_clipped.dimensions().width,m_lines),m_buffer);
-                        point16 pt = m_clipped.top_left().offset(0,m_location.y-bmp.dimensions().height);
-                        r = m_destination->copy_from(rect16(0,0,bmp.dimensions().width-1,m_lines-1),bmp,pt);
-                        if(async && r==gfx_result::success) {
-                            r=m_destination->wait_all_async();
-                        }
-                        if(r!=gfx_result::success) {
-                            return r;
-                        }
-                    }
-                }
-            
-                return gfx_result::success;
-            }
-            gfx_result commit(bool async) {
-                gfx_result r ;
-                while(m_location.y<=m_bounds.y2) {
-                    r = write(typename Destination::pixel_type(),async);
-                    if(r!=gfx_result::success) {
-                        if(m_buffer!=nullptr) {
-                           free(m_buffer);
-                        }
-                        return r;
-                    }
-                }
-                if(m_buffer!=nullptr) {
-                    gfx_result r;
-                    free(m_buffer);
-                    m_buffer = nullptr;
-                    return r;
-                } 
-                return gfx_result::success;
-            }
-        };
-        
-       
     }
     template<typename Destination>
     class batch_writer final {
         friend draw;
-        using batch_type = helpers::batch_impl<Destination,Destination::caps::batch,Destination::caps::copy_from&&!Destination::caps::blt,Destination::caps::async>;
+        using batch_type = helpers::batch_impl<Destination,Destination::caps::batch, Destination::caps::async,Destination::caps::copy_from&&!Destination::caps::blt>;
         using sus_type_async = helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async>;
         using sus_type = helpers::suspender<Destination,Destination::caps::suspend,false>;
         batch_type m_batch;

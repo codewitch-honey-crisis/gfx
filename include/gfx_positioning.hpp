@@ -43,6 +43,9 @@ namespace gfx {
         constexpr inline bool operator==(const type& rhs) const { 
             return x==rhs.x && y==rhs.y;   
         }
+        constexpr static const inline pointx min() { return { bits::num_metrics<value_type>::min,bits::num_metrics<value_type>::min }; }
+        constexpr static const inline pointx zero() { return { bits::num_metrics<value_type>::zero,bits::num_metrics<value_type>::zero }; }
+        constexpr static const inline pointx max() { return { bits::num_metrics<value_type>::max,bits::num_metrics<value_type>::max }; }
     };
     template <typename T>
     struct rectx;
@@ -206,6 +209,9 @@ namespace gfx {
             }
             return rectx<T>(x1-x,y1-y,x2+x,y2+y);
         }
+        constexpr inline rectx inflate(sizex<bits::signedx<T>> adjust) {
+            return inflate(adjust.width,adjust.height);
+        }
         // increases or decreases the x and y bounds by the specified amounts. The rectangle is anchored on the center, and the effective width and height increases or decreases by twice the value of x or y.
         constexpr void inflate_inplace(typename bits::signedx<T> x,typename bits::signedx<T> y) {
             switch((int)orientation()) {
@@ -233,6 +239,9 @@ namespace gfx {
             y1-=y;
             x2+=x;
             y2+=y;
+        }
+        constexpr inline void inflate_inplace(sizex<bits::signedx<T>> adjust) {
+            inflate_inplace(adjust.width,adjust.height);
         }
         // indicates the aspect ratio of the rectangle
         constexpr inline float aspect_ratio() {

@@ -23,11 +23,11 @@ Bitmaps are sort of all-purpose draw source/destinations. In essence they allow 
 
 ### 2.2.1 Standard bitmaps
 
-A standard bitmap is the most common type and can be read from or written to very efficiently. It keeps its data in memory. Bitmaps do not hold their own memory. This is because not all memory is created equal. On some platforms for example, in order to enable a bitmap to be sent to the driver, the bitmap data must be stored in DMA capable RAM. The other reason is so you can recycle buffers. When you're done with a bitmap you can reuse the memory for another bitmap (as long as it's big enough) without deallocating or reallocating. The disadvantage is a small amount of increased code complexity wherein you must determine the size you need for the bitmap, and then allocate the memory for it yourself, freeing it yourself later.
+A standard bitmap is the most common type and can be read from or written to very efficiently. It keeps its data in memory. Bitmaps do not hold their own memory. This is because not all memory is created equal. On some platforms for example, in order to enable a bitmap to be sent to the driver, the bitmap data must be stored in DMA capable RAM. The other reason is so you can recycle buffers. When you're done with a bitmap you can reuse the memory for another bitmap (as long as it's big enough) without deallocating or reallocating. The disadvantage is a small amount of increased code complexity wherein you must determine the size you need for the bitmap, and then allocate the memory for it yourself, freeing it yourself later. There are however, the convenience methods `create_bitmap<>()` and `create_bitmap_from` for creating them, but you'll still have to call `if(bmp.begin()!=nullptr) free(bmp.begin());` yourself.
 
 In addition to being part of the type signature, the pixel type determines the binary footprint of the memory buffer that holds the pixels. For example `bitmap<rgb_pixel<16>>` would declare a bitmap type that can hold pixels in 16-bit RGB format. In this scenario there is one pixel every 2 bytes, and like all bitmaps, pixels are ordered from left to right, top to bottom within the memory buffer.
 
-Declaring a bitmap and an associated buffer looks like this:
+Manually declaring a bitmap and an associated buffer looks like this:
 
 ```cpp
 using bmp_type = bitmap<rgb_pixel<16>>;
@@ -36,6 +36,22 @@ uint8_t bmp_buf[bmp_type::sizeof_buffer(bmp_size)];
 bmp_type bmp(bmp_size,bmp_buf);
 // you can now draw to and from bmp, a 16-bit RGB
 // bitmap of size 16x16 pixels.
+```
+Using the convenience methods it looks like this
+```cpp
+// create from a draw target "lcd"
+// especially useful when indexed/paletted
+// targets are in use
+auto bmp = create_bitmap_from(lcd,{64,64});
+...
+if(bmp.begin()!=nullptr) free(bmp.begin());
+
+// or...
+// create a bitmap with the specified pixel type
+// and optional palette type
+auto bmp = create_bitmap<rgb_pixel<16>>({64,64});
+...
+if(bmp.begin()!=nullptr) free(bmp.begin());
 ```
 
 <a name="2.2.2"></a>

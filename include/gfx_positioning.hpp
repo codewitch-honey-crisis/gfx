@@ -74,7 +74,8 @@ namespace gfx {
         constexpr inline bool operator==(const sizex& rhs) const { 
             return width==rhs.width && height==rhs.height;   
         }
-        
+        constexpr static const inline sizex min() { return { bits::num_metrics<value_type>::min,bits::num_metrics<value_type>::min }; }
+        constexpr static const inline sizex max() { return { bits::num_metrics<value_type>::max,bits::num_metrics<value_type>::max }; }
     };
     enum struct rect_orientation {
         normalized = 0,

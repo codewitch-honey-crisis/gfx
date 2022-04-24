@@ -19,7 +19,7 @@
         "url": "https://github.com/codewitch-honey-crisis/gfx.git"
     },
     "dependencies": {
-        "codewitch-honey-crisis/htcw_bits": "^1.0.3",
+        "codewitch-honey-crisis/htcw_bits": "^1.0.4",
         "codewitch-honey-crisis/htcw_data": "^1.0.4",
         "codewitch-honey-crisis/htcw_io": "^1.1.0"
     },

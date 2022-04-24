@@ -44,6 +44,8 @@ The primary method to benefit from this feature is `draw::bitmap_async<>()`. The
 
 For your DMA transfer to be beneficial you need the amount of data you are transferring to be significant enough that it overcomes the extra upfront overhead of transferring it using DMA. Asynchronously transferring a 320x16@16-bit buffer will get you better results than a 16x16@16-bit one. As before, you cannot crop, convert, flip, or resize if you want full asynchronicity. Transfer the entire draw source to the destination unchanged. Furthermore, with most MCUs, the buffer must be in DMA capable RAM or the transfer will fail.
 
+The other way to easily take advantage of asynchronicity is with `draw::batch_async<>()` which can do DMA transfers as you draw. This is really simple to do, as it's all automatically handled when you do asynchronous user level batching.
+
 
 [→ Tools](tools.md)
 

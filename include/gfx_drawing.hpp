@@ -357,7 +357,7 @@ namespace gfx {
             uint8_t *m_buffer;
             Destination *m_destination;
             inline Destination& destination() {
-                return m_destination;
+                return *m_destination;
             }
             gfx_result begin(Destination& destination, srect16 bounds,bool async) {
                 m_bounds = bounds.normalize();

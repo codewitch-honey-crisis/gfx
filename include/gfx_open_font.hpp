@@ -53,7 +53,7 @@ namespace gfx {
         inline float advance_width(int codepoint,float scale) const;
         uint16_t left_bearing(int codepoint) const;
         inline float left_bearing(int codepoint,float scale) const;
-        uint16_t kern_advance_width(int codepoint1,int codepoint2) const;
+        int16_t kern_advance_width(int codepoint1,int codepoint2) const;
         inline float kern_advance_width(int codepoint1,int codepoint2,float scale) const;
         rect16 bounds(int codepoint,float scale,float x_shift=0.0,float y_shift=0.0) const;
         void cache(open_font_cache* cache,const char* text,gfx_encoding encoding=gfx_encoding::utf8);

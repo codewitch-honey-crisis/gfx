@@ -1991,10 +1991,11 @@ static stbtt_int32 stbtt__GetGlyphClass(stbtt_uint8 *classDefTable, int glyph)
          info->stream->seek(lookupTable+4);
          stbtt_uint16 subTableCount = read_uint16(info->stream);
          stbtt_uint32 subTableOffsets = lookupTable + 6;
-         switch (lookupType)
-         {
-         case 2:
-         { // Pair Adjustment Positioning Subtable
+         if(lookupType!=2) {
+            continue;
+         }
+        
+          // Pair Adjustment Positioning Subtable
             stbtt_int32 sti;
             for (sti = 0; sti < subTableCount; sti++)
             {
@@ -2106,13 +2107,9 @@ static stbtt_int32 stbtt__GetGlyphClass(stbtt_uint8 *classDefTable, int glyph)
                };
                }
             }
-            break;
-         };
+            
 
-         default:
-            // TODO: Implement other stuff.
-            break;
-         }
+   
       }
 
       return 0;
@@ -2122,10 +2119,12 @@ static stbtt_int32 stbtt__GetGlyphClass(stbtt_uint8 *classDefTable, int glyph)
    {
       int xAdvance = 0;
 
-      if (info->gpos)
+      if (info->gpos) {
          xAdvance += stbtt__GetGlyphGPOSInfoAdvance(info, g1, g2);
-      else if (info->kern)
-         xAdvance += stbtt__GetGlyphKernInfoAdvance(info, g1, g2);
+      }
+      else if (info->kern) {
+        xAdvance += stbtt__GetGlyphKernInfoAdvance(info, g1, g2);
+      }
 
       return xAdvance;
    }
@@ -4889,7 +4888,7 @@ namespace gfx {
         if(nullptr==m_info_data || nullptr==((stbtt::stbtt_fontinfo*)m_info_data)->stream) return NAN;
         return left_bearing(codepoint)*scale+.5;
     }
-    uint16_t open_font::kern_advance_width(int codepoint1,int codepoint2) const {
+    int16_t open_font::kern_advance_width(int codepoint1,int codepoint2) const {
         if(nullptr==m_info_data || nullptr==((stbtt::stbtt_fontinfo*)m_info_data)->stream) return 0;
         return stbtt::stbtt_GetCodepointKernAdvance((const stbtt::stbtt_fontinfo*)m_info_data,codepoint1,codepoint2);
     }

@@ -559,7 +559,7 @@ namespace gfx {
                                     return r;
                                 }
                             }
-                            r = m_destination->copy_from_async(rect16(0,0,bmp.dimensions().width-1,m_lines-1),bmp,pt);
+                            r = m_destination->copy_from_async(rect16(0,0,bmp.dimensions().width-1,y2),bmp,pt);
                             if(r!=gfx_result::success) {
                                 return r;
                             }
@@ -567,7 +567,7 @@ namespace gfx {
                             m_buffer_write = m_buffer_send;
                             m_buffer_send = tmp;
                         } else {
-                            r = m_destination->copy_from(rect16(0,0,bmp.dimensions().width-1,m_lines-1),bmp,pt);
+                            r = m_destination->copy_from(rect16(0,0,bmp.dimensions().width-1,y2),bmp,pt);
                         }
                         if(r!=gfx_result::success) {
                             return r;
@@ -2642,14 +2642,19 @@ namespace gfx {
         };
         template<typename Destination,typename PixelType> struct draw_open_font_helper_impl<Destination,PixelType,true> {
             static int render_callback(int x, int y, int c, void* state) {
+                constexpr static const bool has_alpha=PixelType::template has_channel_names<channel_name::A>::value;
                 open_font_render_state<Destination,PixelType>* pst=(open_font_render_state<Destination,PixelType>*)state;
                 double d = c/255.0;
                 if(d>0.0) {
+                    if(pst->no_antialiasing) {
+                        d=1.0;
+                    }
                     point16 pt = {uint16_t(x+pst->off_x),uint16_t(y+pst->off_y)};
                     if(nullptr==pst->clip||pst->clip->intersects((spoint16)pt)) {
-                        if(pst->no_antialiasing) {
+                        if(pst->no_antialiasing && !has_alpha) {
                             return (int)draw::point(*pst->destination,(spoint16)pt,pst->color);
                         } else {
+                            
                             typename Destination::pixel_type bpx;
                             gfx_result r=pst->destination->point(pt,&bpx);
                             if(gfx_result::success!=r) {
@@ -2660,11 +2665,20 @@ namespace gfx {
                             if(gfx_result::success!=r) {
                                 return (int)r;
                             }
+                            if(has_alpha) {
+                                constexpr static const size_t a_index = PixelType::template channel_index_by_name<channel_name::A>::value;
+                                //Serial.println(a_index);
+                                auto ff = pst->color.template channelr_unchecked<a_index>();
+                                d*=ff;
+                                //Serial.printf("%f\n",ff);
+                            }
                             PixelType px;
+                            
                             r = pst->color.blend(bppx,d,&px);
                             if(gfx_result::success!=r) {
                                 return (int)r;
                             }
+                        
                             //return (int)draw::point(*pst->destination,(spoint16)pt,px);
                             r= convert_palette_from(*pst->destination,px,&bpx);
                             if(gfx_result::success!=r) {

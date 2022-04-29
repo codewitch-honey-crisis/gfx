@@ -420,9 +420,6 @@ namespace gfx {
                         auto bmp = create_bitmap_from(*m_destination,size16(m_clipped.dimensions().width,m_lines),m_buffer);
                         point16 pt = m_clipped.top_left().offset(0,m_location.y-bmp.dimensions().height);
                         r = m_destination->copy_from(rect16(0,0,bmp.dimensions().width-1,m_lines-1),bmp,pt);
-                        if(async && r==gfx_result::success) {
-                            r=m_destination->wait_all_async();
-                        }
                         if(r!=gfx_result::success) {
                             return r;
                         }
@@ -542,33 +539,44 @@ namespace gfx {
                 if(m_location.x>m_bounds.x2) {
                     m_location.x = m_bounds.x1;
                     ++m_location.y;
-                    if(m_buffer_write!=nullptr&&((m_location.y<=m_clipped.y2 && (((m_location.y-m_clipped.y1)%m_lines)==0))|| m_location.y==m_clipped.y2+1)) {
-                        // commit what we have so far
-                        gfx_result r;
-                        auto bmp = create_bitmap_from(*m_destination,size16(m_clipped.dimensions().width,m_lines),m_buffer_write);
-                        point16 pt = m_clipped.top_left().offset(0,m_location.y-bmp.dimensions().height);
-                        uint16_t y2 = m_lines-1;
-                        if(m_location.y>m_clipped.y2) {
-                            y2-=(m_clipped.height()/2)%m_lines;
-                        }
-                        if(async && m_buffer_send!=m_buffer_write) {
-                            if(m_buffer_write==m_buffer&&(m_location.x!=m_clipped.x1||m_location.y!=m_clipped.y1)) {
-                                r=m_destination->wait_all_async();
+                    if(async) {
+                        if(m_buffer_write!=nullptr&&((m_location.y<=m_clipped.y2 && ((((m_location.y-m_clipped.y1)%m_lines)==0)|| (m_location.y>m_clipped.y2))))) {
+                            // commit what we have so far
+                            gfx_result r;
+                            auto bmp = create_bitmap_from(*m_destination,size16(m_clipped.dimensions().width,m_lines),m_buffer_write);
+                            point16 pt = m_clipped.top_left().offset(0,m_location.y-bmp.dimensions().height);
+                            uint16_t y2 = m_lines-1;
+                            if(m_location.y>m_clipped.y2) {
+                                y2-=(m_clipped.height()/2)%m_lines;
+                            }
+                            if(m_buffer_send!=m_buffer_write) {
+                                if(m_buffer_write==m_buffer&&(m_location.x!=m_clipped.x1||m_location.y!=m_clipped.y1)) {
+                                    r=m_destination->wait_all_async();
 
+                                    if(r!=gfx_result::success) {
+                                        return r;
+                                    }
+                                }
+                                r = m_destination->copy_from_async(rect16(0,0,bmp.dimensions().width-1,y2),bmp,pt);
                                 if(r!=gfx_result::success) {
                                     return r;
                                 }
-                            }
-                            r = m_destination->copy_from_async(rect16(0,0,bmp.dimensions().width-1,y2),bmp,pt);
+                                uint8_t* tmp = m_buffer_write;
+                                m_buffer_write = m_buffer_send;
+                                m_buffer_send = tmp;
+                            } 
                             if(r!=gfx_result::success) {
                                 return r;
                             }
-                            uint8_t* tmp = m_buffer_write;
-                            m_buffer_write = m_buffer_send;
-                            m_buffer_send = tmp;
-                        } else {
-                            r = m_destination->copy_from(rect16(0,0,bmp.dimensions().width-1,y2),bmp,pt);
                         }
+                    }
+                } else {
+                    if(m_buffer!=nullptr&&((m_location.y<=m_clipped.y2 && (((m_location.y-m_clipped.y1)%m_lines)==0))|| m_location.y==m_clipped.y2+1)) {
+                        // commit what we have so far
+                        gfx_result r;
+                        auto bmp = create_bitmap_from(*m_destination,size16(m_clipped.dimensions().width,m_lines),m_buffer);
+                        point16 pt = m_clipped.top_left().offset(0,m_location.y-bmp.dimensions().height);
+                        r = m_destination->copy_from(rect16(0,0,bmp.dimensions().width-1,m_lines-1),bmp,pt);
                         if(r!=gfx_result::success) {
                             return r;
                         }
@@ -593,6 +601,11 @@ namespace gfx {
                         }
                         return r;
                     }
+                }
+                r=write(typename Destination::pixel_type(),async);
+                if(r!=gfx_result::success) {
+                    free(m_buffer);
+                    return r;
                 }
                 if(m_buffer!=nullptr) {
                     gfx_result r;

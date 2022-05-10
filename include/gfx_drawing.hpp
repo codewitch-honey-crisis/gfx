@@ -3811,8 +3811,8 @@ namespace gfx {
 #endif
         // draws a sprite to the destination at the location with an optional clipping rectangle
         template<typename Destination,typename Sprite>
-        static inline gfx_result sprite(Destination& destination, point16 location,const Sprite& sprite,srect16* clip=nullptr) {
-            return sprite(destination,(spoint16)location,sprite,clip);
+        static inline gfx_result sprite(Destination& destination, point16 location,const Sprite& the_sprite,srect16* clip=nullptr) {
+            return sprite(destination,(spoint16)location,the_sprite,clip);
         }
         // asynchronously draws a sprite to the destination at the location with an optional clipping rectangle
         template<typename Destination,typename Sprite>

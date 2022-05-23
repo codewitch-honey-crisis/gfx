@@ -2337,9 +2337,14 @@ static stbtt_int32 stbtt__GetGlyphClass(stbtt_uint8 *classDefTable, int glyph)
       {
          if (hh->num_remaining_in_head_chunk == 0)
          {
-            int count = (size < 32 ? 2000 : size < 128 ? 800
-                                                       : 100);
-            stbtt__hheap_chunk *c = (stbtt__hheap_chunk *)STBTT_malloc(sizeof(stbtt__hheap_chunk) + size * count, userdata);
+            //int count = (size < 32 ? 2000 : size < 128 ? 800
+            //                                           : 100);
+            int count = 200;
+            stbtt__hheap_chunk *c=NULL;
+            while(count>10 && c==NULL) {
+               count/=2;
+               c = (stbtt__hheap_chunk *)STBTT_malloc(sizeof(stbtt__hheap_chunk) + size * count, userdata);
+            }
             if (c == NULL)
                return NULL;
             c->next = hh->head;

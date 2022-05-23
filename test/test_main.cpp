@@ -9,7 +9,12 @@
 #include "test_fonts.hpp"
 #include "test_drawing.hpp"
 using namespace gfx;
+void setUp() {
 
+}
+void tearDown() {
+    
+}
 int main(int argc, char** argv) {
     test_multiple_linkage();
     UNITY_BEGIN();    // IMPORTANT LINE!

@@ -51,7 +51,7 @@ Deprecated Documentation
 ------------------------
 This document is being kept here because it's still largely accurate and works as an introduction, but there have been some changes to the way the code works in versions since this was written.
 
-The official documentation is here: https://github.com/codewitch-honey-crisis/gfx
+The official documentation is here: https://honeythecodewitch.com/gfx/wiki/index.md
 
 This document is still useful in broad strokes, even if certain details differ.
 
@@ -61,8 +61,6 @@ Introduction
 I wanted a graphics library that was faster and better than what I had found for various IoT devices. The most popular is probably Adafruit\_GFX, but it's not optimal. It's very minimalistic, not very optimized, and doesn't have a fully decoupled driver interface. Also, being tied to the Arduino framework, it can't take advantage of platform specific features that increase performance, like being able to switch between interrupt and polling based SPI transactions on the ESP32.
 
 GFX on the other hand, isn't tied to anything. It can draw anywhere, on any platform. It's basically standard C++, and things like line drawing and font drawing algorithms. Without a driver, it can only draw to in memory bitmaps, but once you add a driver to the mix, you can draw directly onto displays the same way you do to bitmaps.
-
-**Note**: This is a guide as a long single page. The official documentation wiki is [here](https://honeythecodewitch.com/gfx/wiki/index.md).
 
 Concepts
 --------

@@ -47,6 +47,14 @@ General Guide: https://www.codeproject.com/Articles/5302085/GFX-Forever-The-Comp
                                                                                     #   #                                       
                                                                                      ###                                        
 ```
+Deprecated Documentation
+------------------------
+This document is being kept here because it's still largely accurate and works as an introduction, but there have been some changes to the way the code works in versions since this was written.
+
+The official documentation is here: https://github.com/codewitch-honey-crisis/gfx
+
+This document is still useful in broad strokes, even if certain details differ.
+
 Introduction
 ------------
 
@@ -83,7 +91,7 @@ You can implement your own draw sources and destinations by simply writing a cla
 
 ### Pixel Types
 
-Pixels in GFX may take any form you can imagine, up to your machine's maximum word size. They can have as many as one channel per bit, and will take on any binary footprint you specify. If you want a 3 bit RGB pixel, you can easily make one, and then create bitmaps in that format - where there are 3 pixels every 9 bytes. You'll never have to worry whether or not this library can support your display driver or file format's pixel and color model. With GFX, you can define the binary footprint and channels of your pixels, and then extend GFX to support additional color models other than the 4 it supports simply by telling it how to convert to and from RGB\*.
+Pixels in GFX may take any form you can imagine, up to your machine's maximum word size. They can have as many as one channel per bit, and will take on any binary footprint you specify. If you want a 3 bit RGB pixel, you can easily make one, and then create bitmaps in that format - where there are 3 pixels every 9 bits. You'll never have to worry whether or not this library can support your display driver or file format's pixel and color model. With GFX, you can define the binary footprint and channels of your pixels, and then extend GFX to support additional color models other than the 4 it supports simply by telling it how to convert to and from RGB\*.
 
 \*Indexed pixel formats are accounted for, but there are certain restrictions in place and care must be taken when using them because they need an associated palette in order to resolve to a color.
 

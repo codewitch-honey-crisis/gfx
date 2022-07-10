@@ -219,6 +219,26 @@ static gfx_result text(
     // an optional font cache to speed up the draw
     open_font_cache* cache = nullptr)
 ```
+or
+```cpp
+template<typename Destination,typename PixelType>
+static gfx_result text(
+    // the destination to draw to
+    Destination& destination,
+    // the destination text area
+    const srect16& dest_rect,
+    // the text info struct
+    const open_text_info& info,
+    // the forecolor
+    PixelType color,
+    // the backcolor, if used
+    PixelType backcolor=
+        // black
+        convert<rgb_pixel<3>,PixelType>(
+            rgb_pixel<3>(0,0,0)),
+    // an optional clipping rectangle
+    srect16* clip=nullptr)
+```
 For `font` raster fonts use this overload:
 ```cpp
 template<typename Destination,typename PixelType>
@@ -244,6 +264,26 @@ static gfx_result text(
     bool transparent_background = true,
     // The tab width, in characters
     unsigned int tab_width=4,
+    // the optional clipping
+    // rectangle
+    srect16* clip=nullptr)
+```
+or
+```cpp
+template<typename Destination,typename PixelType>
+static gfx_result text(
+    // the destination to draw to
+    Destination& destination,
+    // the destination text area
+    const srect16& dest_rect,
+    const text_info& info,
+    // the forecolor
+    PixelType color,
+    // the backcolor
+    PixelType backcolor=
+        // black
+        convert<rgb_pixel<3>,PixelType>(
+            rgb_pixel<3>(0,0,0)),
     // the optional clipping
     // rectangle
     srect16* clip=nullptr)

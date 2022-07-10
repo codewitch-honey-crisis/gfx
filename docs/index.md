@@ -8,6 +8,23 @@ GFX is copyright (C) 2021-2022 by honey the codewitch. GFX is licensed under the
 
 ---
 Get started using GFX by referencing one of the drivers for it from your PlatformIO project's INI file:
+
+For C++17 (Arduino framework >= 2.0.3 - preferred)
+```ini
+[env:esp32-ILI9341]
+platform = espressif32
+board = node32s
+framework = arduino
+monitor_speed = 115200
+upload_speed = 921600
+lib_deps = 
+	codewitch-honey-crisis/htcw_ili9341
+lib_ldf_mode = deep
+build_unflags=-std=gnu++11
+build_flags=-std=gnu++17
+```
+
+For C++14 (Arduino framework < 2.0.3)
 ```ini
 [env:esp32-ILI9341]
 platform = espressif32
@@ -21,7 +38,7 @@ lib_ldf_mode = deep
 build_unflags=-std=gnu++11
 build_flags=-std=gnu++14
 ```
-Above the last 4 entries starting at `lib_deps` are what include GFX and make it available, in this case by way of including the htcw_ili9341 driver library for GFX, which will also include GFX in your project. The build flags are to update C++ to GNU C++14 which is necessary for GFX to be used with the Arduino framework.
+Above the last 4 entries starting at `lib_deps` are what include GFX and make it available, in this case by way of including the htcw_ili9341 driver library for GFX, which will also include GFX in your project. The build flags are to update C++ to GNU C++17 or GNU C++14 which is necessary for GFX to compile.
 
 Finally include the appropriate header:
 ```cpp
@@ -29,7 +46,7 @@ Finally include the appropriate header:
 ```
 or
 ```cpp
-#include <gfx_cpp14.hpp> // for GCC C++14 - use this one probably
+#include <gfx_cpp14.hpp> // for GCC C++14
 ```
 and then access the `gfx` namespace, optionally importing it:
 ```cpp

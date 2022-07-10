@@ -1,4 +1,6 @@
 #ifndef HTCW_GFX
+#define HTCW_GFX
+#define HTCW_GFX_CPP14
 #include "gfx_core.hpp"
 #include "gfx_pixel.hpp"
 #include "gfx_color_cpp14.hpp"

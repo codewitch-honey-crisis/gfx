@@ -6,6 +6,8 @@
 
 GFX provides a couple of tools for embedding data into your code as a C++ header file. The first one is for arbitrary binary data, like JPGs or raw bitmap data, and the second one is for TTF, OTF and FON fonts.
 
+For the web based version of these tools, [click here](https://honeythecodewitch.com/gfx/generator)
+
 <a name="9.1"></a>
 
 ## 9.1 Bingen

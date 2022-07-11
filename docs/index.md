@@ -117,5 +117,7 @@ ___
 9. [Tools](tools.md)
    - 9.1 [Bingen](tools.md#9.1)
    - 9.2 [Fontgen](tools.md#9.2)
+10. [Addendum](addendum.md)
+    - 10.1 [Arduino TFT Bus](addendum.md#10.1)
 
 [Pixels](pixels.md) →

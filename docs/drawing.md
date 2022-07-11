@@ -136,6 +136,42 @@ static gfx_result filled_polygon(Destination& destination,
 ```
 There are also `_async` versions of these methods, although their use is not recommended in most scenarios.
 
+Here's an example of drawing some basic shapes:
+
+```cpp
+rgb_pixel<24> px;
+spoint16 tpa[3];
+const uint16_t sw =
+    min(lcd.dimensions().width, lcd.dimensions().height) / 4;
+for (int i = 0; i < 30; ++i) {
+    px.channel<channel_name::R>((rand() % 256));
+    px.channel<channel_name::G>((rand() % 256));
+    px.channel<channel_name::B>((rand() % 256));
+    srect16 sr(0, 0, rand() % sw + sw, rand() % sw + sw);
+    sr.offset_inplace(rand() % (lcd.dimensions().width - sr.width()),
+                        rand() % (lcd.dimensions().height - sr.height()));
+    switch (rand() % 4) {
+        case 0:
+            draw::filled_rectangle(lcd, sr, px);
+            break;
+        case 1:
+            draw::filled_rounded_rectangle(lcd, sr, .1, px);
+            break;
+        case 2:
+            draw::filled_ellipse(lcd, sr, px);
+            break;
+        case 3:
+            // draw a triangle
+            tpa[0] = {int16_t(((sr.x2 - sr.x1) / 2) + sr.x1), sr.y1};
+            tpa[1] = {sr.x2, sr.y2};
+            tpa[2] = {sr.x1, sr.y2};
+            spath16 path(3, tpa);
+            draw::filled_polygon(lcd, path, px);
+            break;
+    }
+}
+```
+
 <a name="5.2"></a>
 
 ## 5.2 Bitmaps and draw sources
@@ -170,6 +206,24 @@ static inline gfx_result bitmap(
         const srect16* clip=nullptr)
 ```
 There is also an `_async` method for this, and unlike the other async methods this one is more generally useful. While it has the same signature, when the destination and source support it, an asynchronous transfer will be started and control will be immediately returned from the method. During this operation the pixel buffer for the draw source should not be written to or discarded. Attempts to write to the destination will block until the asynchronous operation completes. If you must write to it again use `draw::wait_all_async(destination)` to wait for the operation to complete first. This is a very useful way to increase framerates if your bitmaps are large enough to overcome the extra overhead of transferring asynchronously. Basically while you're transfering the existing bitmap, you can draw to a new bitmap, then transfer that one. While you're transfering from that one, you draw to the first one, and then you repeat the process.
+
+Here's an example of declaring a bitmap and a fixed buffer:
+
+```cpp
+constexpr static const size16 bmp_size(16, 16);
+using bmp_type = bitmap<decltype(lcd)::pixel_type>;
+using bmp_color = color<typename bmp_type::pixel_type>;
+uint8_t bmp_buf[bmp_type::sizeof_buffer(bmp_size)];
+bmp_type bmp(bmp_size, bmp_buf);
+```
+
+Now you can draw to it using `draw::xxxx(bmp,...)`
+
+Finally, here's how you draw it to the center of the screen:
+
+```cpp
+draw::bitmap(lcd,bmp.bounds().center(lcd.bounds()),bmp,bmp.bounds());
+```
 
 <a name="5.3"></a>
 
@@ -290,44 +344,40 @@ static gfx_result text(
 ```
 There are also `_async` versions of these methods.
 
-Here's an example of using them under:
+Here's an example of using raster, which assumes you've included a font header:
 
 ```cpp
-// fill the screen with random shapes
-// and random colors
-rgb_pixel<24> px;
-spoint16 tpa[3];
-const uint16_t sw =
-    min(lcd.dimensions().width, lcd.dimensions().height) / 4;
-for (int i = 0; i < 30; ++i) {
-    px.channel<channel_name::R>((rand() % 256));
-    px.channel<channel_name::G>((rand() % 256));
-    px.channel<channel_name::B>((rand() % 256));
-    srect16 sr(0, 0, rand() % sw + sw, rand() % sw + sw);
-    sr.offset_inplace(rand() % (lcd.dimensions().width - sr.width()),
-                        rand() % (lcd.dimensions().height - sr.height()));
-    switch (rand() % 4) {
-        case 0:
-            draw::filled_rectangle(lcd, sr, px);
-            break;
-        case 1:
-            draw::filled_rounded_rectangle(lcd, sr, .1, px);
-            break;
-        case 2:
-            draw::filled_ellipse(lcd, sr, px);
-            break;
-        case 3:
-            // draw a triangle
-            tpa[0] = {int16_t(((sr.x2 - sr.x1) / 2) + sr.x1), sr.y1};
-            tpa[1] = {sr.x2, sr.y2};
-            tpa[2] = {sr.x1, sr.y2};
-            spath16 path(3, tpa);
-            draw::filled_polygon(lcd, path, px);
-            break;
-    }
-}
+// the font header contains Bm437_ATI_9x16_FON
+const font &f = Bm437_ATI_9x16_FON;
+const char *text = "(C) 2022\r\nby HTCW";
+ssize16 text_size = f.measure_text((ssize16)lcd.dimensions(), text);
+srect16 text_rect =
+    srect16(spoint16((lcd.dimensions().width - text_size.width) / 2,
+                        (lcd.dimensions().height - text_size.height) / 2),
+            text_size);
+draw::text(lcd, text_rect, text, f, lcd_color::old_lace,
+                lcd_color::black, false);
 ```
 
+Here's an example of using vector/TrueType:
+
+```cpp
+// The font header contains Maziro_ttf
+const open_font &f = Maziro_ttf;
+const char *text = "GFX";
+int height = min(lcd.dimensions().width, lcd.dimensions().height) / 2;
+const float scale = f.scale(height);
+srect16 text_rect =
+    srect16(spoint16::zero(),
+            f.measure_text(ssize16::max(), spoint16::zero(), text, scale));
+draw::text(lcd, 
+            text_rect.center((srect16)lcd.bounds()), 
+            spoint16::zero(), 
+            text, 
+            f,
+            scale, 
+            lcd_color::blue);
+```
 <a name="5.4"></a>
 
 ## 5.4 Images

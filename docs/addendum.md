@@ -82,7 +82,7 @@ using bus_type = tft_p8<PIN_NUM_CS,
 ```
 It currently only works on the ESP32.
 
-I2C is pretty straight forward. It is similar to SPI the way it is declared, having one with assignable pins (`tft_i2c_ex`) and one without (`tft_i2c`):
+I2C is pretty straightforward. It is similar to SPI the way it is declared, having one with assignable pins (`tft_i2c_ex`) and one without (`tft_i2c`):
 
 ```cpp
 // LCD_PORT is the I2C port number to use.

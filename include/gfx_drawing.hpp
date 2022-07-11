@@ -3273,7 +3273,8 @@ namespace gfx {
             gfx_result r=gfx_result::success;
             if(nullptr==info.text || nullptr==info.font || 0==info.scale)
                 return gfx_result::invalid_argument;
-            
+            // suspend if we can
+            helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination,async);
             const char*sz=info.text;
             if(0==*sz) return gfx_result::success;
             if(info.transparent_background==false) {
@@ -3299,8 +3300,6 @@ namespace gfx {
             float xpos=info.offset.x,ypos=baseline+info.offset.y;
             float x_extent=0,y_extent=0;
             bool adv_line = false;
-            // suspend if we can
-            helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination,async);
             ssize16 dest_size = dest_rect.dimensions();
 
             while(*sz) {

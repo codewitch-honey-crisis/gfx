@@ -207,7 +207,7 @@ namespace gfx {
             }
             inline static gfx_result resume(Destination& dst,bool force=false) {
                 if(force) {
-                    return resume(dst,true);
+                    return dst.resume(true);
                 }
                 return dst.resume();
             }
@@ -216,7 +216,7 @@ namespace gfx {
             }
             inline static gfx_result resume_async(Destination& dst,bool force=false) {
                 if(force) {
-                    return resume(dst,true);
+                    return dst.resume(true);
                 }
                 return resume(dst);
             }

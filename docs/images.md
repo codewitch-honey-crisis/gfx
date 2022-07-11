@@ -30,6 +30,12 @@ jpeg_image::load(&fs,[](size16 dimensions,
 // we don't need state, so just use nullptr
 },nullptr);
 ```
+Additionally, under Arduino you can pass a File object:
+```cpp
+File file = SPIFFS.open("/image.jpg","rb");
+gfx::draw::image(lcd,lcd.bounds(),&file);
+file.close();
+```
 If you don't know the dimensions you can pass `size16(-1,-1)`.
 
 You probably won't understand some of the calls in this as they will covered in sections [5](drawing.md) and [6](positioning.md), but it should give you a general idea of what is being covered.

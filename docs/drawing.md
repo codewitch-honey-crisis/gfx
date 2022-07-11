@@ -290,6 +290,44 @@ static gfx_result text(
 ```
 There are also `_async` versions of these methods.
 
+Here's an example of using them under:
+
+```cpp
+// fill the screen with random shapes
+// and random colors
+rgb_pixel<24> px;
+spoint16 tpa[3];
+const uint16_t sw =
+    min(lcd.dimensions().width, lcd.dimensions().height) / 4;
+for (int i = 0; i < 30; ++i) {
+    px.channel<channel_name::R>((rand() % 256));
+    px.channel<channel_name::G>((rand() % 256));
+    px.channel<channel_name::B>((rand() % 256));
+    srect16 sr(0, 0, rand() % sw + sw, rand() % sw + sw);
+    sr.offset_inplace(rand() % (lcd.dimensions().width - sr.width()),
+                        rand() % (lcd.dimensions().height - sr.height()));
+    switch (rand() % 4) {
+        case 0:
+            draw::filled_rectangle(lcd, sr, px);
+            break;
+        case 1:
+            draw::filled_rounded_rectangle(lcd, sr, .1, px);
+            break;
+        case 2:
+            draw::filled_ellipse(lcd, sr, px);
+            break;
+        case 3:
+            // draw a triangle
+            tpa[0] = {int16_t(((sr.x2 - sr.x1) / 2) + sr.x1), sr.y1};
+            tpa[1] = {sr.x2, sr.y2};
+            tpa[2] = {sr.x1, sr.y2};
+            spath16 path(3, tpa);
+            draw::filled_polygon(lcd, path, px);
+            break;
+    }
+}
+```
+
 <a name="5.4"></a>
 
 ## 5.4 Images
@@ -317,6 +355,8 @@ static gfx_result image(
     srect16* clip=nullptr)
 ```
 There is also an `_async` version of this method. Unlike drawing a bitmap, this async method will be mostly synchronous, due to file stream limitations (no way to pipeline a file to an SPI bus over DMA) and the decompression process itself.
+
+See [section 3](images.md) for example code.
 
 <a name="5.5"></a>
 
@@ -396,6 +436,23 @@ static gfx_result resume(
     Destination& destination, 
     bool force=false)
 ```
+This is necessary in particular for using e-paper displays due to their slow refresh rates. The idea is to suspend, draw an entire screen, and then resume:
+
+```cpp
+draw::suspend(epaper);
+// draw a checkerboard tile pattern
+draw::filled_rectangle(epaper, epaper.bounds(), ep_color::black);
+for (int y = 0; y < epaper.dimensions().height; y += 16) {
+    for (int x = 0; x < epaper.dimensions().width; x += 16) {
+        if (0 != ((x + y) % 32)) {
+            draw::filled_rectangle(epaper,
+                                    srect16(spoint16(x, y), ssize16(16, 16)),
+                                    ep_color::white);
+        }
+    }
+}
+draw::resume(epaper);
+```
 
 <a name="5.8"></a>
 
@@ -411,8 +468,24 @@ template<typename Destination>
 static inline batch_writer<Destination> batch(Destination& destination, 
                                                 const srect16& bounds)
 ```
-You use it by specifying calling `batch<>()` to get a writer, and then calling `write<>()` on that writer until you are done. The pixels will be written out top to bottom, left to right until the entire rectangle is filled. The batch is committed either when the writer goes out of scope or `commit()` is called on the writer. If you do any other operations that write to the destination outside of the batch operation itself, the results are undefined.
+You use it by specifying calling `batch<>()` to get a writer, and then calling `write<>()` on that writer until you are done. The pixels will be written out top to bottom, left to right until the entire rectangle is filled. The batch is committed either when the writer goes out of scope or `commit()` is called on the writer. If you do any other operations that write to the destination outside of the batch operation itself, the results are undefined:
 
+```cpp
+hsv_pixel<24> px(true,.5,1,1);
+
+// use batching here
+auto ba = draw::batch(lcd,lcd.bounds());
+
+// draw a gradient
+for(int y = 0;y<lcd.dimensions().height;++y) {
+  px.template channelr<channel_name::S>(((double)y)/lcd.bounds().y2);
+  for(int x = 0;x<lcd.dimensions().width;++x) {
+    px.template channelr<channel_name::V>(((double)x)/lcd.bounds().x2);
+    ba.write(px);
+  }
+}
+ba.commit();
+```
 [→ Positioning](positioning.md)
 
 [← Fonts](fonts.md)

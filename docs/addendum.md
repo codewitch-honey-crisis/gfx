@@ -107,7 +107,7 @@ using lcd_type = ili9341<PIN_NUM_DC,
                         LCD_READ_SPEED_PERCENT>;
 ```
 
-Every driver's declaration will be somewhat different so we won't be going over the declarion in detail here, but the common thread is `bus_type` which the driver takes to establish a connection to the bus you declared. In this case, you'd use a parallel bus or SPI bus depending on the type of ILI9341 module you have. Modules containing the SSD1306 support the I2C bus or the SPI bus.
+Every driver's declaration will be somewhat different so we won't be going over the declaration in detail here, but the common thread is `bus_type` which the driver takes to establish a connection to the bus you declared. In this case, you'd use a parallel bus or SPI bus depending on the type of ILI9341 module you have. Modules containing the SSD1306 support the I2C bus or the SPI bus.
 
 If you need to declare multiple SPI or I2C TFT devices you can declare more than one bus on the same SPI host or I2C port. You simply declare another bus, without the pin assignments. It will use the same pins as the first instance. It's up to you to make sure you initialize the first bus declaration first, usually by initializing the driver attached to it.
 

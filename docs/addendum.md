@@ -109,7 +109,7 @@ using lcd_type = ili9341<PIN_NUM_DC,
 
 Every driver's declaration will be somewhat different so we won't be going over the declarion in detail here, but the common thread is `bus_type` which the driver takes to establish a connection to the bus you declared. In this case, you'd use a parallel bus or SPI bus depending on the type of ILI9341 module you have. Modules containing the SSD1306 support the I2C bus or the SPI bus.
 
-If you need to declare multiple SPI or I2C TFT devices you can declare more than one bus on the same SPI host or I2C port. You simply declare another bus, without the pin assignments. It will use the same pins as the first instance.
+If you need to declare multiple SPI or I2C TFT devices you can declare more than one bus on the same SPI host or I2C port. You simply declare another bus, without the pin assignments. It will use the same pins as the first instance. It's up to you to make sure you initialize the first bus declaration first, usually by initializing the driver attached to it.
 
 If you need access to the `SPIClass` instance or the `Wire` instance for your bus in order to share the bus, you can use `spi_container<SPI_HOST>::instance()` where `SPI_HOST` is the host - often `VSPI` on the ESP32. For I2C you use `i2c_container<I2C_PORT>::instance()`.
 

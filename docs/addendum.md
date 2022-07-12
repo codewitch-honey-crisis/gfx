@@ -24,7 +24,7 @@ To access the assignable pins for I2C you use `tft_i2c_ex<>`. Otherwise you may 
 
 The 8-bit parallel bus's pins must always be specified. To specify a parallel bus use `tft_p8<>`.
 
-You include the bus framework by referencing `codewitch-honey-crisis/htcw_tft_io` in your platformio.ini and then using the following:
+While each driver that uses it includes the bus framework for you, it is possible to include the bus framework by referencing `codewitch-honey-crisis/htcw_tft_io` in your platformio.ini. Either way, you can then use the following:
 
 ```cpp
 #include <tft_io.hpp>

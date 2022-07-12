@@ -12,7 +12,7 @@ This document contains information that doesn't fit elsewhere or isn't directly 
 
 The Arduino drivers typically use the TFT I/O bus framework [htcw_tft_io](https://github.com/codewitch-honey-crisis/htcw_tft_io)
 
-This bus framework currently supports SPI, 8-bit parallel and I2C. It is separate from the drivers, that way the same driver can be used over different kinds of busses. For example, the ILI9341 comes in SPI and Parallel varieties. With this framework, you use the same ILI9341 driver, but connect it to the appropriate bus to fit your situation and hardware.
+This bus framework currently supports SPI, 8-bit parallel and I2C. It is separate from the drivers, that way the same driver can be used over different kinds of busses. For example, the ILI9341 comes in SPI and parallel varieties. With this framework, you use the same ILI9341 driver, but connect it to the appropriate bus to fit your situation and hardware.
 
 On supported hardware, like the ESP32 the SPI bus supports assignable pins and DMA.
 

@@ -2703,7 +2703,7 @@ namespace gfx {
                     }
                     point16 pt = {uint16_t(x+pst->off_x),uint16_t(y+pst->off_y)};
                     if(nullptr==pst->clip||pst->clip->intersects((spoint16)pt)) {
-                        if(pst->no_antialiasing && !has_alpha) {
+                        if((pst->no_antialiasing && !has_alpha)||d==1.0) {
                             return (int)draw::point(*pst->destination,(spoint16)pt,pst->color);
                         } else {
                             
@@ -3273,12 +3273,11 @@ namespace gfx {
             gfx_result r=gfx_result::success;
             if(nullptr==info.text || nullptr==info.font || 0==info.scale)
                 return gfx_result::invalid_argument;
-            // suspend if we can
-            helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination,async);
+            
             const char*sz=info.text;
             if(0==*sz) return gfx_result::success;
             if(info.transparent_background==false) {
-                gfx_result rrr = draw::rectangle_impl(destination,dest_rect,backcolor,clip,async);
+                gfx_result rrr = draw::filled_rectangle_impl(destination,dest_rect,backcolor,clip,async);
                 if(gfx_result::success!=rrr)
                     return rrr;
             }
@@ -3300,6 +3299,8 @@ namespace gfx {
             float xpos=info.offset.x,ypos=baseline+info.offset.y;
             float x_extent=0,y_extent=0;
             bool adv_line = false;
+            // suspend if we can
+            helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination,async);
             ssize16 dest_size = dest_rect.dimensions();
 
             while(*sz) {

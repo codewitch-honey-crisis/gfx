@@ -2939,7 +2939,7 @@ namespace gfx {
                     return r;
                 }
             }
-            return line_impl(destination,srect16((*p),(*(path.begin()))),color,clip,async);
+            return line_impl(destination,srect16((*(p-1)),(*(path.begin()))),color,clip,async);
         }
         template<typename Destination,typename PixelType>
         static gfx_result filled_polygon_impl(Destination& destination, const spath16& path, PixelType color,const srect16* clip,bool async) {

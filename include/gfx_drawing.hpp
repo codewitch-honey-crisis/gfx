@@ -2925,6 +2925,9 @@ namespace gfx {
         template<typename Destination,typename PixelType>
         static gfx_result polygon_impl(Destination& destination, const spath16& path, PixelType color,const srect16* clip,bool async) {
             gfx_result r;
+            if(path.size()==0) {
+                return gfx::gfx_result::success;
+            }
             const spoint16* p = path.begin();
             // suspend if we can
             helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination,async);

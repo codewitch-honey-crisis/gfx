@@ -2928,7 +2928,9 @@ namespace gfx {
             if(path.size()==0) {
                 return gfx::gfx_result::success;
             }
-            const spoint16* p = path.begin();
+            const spoint16* pb = path.begin();
+            const spoint16* pe = path.end()-1;
+            const spoint16* p = pb;
             // suspend if we can
             helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination,async);
             size_t path_size = path.size();
@@ -2942,7 +2944,7 @@ namespace gfx {
                     return r;
                 }
             }
-            return line_impl(destination,srect16((*(p-1)),(*(path.begin()))),color,clip,async);
+            return line_impl(destination,srect16((*pe),(*pb)),color,clip,async);
         }
         template<typename Destination,typename PixelType>
         static gfx_result filled_polygon_impl(Destination& destination, const spath16& path, PixelType color,const srect16* clip,bool async) {

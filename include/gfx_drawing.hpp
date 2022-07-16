@@ -2934,7 +2934,7 @@ namespace gfx {
             // suspend if we can
             helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination,async);
             size_t path_size = path.size();
-            while(path_size--) {
+            while(p!=pe) {
                 const spoint16 p1 = *p;
                 ++p;
                 const spoint16 p2  = *p;

@@ -17,6 +17,7 @@ void tearDown() {
 }
 int main(int argc, char** argv) {
     test_multiple_linkage();
+    
     UNITY_BEGIN();    // IMPORTANT LINE!
     RUN_TEST(test_pixel_channels);
     RUN_TEST(test_pixel_convert);

@@ -276,7 +276,7 @@ namespace gfx {
                             cpx23.template channelr_unchecked<chiR>(),
                             cpx33.template channelr_unchecked<chiR>(),
                             xfract);
-            rpx.channelr<channel_name::R>(helpers::clamp(cubic_hermite(d0,d1,d2,d3,yfract),0.0,1.0));
+            rpx.channelr<channel_name::R>(helpers::clamp(cubic_hermite(d0,d1,d2,d3,yfract),(double)0.0,(double)1.0));
             
             const size_t chiG = rgba_type::channel_index_by_name<channel_name::G>::value;
             d0 = cubic_hermite(cpx00.template channelr_unchecked<chiG>(),
@@ -299,7 +299,7 @@ namespace gfx {
                             cpx23.template channelr_unchecked<chiG>(),
                             cpx33.template channelr_unchecked<chiG>(),
                             xfract);
-            rpx.channelr<channel_name::G>(helpers::clamp(cubic_hermite(d0,d1,d2,d3,yfract),0.0,1.0));
+            rpx.channelr<channel_name::G>(helpers::clamp(cubic_hermite(d0,d1,d2,d3,yfract),(double)0.0,(double)1.0));
             
             const int chiB = rgba_type::channel_index_by_name<channel_name::B>::value;
             d0 = cubic_hermite(cpx00.template channelr_unchecked<chiB>(),
@@ -322,7 +322,7 @@ namespace gfx {
                             cpx23.template channelr_unchecked<chiB>(),
                             cpx33.template channelr_unchecked<chiB>(),
                             xfract);
-            rpx.channelr<channel_name::B>(helpers::clamp(cubic_hermite(d0,d1,d2,d3,yfract),0.0,1.0));
+            rpx.channelr<channel_name::B>(helpers::clamp(cubic_hermite(d0,d1,d2,d3,yfract),(double)0.0,(double)1.0));
             
             const int chiA = rgba_type::channel_index_by_name<channel_name::A>::value;
             if(-1<chiA) {
@@ -347,7 +347,7 @@ namespace gfx {
                                 cpx23.template channelr_unchecked<chiA>(),
                                 cpx33.template channelr_unchecked<chiA>(),
                                 xfract);
-                rpx.channelr<channel_name::A>(helpers::clamp(cubic_hermite(d0,d1,d2,d3,yfract),0.0,1.0));
+                rpx.channelr<channel_name::A>(helpers::clamp(cubic_hermite(d0,d1,d2,d3,yfract),(double)0.0,(double)1.0));
             }
             return convert_palette_from(source,rpx,out_pixel);
         }

@@ -409,8 +409,8 @@ namespace gfx {
                 {
                     for(unsigned i=0; i<K; ++i)
                     {
-                        min.coord[i] = -1e99;
-                        max.coord[i] =  1e99;
+                        min.coord[i] = -INFINITY;
+                        max.coord[i] =  INFINITY;
                     }
                 }
             };
@@ -552,9 +552,9 @@ namespace gfx {
 
                 typename kd_node::nearest nn;
                 nn.kd       = 0;
-                nn.dist_sqd = 1e99;
+                nn.dist_sqd = INFINITY;
                 kd_node::nnbr(m_root, key, hr, 0, nn);
-                if(!nn.kd) return { ValueType(), 1e99 };
+                if(!nn.kd) return { ValueType(), INFINITY };
                 return { nn.kd->v, nn.dist_sqd };
             }
         public:
@@ -638,7 +638,7 @@ namespace gfx {
                             b=rgb888.template channel<channel_name::B>();
 
                 *plan = { {0,0}, 0.5 };
-                double least_penalty = 1e99;
+                double least_penalty = INFINITY;
                 for(unsigned index1 = 0; index1 < PaletteType::size; ++index1)
                 for(unsigned index2 = index1; index2 < PaletteType::size; ++index2)
                 {
@@ -723,7 +723,7 @@ namespace gfx {
                     t[1]=helpers::clamp(t[1],0,255);
                     t[2]=helpers::clamp(t[2],0,255);
                     // Find the closest color from the palette
-                    double least_penalty = 1e99;
+                    double least_penalty = INFINITY;
                     unsigned chosen = c%16;
                     for(unsigned index=0; index<PaletteType::size; ++index)
                     {

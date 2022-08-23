@@ -3085,7 +3085,7 @@ namespace gfx {
                 gfx_result r=gfx_result::success;
                 load_context& ctx = 
                     *(load_context*)state;
-                if(isnan(ctx.scale.x)) {
+                if(ctx.scale.x!=ctx.scale.x) {
                     if(ctx.src_rect.x2==uint16_t(0xFFFF) && ctx.src_rect.y2==uint16_t(0xFFFF)) {
                         ctx.src_rect.x2=dimensions.width+ctx.src_rect.x1-1;
                         ctx.src_rect.y2=dimensions.height+ctx.src_rect.y1-1;

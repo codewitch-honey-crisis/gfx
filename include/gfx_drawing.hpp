@@ -950,7 +950,7 @@ namespace gfx {
                 // suspend if we can
                 helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination,true);
                 //return copy_from_impl_helper<Destination,Source,Destination::caps::batch,Destination::caps::async>::do_draw(destination,src_rect,source,location);
-                return source.copy_to_async(src_rect,destination,location);
+                return copy_to_helper<Destination,Source,Source::caps::async>::do_draw(source,src_rect,destination,location);
             }
         };
         template<typename Destination,typename Source> 
@@ -982,7 +982,17 @@ namespace gfx {
                 return source.copy_to(src_rect,destination,location);
             }
         };
-
+        template<typename Destination,typename Source, bool Async> struct copy_to_helper {};
+        template<typename Destination,typename Source> struct copy_to_helper<Destination,Source,false> {
+            static gfx_result do_draw(const Source& src,const rect16& rct,Destination& dst,point16 loc) {
+                return src.copy_to(rct,dst,loc);
+            }
+        };
+        template<typename Destination,typename Source> struct copy_to_helper<Destination,Source,true> {
+            static gfx_result do_draw(const Source& src,const rect16& rct,Destination& dst,point16 loc) {
+                return src.copy_to_async(rct,dst,loc);
+            }
+        };
         template<typename Destination,typename Source,bool Batch,bool Async>
         struct copy_from_impl_helper {};
         template<typename Destination,typename Source>
@@ -3085,7 +3095,7 @@ namespace gfx {
                 gfx_result r=gfx_result::success;
                 load_context& ctx = 
                     *(load_context*)state;
-                if(ctx.scale.x!=ctx.scale.x) {
+                if(isnan(ctx.scale.x)) {
                     if(ctx.src_rect.x2==uint16_t(0xFFFF) && ctx.src_rect.y2==uint16_t(0xFFFF)) {
                         ctx.src_rect.x2=dimensions.width+ctx.src_rect.x1-1;
                         ctx.src_rect.y2=dimensions.height+ctx.src_rect.y1-1;

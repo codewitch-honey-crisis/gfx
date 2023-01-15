@@ -173,16 +173,16 @@ namespace gfx {
             inline suspender& operator=(const suspender& rhs)=default;
             inline ~suspender() =default;
             inline static gfx_result suspend(Destination& dst) {
-                return gfx_result::success;
+                return gfx_result::not_supported;
             }
             inline static gfx_result resume(Destination& dst,bool force=false) {
-                return gfx_result::success;
+                return gfx_result::not_supported;
             }
             inline static gfx_result suspend_async(Destination& dst) {
-                return gfx_result::success;
+                return gfx_result::not_supported;
             }
             inline static gfx_result resume_async(Destination& dst,bool force=false) {
-                return gfx_result::success;
+                return gfx_result::not_supported;
             }
         };
         template<typename Destination>

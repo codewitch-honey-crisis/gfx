@@ -3219,7 +3219,7 @@ namespace gfx {
                             fc=nfc;
                         }
                         chr=chr.offset(0,info.font->height());
-                        if(chr.y2>dest_rect.bottom()) {
+                        if(chr.y1>dest_rect.bottom()) {
                             return gfx_result::success;
                         }
                         break;
@@ -3238,7 +3238,7 @@ namespace gfx {
                             chr.x1=dest_rect.x1;
                             chr=chr.offset(0,info.font->height());
                         } 
-                        if(chr.y2>dest_rect.bottom()) {
+                        if(chr.y1>dest_rect.bottom()) {
                             return gfx_result::success;
                         }
                         
@@ -3263,7 +3263,7 @@ namespace gfx {
                                         chr.x1=dest_rect.x1;
                                         chr=chr.offset(0,info.font->height());
                                     }
-                                    if(chr.y2>dest_rect.bottom()) {
+                                    if(chr.y1>dest_rect.bottom()) {
                                         return gfx_result::success;
                                     }
                                     fc=nfc;

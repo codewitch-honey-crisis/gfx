@@ -1715,6 +1715,210 @@ namespace gfx {
         
             return gfx_result::success;
         }
+        template<typename Destination,typename Source,typename PixelType,bool Readable>
+        struct draw_icon_helper final {
+        };
+        template<typename Destination,typename Source,typename PixelType>
+        struct draw_icon_helper<Destination,Source,PixelType,false> final {
+            static gfx_result do_draw(Destination& destination, spoint16 location,const Source& source,PixelType forecolor,PixelType backcolor,bool transparent_background , srect16* clip,bool async) {
+                srect16 bounds(location,(ssize16)source.dimensions());
+                if(clip!=nullptr) {
+                    bounds = bounds.crop(*clip);
+                }
+                if(!bounds.intersects((srect16)destination.bounds())) {
+                    return gfx_result::success;
+                }
+                helpers::batcher<Destination,Destination::caps::batch,Destination::caps::async> b;
+                rect16 srcr = source.bounds();
+                if(location.x!=bounds.x1) {
+                    srcr.x1+=(bounds.x1-location.x);
+                }
+                if(location.y!=bounds.y1) {
+                    srcr.y1+=(bounds.y1-location.y);
+                }
+                if(bounds.x1<0) {
+                    srcr.x1+=-bounds.x1;
+                }
+                if(bounds.y1<0) {
+                    srcr.y1+=-bounds.y1;
+                }
+                if(srcr.x1>srcr.x2||srcr.y1>srcr.y2) {
+                    return gfx_result::success;
+                }
+                bounds = bounds.crop((srect16)destination.bounds());
+                rect16 dstr = (rect16)bounds;
+                gfx_result r;
+                
+                typename Destination::pixel_type dpx,fgpx,bgpx;
+                r=convert(forecolor,&fgpx);
+                if(r!=gfx_result::success) {
+                    return r;
+                }
+                r=convert(backcolor,&bgpx);
+                if(r!=gfx_result::success) {
+                    return r;
+                }
+                double a=NAN, oa=NAN;
+                r=b.begin_batch(destination,dstr,async);
+                if(r!=gfx_result::success) {
+                    return r;
+                }
+                int w = srcr.x2-srcr.x1+1,h=srcr.y2-srcr.y1+1;
+                for(int y = 0;y<h;++y) {
+                    for(int x = 0;x<w;++x) {
+                        point16 pt(x+srcr.x1,y+srcr.y1);
+                        typename Source::pixel_type rpx;
+                        r=source.point(pt,&rpx);
+                        if(r!=gfx_result::success) {
+                            return r;
+                        }
+                        a = rpx.template channelr<channel_name::A>();
+                        if(a!=oa) {
+                            dpx = fgpx.blend(bgpx,a);
+                      
+                        }
+
+                        r=b.write_batch(destination,point16(dstr.x1+x,dstr.y1+y),dpx,async);
+                        if(r!=gfx_result::success) {
+                            return r;
+                        }
+                        oa=a;
+                    }
+                }
+                r=b.commit_batch(destination,async);
+                return r;
+            }
+        };
+        template<typename Destination,typename Source,typename PixelType>
+        struct draw_icon_helper<Destination,Source,PixelType,true> final {
+            static gfx_result do_draw(Destination& destination, spoint16 location,const Source& source,PixelType forecolor,PixelType backcolor,bool transparent_background , srect16* clip,bool async) {
+                if(transparent_background==false) {
+                    return draw_icon_helper<Destination,Source,PixelType,false>::do_draw(destination,location,source,forecolor,backcolor,transparent_background,clip,async);
+                }
+                srect16 bounds(location,(ssize16)source.dimensions());
+                if(clip!=nullptr) {
+                    bounds = bounds.crop(*clip);
+                }
+                if(!bounds.intersects((srect16)destination.bounds())) {
+                    return gfx_result::success;
+                }
+
+                rect16 srcr = source.bounds();
+                if(location.x!=bounds.x1) {
+                    srcr.x1+=(bounds.x1-location.x);
+                }
+                if(location.y!=bounds.y1) {
+                    srcr.y1+=(bounds.y1-location.y);
+                }
+                if(bounds.x1<0) {
+                    srcr.x1+=-bounds.x1;
+                }
+                if(bounds.y1<0) {
+                    srcr.y1+=-bounds.y1;
+                }
+                if(srcr.x1>srcr.x2||srcr.y1>srcr.y2) {
+                    return gfx_result::success;
+                }
+                bounds = bounds.crop((srect16)destination.bounds());
+                rect16 dstr = (rect16)bounds;
+                gfx_result r;
+                
+                typename Destination::pixel_type dpx,fgpx,bgpx,obgpx;
+                r=convert(forecolor,&fgpx);
+                if(r!=gfx_result::success) {
+                    return r;
+                }
+                double a=NAN, oa=NAN;
+
+                if(r!=gfx_result::success) {
+                    return r;
+                }
+                int w = srcr.x2-srcr.x1+1,h=srcr.y2-srcr.y1+1;
+                auto full_bmp = create_bitmap_from(destination,dstr.dimensions());
+                if(full_bmp.begin()!=nullptr) {
+                    r=copy_to_fast<decltype(full_bmp),decltype(destination),Destination::caps::copy_to>::do_copy(full_bmp,destination,dstr,{0,0});
+                    if(r!=gfx_result::success) {
+                        return r;
+                    }
+                    for(int y = 0;y<h;++y) {
+                        for(int x = 0;x<w;++x) {
+                            point16 pt(x+srcr.x1,y+srcr.y1);
+                            point16 dpt(x,y);
+                            typename Source::pixel_type rpx;
+                            r=source.point(pt,&rpx);
+                            if(r!=gfx_result::success) {
+                                return r;
+                            }
+                            r=full_bmp.point(dpt,&bgpx);
+                            if(r!=gfx_result::success) {
+                                return r;
+                            }
+                            
+                            a = rpx.template channelr<channel_name::A>();
+                            if(a!=oa || obgpx.native_value!=bgpx.native_value) {
+                                dpx = fgpx.blend(bgpx,a);
+                            }
+                            
+                            full_bmp.point(dpt,dpx);
+                            
+                            if(r!=gfx_result::success) {
+                                return r;
+                            }
+                            oa=a;
+                            obgpx = bgpx;
+                        }
+                    }
+                    if(async) {
+                        r=bitmap_async(destination,dstr,full_bmp,full_bmp.bounds());
+                        wait_all_async(destination);
+                    } else {
+                        r=bitmap(destination,dstr,full_bmp,full_bmp.bounds());
+                    }
+                    free(full_bmp.begin());
+                    return r;
+                } 
+                
+                for(int y = 0;y<h;++y) {
+                    for(int x = 0;x<w;++x) {
+                        point16 pt(x+srcr.x1,y+srcr.y1);
+                        point16 dpt(dstr.x1+x,dstr.y1+y);
+                        typename Source::pixel_type rpx;
+                        r=source.point(pt,&rpx);
+                        if(r!=gfx_result::success) {
+                            return r;
+                        }
+                        r=destination.point(dpt,&bgpx);
+                        if(r!=gfx_result::success) {
+                            return r;
+                        }
+                        
+                        a = rpx.template channelr<channel_name::A>();
+                        if(a!=oa || obgpx.native_value!=bgpx.native_value) {
+                            dpx = fgpx.blend(bgpx,a);
+                        }
+                        Serial.println("#");
+                        destination.point(dpt,dpx);
+                        
+                        if(r!=gfx_result::success) {
+                            return r;
+                        }
+                        oa=a;
+                        obgpx = bgpx;
+                    }
+                }
+  
+                return r;
+            }
+        };
+
+        template<typename Destination,typename Source,typename PixelType>
+        static inline gfx_result icon_impl(Destination& destination, spoint16 location,const Source& source,PixelType forecolor,PixelType backcolor,bool transparent_background , srect16* clip,bool async) {
+            static_assert(Source::pixel_type::template has_channel_names<channel_name::A>::value,"The source must have an alpha channel");
+            gfx_result r;
+            // suspend if we can
+            helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination,async);
+            return draw_icon_helper<Destination,Source,PixelType,Destination::caps::read>::do_draw(destination,location,source,forecolor,backcolor,transparent_background,clip,async);
+        }
         template<typename Destination,typename PixelType>
         static gfx_result ellipse_impl(Destination& destination, const srect16& rect,PixelType color,const srect16* clip,bool filled,bool async) {
             gfx_result r;
@@ -3219,7 +3423,7 @@ namespace gfx {
                             fc=nfc;
                         }
                         chr=chr.offset(0,info.font->height());
-                        if(chr.y1>dest_rect.bottom()) {
+                        if(chr.y2>dest_rect.bottom()) {
                             return gfx_result::success;
                         }
                         break;
@@ -3238,7 +3442,7 @@ namespace gfx {
                             chr.x1=dest_rect.x1;
                             chr=chr.offset(0,info.font->height());
                         } 
-                        if(chr.y1>dest_rect.bottom()) {
+                        if(chr.y2>dest_rect.bottom()) {
                             return gfx_result::success;
                         }
                         
@@ -3263,7 +3467,7 @@ namespace gfx {
                                         chr.x1=dest_rect.x1;
                                         chr=chr.offset(0,info.font->height());
                                     }
-                                    if(chr.y1>dest_rect.bottom()) {
+                                    if(chr.y2>dest_rect.bottom()) {
                                         return gfx_result::success;
                                     }
                                     fc=nfc;
@@ -3657,6 +3861,17 @@ namespace gfx {
         static inline gfx_result sprite_async(Destination& destination, spoint16 location, Sprite& sprite,srect16* clip=nullptr) {
             return sprite_impl(destination,location,sprite,clip,true);
         }
+        // draws an icon to the destination at the location with an optional clipping rectangle
+        template<typename Destination,typename Source,typename PixelType>
+        static inline gfx_result icon(Destination& destination, spoint16 location,const Source& source,PixelType forecolor,PixelType backcolor=PixelType(0,true),bool transparent_background = true, srect16* clip=nullptr) {
+            return icon_impl(destination,location,source,forecolor,backcolor,transparent_background,clip,false);
+        }
+        // asynchronously draws an icon to the destination at the location with an optional clipping rectangle
+        template<typename Destination,typename Source,typename PixelType>
+        static inline gfx_result icon_async(Destination& destination, spoint16 location,const Source& source,PixelType forecolor,PixelType backcolor=PixelType(0,true),bool transparent_background = true, srect16* clip=nullptr) {
+            return icon_impl(destination,location,source,forecolor,backcolor,transparent_background,clip,true);
+        }  
+        
         // retrieves a batch writer that can be used to write a batch operation to the display
         template<typename Destination>
         static inline batch_writer<Destination> batch(Destination& destination, const srect16& bounds) {
@@ -3951,6 +4166,17 @@ namespace gfx {
         static inline gfx_result sprite_async(Destination& destination, point16 location, const Sprite& sprite,srect16* clip=nullptr) {
             return sprite_async(destination,(spoint16)location,sprite,clip);
         }  
+        // draws an icon to the destination at the location with an optional clipping rectangle
+        template<typename Destination,typename Source,typename PixelType>
+        static inline gfx_result icon(Destination& destination, point16 location,const Source& source,PixelType forecolor,PixelType backcolor=PixelType(0,true),bool transparent_background = true, srect16* clip=nullptr) {
+            return icon(destination,(spoint16)location,source,forecolor,backcolor,transparent_background,clip);
+        }
+        // asynchronously draws an icon to the destination at the location with an optional clipping rectangle
+        template<typename Destination,typename Source,typename PixelType>
+        static inline gfx_result icon_async(Destination& destination, point16 location,const Source& source,PixelType forecolor,PixelType backcolor=PixelType(0,true),bool transparent_background = true, srect16* clip=nullptr) {
+            return icon_async(destination,(spoint16)location,source,forecolor,backcolor,transparent_background,clip);
+        }  
+        
         // retrieves a batch writer that can be used to write to the destination
         template<typename Destination>
         static inline batch_writer<Destination> batch(Destination& destination, const rect16& bounds) {

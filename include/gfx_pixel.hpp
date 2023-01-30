@@ -429,7 +429,11 @@ namespace gfx {
             const typename PixelType::int_type shval = typename PixelType::int_type(typename PixelType::int_type(helpers::clamp(value,ch::min,ch::max))<<ch::total_bits_to_right);
             pixel_value=typename PixelType::int_type((pixel_value&typename ch::pixel_type::int_type(~ch::channel_mask))|shval);
         }
+        template<typename AlphaTrait,bool HasAlpha, typename... ChannelTraits>
+        struct make_alpha_impl {
 
+        };
+        
     }
     // represents the pixel base class
     template<typename... ChannelTraits> 
@@ -511,6 +515,7 @@ namespace gfx {
         template<typename PixelRhs> using equals = typename helpers::equals_pixel_impl<PixelRhs,ChannelTraits...>;
         // returns true if the two pixels are exactly the same
         template<typename PixelRhs> using equals_exact = typename helpers::is_same<type,PixelRhs>;
+       
         // retrieves the integer channel value without performing compile time checking on Index
         template<int Index>
         constexpr inline typename channel_by_index_unchecked<Index>::int_type channel_unchecked() const {
@@ -755,6 +760,24 @@ namespace gfx {
         channel_traits<channel_name::K,((BitDepth/5)+(BitDepth%5))>,
         channel_traits<channel_name::A,(BitDepth/5)>
     >;
+    template<size_t BitDepth>
+    using alpha_pixel = pixel<
+            channel_traits<
+                channel_name::A,
+                BitDepth,
+                0,
+#if HTCW_MAX_WORD >= 64
+                ((BitDepth==64)?0xFFFFFFFFFFFFFFFF:((1<<BitDepth)-1)), 
+#else
+                ((BitDepth==32)?0xFFFFFFFF:((1<<BitDepth)-1)), 
+#endif
+#if HTCW_MAX_WORD >= 64
+                ((BitDepth==64)?0xFFFFFFFFFFFFFFFF:((1<<BitDepth)-1))
+#else
+                ((BitDepth==32)?0xFFFFFFFF:((1<<BitDepth)-1))
+#endif
+>>;
+    
     namespace helpers {
         struct dither {
          //	16x16 Bayer Dithering Matrix.  Color levels: 256

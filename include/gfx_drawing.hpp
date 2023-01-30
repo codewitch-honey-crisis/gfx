@@ -1896,7 +1896,6 @@ namespace gfx {
                         if(a!=oa || obgpx.native_value!=bgpx.native_value) {
                             dpx = fgpx.blend(bgpx,a);
                         }
-                        Serial.println("#");
                         destination.point(dpt,dpx);
                         
                         if(r!=gfx_result::success) {

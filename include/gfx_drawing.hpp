@@ -1834,49 +1834,51 @@ namespace gfx {
                     return r;
                 }
                 int w = srcr.x2-srcr.x1+1,h=srcr.y2-srcr.y1+1;
+                if(!Destination::caps::blt) {
                 auto full_bmp = create_bitmap_from(destination,dstr.dimensions());
-                if(full_bmp.begin()!=nullptr) {
-                    r=copy_to_fast<decltype(full_bmp),decltype(destination),Destination::caps::copy_to>::do_copy(full_bmp,destination,dstr,{0,0});
-                    if(r!=gfx_result::success) {
-                        return r;
-                    }
-                    for(int y = 0;y<h;++y) {
-                        for(int x = 0;x<w;++x) {
-                            point16 pt(x+srcr.x1,y+srcr.y1);
-                            point16 dpt(x,y);
-                            typename Source::pixel_type rpx;
-                            r=source.point(pt,&rpx);
-                            if(r!=gfx_result::success) {
-                                return r;
-                            }
-                            r=full_bmp.point(dpt,&bgpx);
-                            if(r!=gfx_result::success) {
-                                return r;
-                            }
-                            
-                            a = rpx.template channelr<channel_name::A>();
-                            if(a!=oa || obgpx.native_value!=bgpx.native_value) {
-                                dpx = fgpx.blend(bgpx,a);
-                            }
-                            
-                            full_bmp.point(dpt,dpx);
-                            
-                            if(r!=gfx_result::success) {
-                                return r;
-                            }
-                            oa=a;
-                            obgpx = bgpx;
+                    if(full_bmp.begin()!=nullptr) {
+                        r=copy_to_fast<decltype(full_bmp),decltype(destination),Destination::caps::copy_to>::do_copy(full_bmp,destination,dstr,{0,0});
+                        if(r!=gfx_result::success) {
+                            return r;
                         }
-                    }
-                    if(async) {
-                        r=bitmap_async(destination,dstr,full_bmp,full_bmp.bounds());
-                        wait_all_async(destination);
-                    } else {
-                        r=bitmap(destination,dstr,full_bmp,full_bmp.bounds());
-                    }
-                    free(full_bmp.begin());
-                    return r;
-                } 
+                        for(int y = 0;y<h;++y) {
+                            for(int x = 0;x<w;++x) {
+                                point16 pt(x+srcr.x1,y+srcr.y1);
+                                point16 dpt(x,y);
+                                typename Source::pixel_type rpx;
+                                r=source.point(pt,&rpx);
+                                if(r!=gfx_result::success) {
+                                    return r;
+                                }
+                                r=full_bmp.point(dpt,&bgpx);
+                                if(r!=gfx_result::success) {
+                                    return r;
+                                }
+                                
+                                a = rpx.template channelr<channel_name::A>();
+                                if(a!=oa || obgpx.native_value!=bgpx.native_value) {
+                                    dpx = fgpx.blend(bgpx,a);
+                                }
+                                
+                                full_bmp.point(dpt,dpx);
+                                
+                                if(r!=gfx_result::success) {
+                                    return r;
+                                }
+                                oa=a;
+                                obgpx = bgpx;
+                            }
+                        }
+                        if(async) {
+                            r=bitmap_async(destination,dstr,full_bmp,full_bmp.bounds());
+                            wait_all_async(destination);
+                        } else {
+                            r=bitmap(destination,dstr,full_bmp,full_bmp.bounds());
+                        }
+                        free(full_bmp.begin());
+                        return r;
+                    } 
+                }
                 
                 for(int y = 0;y<h;++y) {
                     for(int x = 0;x<w;++x) {

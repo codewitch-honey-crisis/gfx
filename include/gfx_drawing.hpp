@@ -1750,11 +1750,11 @@ namespace gfx {
                 gfx_result r;
                 
                 typename Destination::pixel_type dpx,fgpx,bgpx;
-                r=convert(forecolor,&fgpx);
+                r=convert_palette_from(destination,forecolor,&fgpx);
                 if(r!=gfx_result::success) {
                     return r;
                 }
-                r=convert(backcolor,&bgpx);
+                r=convert_palette_from(destination,backcolor,&bgpx);
                 if(r!=gfx_result::success) {
                     return r;
                 }
@@ -1797,7 +1797,17 @@ namespace gfx {
         struct draw_icon_helper<Destination,Source,PixelType,true> final {
             static gfx_result do_draw(Destination& destination, spoint16 location,const Source& source,PixelType forecolor,PixelType backcolor,bool transparent_background ,bool invert, srect16* clip,bool async) {
                 if(transparent_background==false) {
-                    return draw_icon_helper<Destination,Source,PixelType,false>::do_draw(destination,location,source,forecolor,backcolor,transparent_background,invert,clip,async);
+                    bool opaque = true;
+                    if(PixelType::template has_channel_names<channel_name::A>::value) {
+                        constexpr static const size_t i = PixelType::template channel_index_by_name<channel_name::A>::value;
+                        if(forecolor.template channelr_unchecked<i>()!=1.0 ||
+                        backcolor.template channelr_unchecked<i>()!=1.0) {
+                            opaque=false;
+                        }
+                    }
+                    if(opaque) {
+                        return draw_icon_helper<Destination,Source,PixelType,false>::do_draw(destination,location,source,forecolor,backcolor,transparent_background,invert,clip,async);
+                    }
                 }
                 srect16 bounds(location,(ssize16)source.dimensions());
                 if(clip!=nullptr) {
@@ -1826,9 +1836,19 @@ namespace gfx {
                 bounds = bounds.crop((srect16)destination.bounds());
                 rect16 dstr = (rect16)bounds;
                 gfx_result r;
-                
+                if(transparent_background==false) {
+                    r=filled_rectangle(destination,dstr,backcolor);
+                    if(r!=gfx_result::success) {
+                        return r;
+                    }
+                }
+                constexpr static const size_t a_idx = PixelType::template channel_index_by_name<channel_name::A>::value;
+                auto alpha_factor = 1.0;
+                if(a_idx!=-1) {
+                    alpha_factor=forecolor.template channelr_unchecked<a_idx>();
+                }
                 typename Destination::pixel_type dpx,fgpx,bgpx,obgpx;
-                r=convert(forecolor,&fgpx);
+                r=convert_palette_from(destination,forecolor,&fgpx);
                 if(r!=gfx_result::success) {
                     return r;
                 }
@@ -1864,7 +1884,7 @@ namespace gfx {
                                     a=1.0-a; 
                                 }
                                 if(a!=oa || obgpx.native_value!=bgpx.native_value) {
-                                    dpx = fgpx.blend(bgpx,a);
+                                    dpx = fgpx.blend(bgpx,a*alpha_factor);
                                 }
                                 
                                 full_bmp.point(dpt,dpx);
@@ -1906,7 +1926,7 @@ namespace gfx {
                             a=1.0-a; 
                         }
                         if(a!=oa || obgpx.native_value!=bgpx.native_value) {
-                            dpx = fgpx.blend(bgpx,a);
+                            dpx = fgpx.blend(bgpx,a*alpha_factor);
                         }
                         destination.point(dpt,dpx);
                         

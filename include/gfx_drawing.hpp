@@ -4217,9 +4217,7 @@ namespace gfx {
         template<typename Destination>
         static inline batch_writer<Destination> batch_async(Destination& destination, const rect16& bounds) {
             return batch_writer<Destination>(destination,(srect16)bounds,true);
-        }
-
-        
+        }     
     };
     // provides an RAII token that can be used to suspend drawing during its scope
     template<typename Destination>

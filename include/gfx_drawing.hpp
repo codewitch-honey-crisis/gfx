@@ -1720,7 +1720,7 @@ namespace gfx {
         };
         template<typename Destination,typename Source,typename PixelType>
         struct draw_icon_helper<Destination,Source,PixelType,false> final {
-            static gfx_result do_draw(Destination& destination, spoint16 location,const Source& source,PixelType forecolor,PixelType backcolor,bool transparent_background , srect16* clip,bool async) {
+            static gfx_result do_draw(Destination& destination, spoint16 location,const Source& source,PixelType forecolor,PixelType backcolor,bool transparent_background ,bool invert, srect16* clip,bool async) {
                 srect16 bounds(location,(ssize16)source.dimensions());
                 if(clip!=nullptr) {
                     bounds = bounds.crop(*clip);
@@ -1773,6 +1773,10 @@ namespace gfx {
                             return r;
                         }
                         a = rpx.template channelr<channel_name::A>();
+                        if(invert) {
+                            a=1.0-a;    
+                        }
+                        
                         if(a!=oa) {
                             dpx = fgpx.blend(bgpx,a);
                       
@@ -1791,9 +1795,9 @@ namespace gfx {
         };
         template<typename Destination,typename Source,typename PixelType>
         struct draw_icon_helper<Destination,Source,PixelType,true> final {
-            static gfx_result do_draw(Destination& destination, spoint16 location,const Source& source,PixelType forecolor,PixelType backcolor,bool transparent_background , srect16* clip,bool async) {
+            static gfx_result do_draw(Destination& destination, spoint16 location,const Source& source,PixelType forecolor,PixelType backcolor,bool transparent_background ,bool invert, srect16* clip,bool async) {
                 if(transparent_background==false) {
-                    return draw_icon_helper<Destination,Source,PixelType,false>::do_draw(destination,location,source,forecolor,backcolor,transparent_background,clip,async);
+                    return draw_icon_helper<Destination,Source,PixelType,false>::do_draw(destination,location,source,forecolor,backcolor,transparent_background,invert,clip,async);
                 }
                 srect16 bounds(location,(ssize16)source.dimensions());
                 if(clip!=nullptr) {
@@ -1856,6 +1860,9 @@ namespace gfx {
                                 }
                                 
                                 a = rpx.template channelr<channel_name::A>();
+                                if(invert) {
+                                    a=1.0-a; 
+                                }
                                 if(a!=oa || obgpx.native_value!=bgpx.native_value) {
                                     dpx = fgpx.blend(bgpx,a);
                                 }
@@ -1895,6 +1902,9 @@ namespace gfx {
                         }
                         
                         a = rpx.template channelr<channel_name::A>();
+                        if(invert) {
+                            a=1.0-a; 
+                        }
                         if(a!=oa || obgpx.native_value!=bgpx.native_value) {
                             dpx = fgpx.blend(bgpx,a);
                         }
@@ -1913,12 +1923,12 @@ namespace gfx {
         };
 
         template<typename Destination,typename Source,typename PixelType>
-        static inline gfx_result icon_impl(Destination& destination, spoint16 location,const Source& source,PixelType forecolor,PixelType backcolor,bool transparent_background , srect16* clip,bool async) {
+        static inline gfx_result icon_impl(Destination& destination, spoint16 location,const Source& source,PixelType forecolor,PixelType backcolor,bool transparent_background , bool invert,srect16* clip,bool async) {
             static_assert(Source::pixel_type::template has_channel_names<channel_name::A>::value,"The source must have an alpha channel");
             gfx_result r;
             // suspend if we can
             helpers::suspender<Destination,Destination::caps::suspend,Destination::caps::async> stok(destination,async);
-            return draw_icon_helper<Destination,Source,PixelType,Destination::caps::read>::do_draw(destination,location,source,forecolor,backcolor,transparent_background,clip,async);
+            return draw_icon_helper<Destination,Source,PixelType,Destination::caps::read>::do_draw(destination,location,source,forecolor,backcolor,transparent_background,invert,clip,async);
         }
         template<typename Destination,typename PixelType>
         static gfx_result ellipse_impl(Destination& destination, const srect16& rect,PixelType color,const srect16* clip,bool filled,bool async) {
@@ -3864,13 +3874,13 @@ namespace gfx {
         }
         // draws an icon to the destination at the location with an optional clipping rectangle
         template<typename Destination,typename Source,typename PixelType>
-        static inline gfx_result icon(Destination& destination, spoint16 location,const Source& source,PixelType forecolor,PixelType backcolor=PixelType(0,true),bool transparent_background = true, srect16* clip=nullptr) {
-            return icon_impl(destination,location,source,forecolor,backcolor,transparent_background,clip,false);
+        static inline gfx_result icon(Destination& destination, spoint16 location,const Source& source,PixelType forecolor,PixelType backcolor=PixelType(0,true),bool transparent_background = true, bool invert=false, srect16* clip=nullptr) {
+            return icon_impl(destination,location,source,forecolor,backcolor,transparent_background,invert,clip,false);
         }
         // asynchronously draws an icon to the destination at the location with an optional clipping rectangle
         template<typename Destination,typename Source,typename PixelType>
-        static inline gfx_result icon_async(Destination& destination, spoint16 location,const Source& source,PixelType forecolor,PixelType backcolor=PixelType(0,true),bool transparent_background = true, srect16* clip=nullptr) {
-            return icon_impl(destination,location,source,forecolor,backcolor,transparent_background,clip,true);
+        static inline gfx_result icon_async(Destination& destination, spoint16 location,const Source& source,PixelType forecolor,PixelType backcolor=PixelType(0,true),bool transparent_background = true, bool invert=false, srect16* clip=nullptr) {
+            return icon_impl(destination,location,source,forecolor,backcolor,transparent_background,invert,clip,true);
         }  
         
         // retrieves a batch writer that can be used to write a batch operation to the display
@@ -4169,13 +4179,13 @@ namespace gfx {
         }  
         // draws an icon to the destination at the location with an optional clipping rectangle
         template<typename Destination,typename Source,typename PixelType>
-        static inline gfx_result icon(Destination& destination, point16 location,const Source& source,PixelType forecolor,PixelType backcolor=PixelType(0,true),bool transparent_background = true, srect16* clip=nullptr) {
-            return icon(destination,(spoint16)location,source,forecolor,backcolor,transparent_background,clip);
+        static inline gfx_result icon(Destination& destination, point16 location,const Source& source,PixelType forecolor,PixelType backcolor=PixelType(0,true),bool transparent_background = true, bool invert=false, srect16* clip=nullptr) {
+            return icon(destination,(spoint16)location,source,forecolor,backcolor,transparent_background,invert,clip);
         }
         // asynchronously draws an icon to the destination at the location with an optional clipping rectangle
         template<typename Destination,typename Source,typename PixelType>
-        static inline gfx_result icon_async(Destination& destination, point16 location,const Source& source,PixelType forecolor,PixelType backcolor=PixelType(0,true),bool transparent_background = true, srect16* clip=nullptr) {
-            return icon_async(destination,(spoint16)location,source,forecolor,backcolor,transparent_background,clip);
+        static inline gfx_result icon_async(Destination& destination, point16 location,const Source& source,PixelType forecolor,PixelType backcolor=PixelType(0,true),bool transparent_background = true, bool invert = false,srect16* clip=nullptr) {
+            return icon_async(destination,(spoint16)location,source,forecolor,backcolor,transparent_background,invert,clip);
         }  
         
         // retrieves a batch writer that can be used to write to the destination

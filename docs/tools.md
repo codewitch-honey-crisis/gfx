@@ -8,6 +8,8 @@ GFX provides a couple of tools for embedding data into your code as a C++ header
 
 For the web based version of these tools, [click here](https://honeythecodewitch.com/gfx/generator)
 
+The GFX website also provides a catalog of icons to use in your projects. For that page, [click here](https://honeythecodewitch.com/gfx/iconPack)
+
 <a name="9.1"></a>
 
 ## 9.1 Bingen

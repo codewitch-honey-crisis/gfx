@@ -41,5 +41,5 @@ jobs:
       - name: Build project
         run: pio package pack
       - name: Publish project
-        run: ./github/scripts/publish.sh
+        run: ./.github/scripts/publish.sh
         shell: bash

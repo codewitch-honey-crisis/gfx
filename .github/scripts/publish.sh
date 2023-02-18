@@ -28,5 +28,4 @@ if [[ "${LATEST_VERSION}" = "${LIBRARY_VERSION}" ]]; then
   exit 0
 fi
 
-pio package pack
 pio package publish --non-interactive

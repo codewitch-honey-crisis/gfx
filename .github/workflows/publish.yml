@@ -1,0 +1,45 @@
+name: Publish
+on:
+  push:
+    branches:
+      - "master"
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.platformio/.cache
+          key: ${{ runner.os }}-pio
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.9"
+      - name: Install PlatformIO
+        run: pip install --upgrade platformio
+      - name: Test project
+        run: ./.github/scripts/test.sh
+        shell: bash
+  publish:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.platformio/.cache
+          key: ${{ runner.os }}-pio
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.9"
+      - name: Install PlatformIO
+        run: pip install --upgrade platformio
+      - name: Build project
+        run: pio package pack
+      - name: Publish project
+        run: ./github/scripts/publish.sh
+        shell: bash

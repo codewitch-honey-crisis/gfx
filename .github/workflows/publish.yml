@@ -41,5 +41,7 @@ jobs:
       - name: Build project
         run: pio package pack
       - name: Publish project
+        env:
+          PLATFORMIO_AUTH_TOKEN: ${{ secrets.PLATFORMIO_AUTH_TOKEN }}
         run: ./.github/scripts/publish.sh
         shell: bash

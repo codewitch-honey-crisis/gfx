@@ -1673,7 +1673,7 @@ namespace gfx {
             return true;
         }
         template<typename Destination,typename Sprite>
-        static gfx_result sprite_impl(Destination& destination, const spoint16& location, const Sprite& source,srect16* clip = nullptr,bool async=false) {
+        static gfx_result sprite_impl(Destination& destination, const spoint16& location, const Sprite& source,const srect16* clip = nullptr,bool async=false) {
             static_assert(helpers::is_same<typename Destination::pixel_type,typename Sprite::pixel_type>::value,"Sprite and Destination pixel types must be the same");
             const size16 size = source.dimensions();
             const srect16 db;
@@ -1943,7 +1943,7 @@ namespace gfx {
         };
 
         template<typename Destination,typename Source,typename PixelType>
-        static inline gfx_result icon_impl(Destination& destination, spoint16 location,const Source& source,PixelType forecolor,PixelType backcolor,bool transparent_background , bool invert,srect16* clip,bool async) {
+        static inline gfx_result icon_impl(Destination& destination, spoint16 location,const Source& source,PixelType forecolor,PixelType backcolor,bool transparent_background , bool invert,const srect16* clip,bool async) {
             static_assert(Source::pixel_type::template has_channel_names<channel_name::A>::value,"The source must have an alpha channel");
             gfx_result r;
             // suspend if we can
@@ -2799,7 +2799,11 @@ namespace gfx {
             rect16 r;
             if(!translate_adjust(sr,&r))
                 return gfx_result::success;
+            if(!r.intersects(destination.bounds())) {
+                return gfx_result::success;
+            }
             r=r.crop(destination.bounds());
+            
             if(async)
                 return draw_filled_rect_helper<Destination,PixelType,Destination::caps::copy_to,Destination::caps::async>::do_draw(destination,r,color,true);
             return draw_filled_rect_helper<Destination,PixelType,Destination::caps::copy_to,false>::do_draw(destination,r,color,false);
@@ -3020,17 +3024,21 @@ namespace gfx {
 
         template<typename Destination,typename PixelType>
         static gfx_result line_impl(Destination& destination, const srect16& rect,PixelType color,const srect16* clip,bool async) {
-            if(rect.x1==rect.x2||rect.y1==rect.y2) {
-                return filled_rectangle_impl(destination,rect,color,clip,async);
-            }
             srect16 c = (nullptr!=clip)?*clip:rect;
             ssize16 ss;
             translate(destination.dimensions(),&ss);
             c = c.crop(srect16(spoint16(0,0),ss));
             srect16 r = rect;
+            if(!c.intersects(r)) {
+                return gfx_result::success;
+            }
             if(!c.contains(r)) {
                  line_clip(&r,&c);
             }
+            if(rect.x1==rect.x2||rect.y1==rect.y2) {
+                return filled_rectangle_impl(destination,rect,color,clip,async);
+            }
+            
             
             float xinc,yinc,x,y,ox,oy;
             float dx,dy,e;
@@ -3305,7 +3313,7 @@ namespace gfx {
             return arc_impl(destination,srect16(spoint16(sr.x2-rw,sr.y2-rh),ssize16(rw+1,rh+1)).flip_all(),color,clip,true,async);
         }
         template<typename Destination>
-        static gfx_result image_impl(Destination& destination, const srect16& destination_rect, stream* source_stream, const rect16& source_rect,bitmap_resize resize_type, srect16* clip,bool async) {
+        static gfx_result image_impl(Destination& destination, const srect16& destination_rect, stream* source_stream, const rect16& source_rect,bitmap_resize resize_type, const srect16* clip,bool async) {
                 struct load_context {
                     Destination& destination;
                     srect16 dst_rect;
@@ -3421,7 +3429,7 @@ namespace gfx {
             const text_info& info,
             PixelType color,
             PixelType backcolor,
-            srect16* clip,
+            const srect16* clip,
             bool async) {
             gfx_result r=gfx_result::success;
             if(nullptr==info.text || nullptr==info.font)
@@ -3518,7 +3526,7 @@ namespace gfx {
             const open_text_info& info,
             PixelType color,
             PixelType backcolor,
-            srect16* clip,
+            const srect16* clip,
             bool async) {
             gfx_result r=gfx_result::success;
             if(nullptr==info.text || nullptr==info.font || 0==info.scale)
@@ -3770,7 +3778,7 @@ namespace gfx {
             PixelType backcolor=convert<::gfx::rgb_pixel<3>,PixelType>(::gfx::rgb_pixel<3>(0,0,0)),
             bool transparent_background = true,
             unsigned int tab_width=4,
-            srect16* clip=nullptr) {
+            const srect16* clip=nullptr) {
             text_info info(text,font,transparent_background,tab_width);
             return text_impl(destination,dest_rect,info,color,backcolor,clip,false);
         }
@@ -3782,7 +3790,7 @@ namespace gfx {
             const text_info& info,
             PixelType color,
             PixelType backcolor=convert<::gfx::rgb_pixel<3>,PixelType>(::gfx::rgb_pixel<3>(0,0,0)),
-            srect16* clip=nullptr) {
+            const srect16* clip=nullptr) {
             return text_impl(destination,dest_rect,info,color,backcolor,clip,false);
         }
         // asynchronously draws text to the specified destination rectangle with the specified font and colors and optional clipping rectangle
@@ -3793,7 +3801,7 @@ namespace gfx {
             const text_info& info,
             PixelType color,
             PixelType backcolor=convert<::gfx::rgb_pixel<3>,PixelType>(::gfx::rgb_pixel<3>(0,0,0)),
-            srect16* clip=nullptr) {
+            const srect16* clip=nullptr) {
             return text_impl(destination,dest_rect,info,color,backcolor,clip,true);
         }
         // draws text to the specified destination rectangle with the specified font and colors and optional clipping rectangle
@@ -3811,7 +3819,7 @@ namespace gfx {
             bool no_antialiasing = false,
             float scaled_tab_width=0,
             gfx_encoding encoding=gfx_encoding::utf8,
-            srect16* clip=nullptr,
+            const srect16* clip=nullptr,
             open_font_cache* cache = nullptr) {
             open_text_info info(text,font,scale,offset,transparent_background,no_antialiasing,scaled_tab_width,encoding,cache);
             return text_impl(destination,dest_rect,info,color,backcolor,clip,false);
@@ -3831,7 +3839,7 @@ namespace gfx {
             bool no_antialiasing = false,
             gfx_encoding encoding=gfx_encoding::utf8,
             float scaled_tab_width=0,
-            srect16* clip=nullptr,
+            const srect16* clip=nullptr,
             open_font_cache* cache=nullptr) {
             open_text_info info(text,font,scale,offset,transparent_background,no_antialiasing,scaled_tab_width,encoding,cache);
             return text_impl(destination,dest_rect,info,color,backcolor,clip,true);
@@ -3844,7 +3852,7 @@ namespace gfx {
             const open_text_info& info,
             PixelType color,
             PixelType backcolor=convert<::gfx::rgb_pixel<3>,PixelType>(::gfx::rgb_pixel<3>(0,0,0)),
-            srect16* clip=nullptr) {
+            const srect16* clip=nullptr) {
             return text_impl(destination,dest_rect,info,color,backcolor,clip,false);
         }
         // asynchronously draws text to the specified destination rectangle with the specified font and colors and optional clipping rectangle
@@ -3855,51 +3863,51 @@ namespace gfx {
             const open_text_info& info,
             PixelType color,
             PixelType backcolor=convert<::gfx::rgb_pixel<3>,PixelType>(::gfx::rgb_pixel<3>(0,0,0)),
-            srect16* clip=nullptr) {
+            const srect16* clip=nullptr) {
             return text_impl(destination,dest_rect,info,color,backcolor,clip,true);
         }
         // draws an image from the specified stream to the specified destination rectangle with the an optional clipping rectangle
         template<typename Destination>
-        static inline gfx_result image(Destination& destination, const srect16& destination_rect, stream* source_stream, const rect16& source_rect={0,0,65535,65535},bitmap_resize resize_type=bitmap_resize::crop, srect16* clip=nullptr) {
+        static inline gfx_result image(Destination& destination, const srect16& destination_rect, stream* source_stream, const rect16& source_rect={0,0,65535,65535},bitmap_resize resize_type=bitmap_resize::crop, const srect16* clip=nullptr) {
             return image_impl(destination,destination_rect,source_stream,source_rect,resize_type,clip,false);
         }
         // asynchronously draws an image from the specified stream to the specified destination rectangle with the an optional clipping rectangle
         template<typename Destination>
-        static inline gfx_result image_async(Destination& destination, const srect16& destination_rect, stream* source_stream, const rect16& source_rect={0,0,65535,65535},bitmap_resize resize_type=bitmap_resize::crop, srect16* clip=nullptr) {
+        static inline gfx_result image_async(Destination& destination, const srect16& destination_rect, stream* source_stream, const rect16& source_rect={0,0,65535,65535},bitmap_resize resize_type=bitmap_resize::crop, const srect16* clip=nullptr) {
             return image_impl(destination,destination_rect,source_stream,source_rect,resize_type,clip,true);
         }
 #ifdef ARDUINO
         // draws an image from the specified stream to the specified destination rectangle with the an optional clipping rectangle
         template<typename Destination>
-        static inline gfx_result image(Destination& destination, const srect16& destination_rect, Stream* source_stream, const rect16& source_rect={0,0,65535,65535},bitmap_resize resize_type=bitmap_resize::crop, srect16* clip=nullptr) {
+        static inline gfx_result image(Destination& destination, const srect16& destination_rect, Stream* source_stream, const rect16& source_rect={0,0,65535,65535},bitmap_resize resize_type=bitmap_resize::crop, const srect16* clip=nullptr) {
             arduino_stream stm(source_stream);
             return image_impl(destination,destination_rect,&stm,source_rect,resize_type,clip,false);
         }
         // asynchronously draws an image from the specified stream to the specified destination rectangle with the an optional clipping rectangle
         template<typename Destination>
-        static inline gfx_result image_async(Destination& destination, const srect16& destination_rect, Stream* source_stream,const rect16& source_rect={0,0,65535,65535},bitmap_resize resize_type=bitmap_resize::crop, srect16* clip=nullptr) {
+        static inline gfx_result image_async(Destination& destination, const srect16& destination_rect, Stream* source_stream,const rect16& source_rect={0,0,65535,65535},bitmap_resize resize_type=bitmap_resize::crop, const srect16* clip=nullptr) {
             arduino_stream stm(source_stream);
             return image_impl(destination,destination_rect,&stm,source_rect,resize_type,clip,true);
         }
 #endif
         // draws a sprite to the destination at the specified location with an optional clipping rectangle
         template<typename Destination,typename Sprite>
-        static inline gfx_result sprite(Destination& destination, spoint16 location,const Sprite& sprite,srect16* clip=nullptr) {
+        static inline gfx_result sprite(Destination& destination, spoint16 location,const Sprite& sprite,const srect16* clip=nullptr) {
             return sprite_impl(destination,location,sprite,clip,false);
         }
         // asynchronously draws a sprite to the destination at the specified location with an optional clipping rectangle
         template<typename Destination,typename Sprite>
-        static inline gfx_result sprite_async(Destination& destination, spoint16 location, Sprite& sprite,srect16* clip=nullptr) {
+        static inline gfx_result sprite_async(Destination& destination, spoint16 location, Sprite& sprite,const srect16* clip=nullptr) {
             return sprite_impl(destination,location,sprite,clip,true);
         }
         // draws an icon to the destination at the location with an optional clipping rectangle
         template<typename Destination,typename Source,typename PixelType>
-        static inline gfx_result icon(Destination& destination, spoint16 location,const Source& source,PixelType forecolor,PixelType backcolor=PixelType(0,true),bool transparent_background = true, bool invert=false, srect16* clip=nullptr) {
+        static inline gfx_result icon(Destination& destination, spoint16 location,const Source& source,PixelType forecolor,PixelType backcolor=PixelType(0,true),bool transparent_background = true, bool invert=false, const srect16* clip=nullptr) {
             return icon_impl(destination,location,source,forecolor,backcolor,transparent_background,invert,clip,false);
         }
         // asynchronously draws an icon to the destination at the location with an optional clipping rectangle
         template<typename Destination,typename Source,typename PixelType>
-        static inline gfx_result icon_async(Destination& destination, spoint16 location,const Source& source,PixelType forecolor,PixelType backcolor=PixelType(0,true),bool transparent_background = true, bool invert=false, srect16* clip=nullptr) {
+        static inline gfx_result icon_async(Destination& destination, spoint16 location,const Source& source,PixelType forecolor,PixelType backcolor=PixelType(0,true),bool transparent_background = true, bool invert=false, const srect16* clip=nullptr) {
             return icon_impl(destination,location,source,forecolor,backcolor,transparent_background,invert,clip,true);
         }  
         
@@ -4066,7 +4074,7 @@ namespace gfx {
             PixelType backcolor=convert<::gfx::rgb_pixel<3>,PixelType>(::gfx::rgb_pixel<3>(0,0,0)),
             bool transparent_background = true,
             unsigned int tab_width=4,
-            srect16* clip=nullptr) {
+            const srect16* clip=nullptr) {
             return draw::text(destination,(srect16)dest_rect,text,font,color,backcolor,transparent_background,tab_width,clip);
         }
         // asynchronously draws text to the specified destination rectangle with the specified font and colors and optional clipping rectangle
@@ -4080,7 +4088,7 @@ namespace gfx {
             PixelType backcolor=convert<::gfx::rgb_pixel<3>,PixelType>(::gfx::rgb_pixel<3>(0,0,0)),
             bool transparent_background = true,
             unsigned int tab_width=4,
-            srect16* clip=nullptr) {
+            const srect16* clip=nullptr) {
             return text_async(destination,(srect16)dest_rect,text,font,color,backcolor,transparent_background,tab_width,clip);
         }
         // draws text to the specified destination rectangle with the specified font and colors and optional clipping rectangle
@@ -4091,7 +4099,7 @@ namespace gfx {
             const text_info& info,
             PixelType color,
             PixelType backcolor=convert<::gfx::rgb_pixel<3>,PixelType>(::gfx::rgb_pixel<3>(0,0,0)),
-            srect16* clip=nullptr) {
+            const srect16* clip=nullptr) {
             return draw::text(destination,(srect16)dest_rect,info,color,backcolor,clip);
         }
         // asynchronously draws text to the specified destination rectangle with the specified font and colors and optional clipping rectangle
@@ -4102,7 +4110,7 @@ namespace gfx {
             const text_info& info,
             PixelType color,
             PixelType backcolor=convert<::gfx::rgb_pixel<3>,PixelType>(::gfx::rgb_pixel<3>(0,0,0)),
-            srect16* clip=nullptr) {
+            const srect16* clip=nullptr) {
             return text_async(destination,(srect16)dest_rect,info,color,backcolor,clip);
         }
         // draws text to the specified destination rectangle with the specified font and colors and optional clipping rectangle
@@ -4120,7 +4128,7 @@ namespace gfx {
             bool no_antialiasing = false,
             float scaled_tab_width=0,
             gfx_encoding encoding=gfx_encoding::utf8,
-            srect16* clip=nullptr,
+            const srect16* clip=nullptr,
             open_font_cache* cache = nullptr) {
             return draw::text(destination,(srect16)dest_rect,offset,text,font,scale,color,backcolor,transparent_background,no_antialiasing,scaled_tab_width,encoding,clip,cache);
         }
@@ -4139,7 +4147,7 @@ namespace gfx {
             bool no_antialiasing = false,
             float scaled_tab_width=0,
             gfx_encoding encoding=gfx_encoding::utf8,
-            srect16* clip=nullptr,
+            const srect16* clip=nullptr,
             open_font_cache* cache=nullptr) {
             return draw::text(destination,(srect16)dest_rect,offset,text,font,scale,color,backcolor,transparent_background,no_antialiasing,scaled_tab_width,encoding,clip,cache);
         }
@@ -4151,7 +4159,7 @@ namespace gfx {
             const open_text_info& info,
             PixelType color,
             PixelType backcolor=convert<::gfx::rgb_pixel<3>,PixelType>(::gfx::rgb_pixel<3>(0,0,0)),
-            srect16* clip=nullptr) {
+            const srect16* clip=nullptr) {
             return draw::text(destination,(srect16)dest_rect,info,color,backcolor,clip);
         }
         // asynchronously draws text to the specified destination rectangle with the specified font and colors and optional clipping rectangle
@@ -4162,49 +4170,49 @@ namespace gfx {
             const open_text_info& info,
             PixelType color,
             PixelType backcolor=convert<::gfx::rgb_pixel<3>,PixelType>(::gfx::rgb_pixel<3>(0,0,0)),
-            srect16* clip=nullptr) {
+            const srect16* clip=nullptr) {
             return draw::text(destination,(srect16)dest_rect,info,color,backcolor,clip);
         }
         // draws an image from the specified stream to the specified destination rectangle with the an optional clipping rectangle
         template<typename Destination>
-        static inline gfx_result image(Destination& destination, const rect16& destination_rect, stream* source_stream, const rect16& source_rect={0,0,65535,65535},bitmap_resize resize_type=bitmap_resize::crop, srect16* clip=nullptr) {
+        static inline gfx_result image(Destination& destination, const rect16& destination_rect, stream* source_stream, const rect16& source_rect={0,0,65535,65535},bitmap_resize resize_type=bitmap_resize::crop, const srect16* clip=nullptr) {
             return image(destination,(srect16)destination_rect,source_stream,source_rect,resize_type,clip);
         }
         // asynchronously draws an image from the specified stream to the specified destination rectangle with the an optional clipping rectangle
         template<typename Destination>
-        static inline gfx_result image_async(Destination& destination, const rect16& destination_rect, stream* source_stream, const rect16& source_rect={0,0,65535,65535},bitmap_resize resize_type=bitmap_resize::crop, srect16* clip=nullptr) {
+        static inline gfx_result image_async(Destination& destination, const rect16& destination_rect, stream* source_stream, const rect16& source_rect={0,0,65535,65535},bitmap_resize resize_type=bitmap_resize::crop, const srect16* clip=nullptr) {
             return image_async(destination,(srect16)destination_rect,source_stream,source_rect,resize_type,clip);
         }
 #ifdef ARDUINO
         // draws an image from the specified stream to the specified destination rectangle with the an optional clipping rectangle
         template<typename Destination>
-        static inline gfx_result image(Destination& destination, const rect16& destination_rect, Stream* source_stream, const rect16& source_rect={0,0,65535,65535},bitmap_resize resize_type=bitmap_resize::crop, srect16* clip=nullptr) {
+        static inline gfx_result image(Destination& destination, const rect16& destination_rect, Stream* source_stream, const rect16& source_rect={0,0,65535,65535},bitmap_resize resize_type=bitmap_resize::crop, const srect16* clip=nullptr) {
             return image(destination,(srect16)destination_rect,source_stream,source_rect,resize_type,clip);
         }
         // asynchronously draws an image from the specified stream to the specified destination rectangle with the an optional clipping rectangle
         template<typename Destination>
-        static inline gfx_result image_async(Destination& destination, const rect16& destination_rect, Stream* source_stream,const rect16& source_rect={0,0,65535,65535},bitmap_resize resize_type=bitmap_resize::crop, srect16* clip=nullptr) {
+        static inline gfx_result image_async(Destination& destination, const rect16& destination_rect, Stream* source_stream,const rect16& source_rect={0,0,65535,65535},bitmap_resize resize_type=bitmap_resize::crop, const srect16* clip=nullptr) {
             return image_async(destination,(srect16)destination_rect,source_stream,source_rect,resize_type,clip);
         }
 #endif
         // draws a sprite to the destination at the location with an optional clipping rectangle
         template<typename Destination,typename Sprite>
-        static inline gfx_result sprite(Destination& destination, point16 location,const Sprite& the_sprite,srect16* clip=nullptr) {
+        static inline gfx_result sprite(Destination& destination, point16 location,const Sprite& the_sprite,const srect16* clip=nullptr) {
             return sprite(destination,(spoint16)location,the_sprite,clip);
         }
         // asynchronously draws a sprite to the destination at the location with an optional clipping rectangle
         template<typename Destination,typename Sprite>
-        static inline gfx_result sprite_async(Destination& destination, point16 location, const Sprite& sprite,srect16* clip=nullptr) {
+        static inline gfx_result sprite_async(Destination& destination, point16 location, const Sprite& sprite,const srect16* clip=nullptr) {
             return sprite_async(destination,(spoint16)location,sprite,clip);
         }  
         // draws an icon to the destination at the location with an optional clipping rectangle
         template<typename Destination,typename Source,typename PixelType>
-        static inline gfx_result icon(Destination& destination, point16 location,const Source& source,PixelType forecolor,PixelType backcolor=PixelType(0,true),bool transparent_background = true, bool invert=false, srect16* clip=nullptr) {
+        static inline gfx_result icon(Destination& destination, point16 location,const Source& source,PixelType forecolor,PixelType backcolor=PixelType(0,true),bool transparent_background = true, bool invert=false, const srect16* clip=nullptr) {
             return icon(destination,(spoint16)location,source,forecolor,backcolor,transparent_background,invert,clip);
         }
         // asynchronously draws an icon to the destination at the location with an optional clipping rectangle
         template<typename Destination,typename Source,typename PixelType>
-        static inline gfx_result icon_async(Destination& destination, point16 location,const Source& source,PixelType forecolor,PixelType backcolor=PixelType(0,true),bool transparent_background = true, bool invert = false,srect16* clip=nullptr) {
+        static inline gfx_result icon_async(Destination& destination, point16 location,const Source& source,PixelType forecolor,PixelType backcolor=PixelType(0,true),bool transparent_background = true, bool invert = false,const srect16* clip=nullptr) {
             return icon_async(destination,(spoint16)location,source,forecolor,backcolor,transparent_background,invert,clip);
         }  
         
@@ -4217,7 +4225,9 @@ namespace gfx {
         template<typename Destination>
         static inline batch_writer<Destination> batch_async(Destination& destination, const rect16& bounds) {
             return batch_writer<Destination>(destination,(srect16)bounds,true);
-        }     
+        }
+
+        
     };
     // provides an RAII token that can be used to suspend drawing during its scope
     template<typename Destination>

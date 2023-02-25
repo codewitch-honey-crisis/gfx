@@ -179,7 +179,7 @@ namespace gfx {
             const size_t bit_depth = pixel_type::bit_depth;
             const size_t offs = (location.y*dimensions().width+location.x)*bit_depth;
             const size_t offs_bits = offs % 8;
-            uint8_t tmp[pixel_type::packed_size+(((int)pixel_type::pad_right_bits)<=offs_bits)];
+            uint8_t tmp[pixel_type::packed_size+(((int)pixel_type::pad_right_bits)<=offs_bits)+1];
             tmp[pixel_type::packed_size]=0;
             memcpy(tmp,begin()+offs/8,sizeof(tmp));
             if(0<offs_bits)

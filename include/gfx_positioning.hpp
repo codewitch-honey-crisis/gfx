@@ -79,6 +79,10 @@ namespace gfx {
         }
         constexpr static const inline sizex min() { return { bits::num_metrics<value_type>::min,bits::num_metrics<value_type>::min }; }
         constexpr static const inline sizex max() { return { bits::num_metrics<value_type>::max,bits::num_metrics<value_type>::max }; }
+
+        inline float aspect_ratio() const {
+            return (float)width/(float)height;
+        }
     };
     enum struct rect_orientation {
         normalized = 0,
@@ -548,5 +552,11 @@ namespace gfx {
     using rect16 = rectx<uint16_t>;
     // represents a path with 16-bit unsigned integer coordinates
     using path16 = pathx<uint16_t>;
+    
+    using sizef = sizex<float>;
+    using pointf = pointx<float>;
+    using rectf = rectx<float>;
+    using pathf = pathx<float>;
+    
 }
 #endif

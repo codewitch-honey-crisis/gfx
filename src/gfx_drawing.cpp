@@ -28,6 +28,6 @@ namespace gfx {
             }
             return result;
         }
-
+        
     }
 }

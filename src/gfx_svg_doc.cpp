@@ -2046,7 +2046,8 @@ static void svg_parse_start_element(svg_parse_result& p)
 {   
     reader_t& s = *p.reader;
     //printf("parse <%s>\n",s.value());
-	if (p.defsFlag) {
+	strncpy(p.lname,s.value(),sizeof(p.lname));
+    if (p.defsFlag) {
 		// Skip everything but gradients in defs
 		if (strcmp(s.value(), "linearGradient") == 0) {
 			svg_parse_gradient_elem(p, NSVG_PAINT_LINEAR_GRADIENT);
@@ -2057,7 +2058,7 @@ static void svg_parse_start_element(svg_parse_result& p)
 		}
 		return;
 	}
-    strncpy(p.lname,s.value(),sizeof(p.lname));
+    
 	if (strcmp(s.value(), "g") == 0) {
 		//printf("parse <g>\n");
         svg_push_attr(p);

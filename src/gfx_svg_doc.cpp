@@ -12,8 +12,15 @@ using namespace gfx;
 using namespace ml;
 
 using reader_t = raw_ml_reader<2048>;
+struct svg_css_class {
+    char selector[512];
+    char* value;
+    svg_css_class* next;
+};
 struct svg_parse_result {
     reader_t* reader;
+    svg_css_class* css_classes;
+    svg_css_class* css_class_tail;
     void* (*allocator)(size_t);
     void* (*reallocator)(void*, size_t);
     void (*deallocator)(void*);
@@ -26,6 +33,7 @@ struct svg_parse_result {
     int npts;
     int cpts;
     NSVGpath* plist;
+    size_t image_size;
     NSVGimage* image;
     NSVGgradientData* gradients;
     NSVGshape* shapesTail;
@@ -45,7 +53,14 @@ static void dump_path(NSVGpath* path) {
     printf("\t\tbounds: %f %f %f %f\n", path->bounds[0], path->bounds[1], path->bounds[2], path->bounds[3]);
     printf("\t\tnpts: %d\n", (int)path->npts);
 }
-
+static void dump_css_class(svg_css_class* cls) {
+    if(cls==nullptr) {
+        printf("\t<null>\n");
+        return;
+    }
+    printf("\tselector: %s\n",cls->selector);
+    printf("\tvalue: %s\n",cls->value);
+}
 static void dump_shape(NSVGshape* shape) {
     if (shape == nullptr) {
         printf("\t<null>\n");
@@ -83,6 +98,18 @@ static void dump_parse_res(svg_parse_result& p) {
     printf("dpi: %f\n", p.dpi);
     printf("pathsFlag: %d\n", (int)p.pathFlag);
     printf("defsFlag: %d\n", (int)p.defsFlag);
+    svg_css_class* cls = p.css_classes;
+    int cls_count = 0;
+    while(cls!=nullptr) {
+        ++cls_count;
+        cls = cls->next;
+    }
+    printf("css_classes count: %d\n",cls_count);
+    cls = p.css_classes;
+    while(cls!=nullptr) {
+        dump_css_class(cls);
+        cls = cls->next;
+    }
     if (p.image != nullptr) {
         printf("image.width: %f\n", p.image->width);
         printf("image.height: %f\n", p.image->height);
@@ -160,6 +187,16 @@ static NSVGattrib* svg_get_attr(svg_parse_result& p) {
     return &p.attr[p.attrHead];
 }
 static void svg_delete_parse_result(svg_parse_result& p) {
+    svg_css_class* cls = p.css_classes;
+    while(cls!=nullptr) {
+        if(cls->value!=nullptr) {
+            p.deallocator(cls->value);
+        }
+        svg_css_class* prev = cls;
+        cls = cls->next;
+        p.deallocator(prev);
+    }
+    p.css_classes = nullptr;
     nsvg__deletePaths(p.plist, p.deallocator);
     nsvg__deleteGradientData(p.gradients, p.deallocator);
     if(p.d!=nullptr) {
@@ -168,12 +205,51 @@ static void svg_delete_parse_result(svg_parse_result& p) {
     nsvgDelete(p.image, p.deallocator);
     p.deallocator(p.pts);
 }
+static svg_css_class* svg_find_next_css_class(svg_css_class* start, const char* name) {
+    size_t nl = strlen(name);
+    while(start!=nullptr) {
+        const char* sz = strstr(start->selector,name);
+        if(sz>start->selector) {
+            if((*(sz+nl)=='\0'||*(sz+nl)==',')&& *(sz-1)=='.') {
+                return start;
+            }
+        }
+        start=start->next;
+    }
+    return nullptr;
+}
+static gfx_result svg_apply_classes(svg_parse_result& p, const char* classes) {
+    const char* ss = classes;
+    char cn[64];
+    char*sz;
+    while(*ss) {
+        sz = cn;
+        *sz='\0';
+        while(*ss && nsvg__isspace(*ss)) { ++ss; printf("-");}
+        if(!*ss) return gfx_result::invalid_format;
+        int i = sizeof(cn)-1;
+        while(i && *ss && !nsvg__isspace(*ss)) {
+            *(sz++)=*(ss++);
+            --i;
+        }
+        if(p.css_classes!=nullptr && *cn) {
+            svg_css_class* cls=svg_find_next_css_class(p.css_classes,cn);
+            while(cls!=nullptr) {
+                svg_parse_style(p,cls->value);
+                cls=svg_find_next_css_class(cls->next,cn);
+            }
+        }
+    }
+    return gfx_result::success;
+}
 static int svg_parse_attr(svg_parse_result& p, const char* name, const char* value) {
     //printf("%s = %s\n",name,value);
     float xform[6];
     NSVGattrib* attr = svg_get_attr(p);
     if (!attr) return 0;
-
+    if(strcmp(name,"class")==0) {
+        svg_apply_classes(p,value);
+    }
     if (strcmp(name, "style") == 0) {
         svg_parse_style(p, value);
     } else if (strcmp(name, "display") == 0) {
@@ -394,8 +470,40 @@ static gfx_result svg_parse_attribs(svg_parse_result& p) {
     if (!s.read()) {
         return gfx_result::invalid_format;
     }
+    char style_val[256];
+    char class_val[128];
+    style_val[0]='\0';
+    class_val[0]='\0';
+
     while (s.node_type() == ml_node_type::attribute) {
-        svg_parse_attr(p);
+        if(strcmp("style",s.value())==0) {
+            if(!s.read()) {
+                return gfx_result::invalid_format;
+            }
+            strcpy(style_val,s.value());
+            while(s.node_type()==ml_node_type::attribute_content||s.node_type()==ml_node_type::attribute_end && s.read());
+        } else if(strcmp("class",s.value())==0) {
+            if(!s.read()) {
+                return gfx_result::invalid_format;
+            }
+            strcpy(class_val,s.value());
+            while(s.node_type()==ml_node_type::attribute_content||s.node_type()==ml_node_type::attribute_end && s.read());
+        } else {
+            svg_parse_attr(p);
+        }
+    }
+    gfx_result res;
+    if(*class_val) {
+        res = svg_apply_classes(p,class_val);
+        if (res != gfx_result::success) {
+            return res;
+        }
+    }
+    if(*style_val) {
+        svg_parse_style(p,style_val);
+        if (res != gfx_result::success) {
+            return res;
+        }
     }
     return gfx_result::success;
 }
@@ -439,10 +547,10 @@ static NSVGgradient* svg_create_gradient(svg_parse_result& p, const char* id, co
         if (refIter > 32) break;  // prevent infite loops on malformed data
     }
     if (stops == NULL) return NULL;
-
-    grad = (NSVGgradient*)p.allocator(sizeof(NSVGgradient) + sizeof(NSVGgradientStop) * (nstops - 1));
+    size_t grad_sz = sizeof(NSVGgradient) + sizeof(NSVGgradientStop) * (nstops - 1);
+    grad = (NSVGgradient*)p.allocator(grad_sz);
     if (grad == NULL) return NULL;
-
+    p.image_size+=grad_sz;
     // The shape width and height.
     if (data->units == NSVG_OBJECT_SPACE) {
         ox = localBounds[0];
@@ -625,6 +733,7 @@ static gfx_result svg_parse_gradient_elem(svg_parse_result& ctx, signed char typ
     int i;
     NSVGgradientData* grad = (NSVGgradientData*)ctx.allocator(sizeof(NSVGgradientData));
     if (grad == NULL) return gfx_result::out_of_memory;
+    ctx.image_size+=sizeof(NSVGgradientData);
     memset(grad, 0, sizeof(NSVGgradientData));
     grad->units = NSVG_OBJECT_SPACE;
     grad->type = type;
@@ -747,7 +856,8 @@ static gfx_result svg_parse_gradient_stop_elem(svg_parse_result& p) {
     grad->nstops++;
     grad->stops = (NSVGgradientStop*)p.reallocator(grad->stops, sizeof(NSVGgradientStop) * grad->nstops);
     if (grad->stops == NULL) return gfx_result::out_of_memory;
-
+    p.image_size+=sizeof(NSVGgradientStop);
+    
     // Insert
     idx = grad->nstops - 1;
     for (i = 0; i < grad->nstops - 1; i++) {
@@ -807,6 +917,7 @@ static gfx_result svg_add_point(svg_parse_result& p, float x, float y) {
         p.cpts = p.cpts ? p.cpts * 2 : 8;
         p.pts = (float*)p.reallocator(p.pts, p.cpts * 2 * sizeof(float));
         if (!p.pts) return gfx_result::out_of_memory;
+        p.image_size+=(2*sizeof(float));
     }
     p.pts[p.npts * 2 + 0] = x;
     p.pts[p.npts * 2 + 1] = y;
@@ -849,6 +960,7 @@ static gfx_result svg_line_to(svg_parse_result& p, float x, float y) {
 static gfx_result svg_add_path(svg_parse_result& p, char closed) {
     NSVGattrib* attr = svg_get_attr(p);
     NSVGpath* path = NULL;
+    size_t pts_sz;
     float bounds[4];
     float* curve;
     int i;
@@ -869,11 +981,13 @@ static gfx_result svg_add_path(svg_parse_result& p, char closed) {
     }
 
     path = (NSVGpath*)p.allocator(sizeof(NSVGpath));
+    p.image_size+=sizeof(NSVGpath);
     if (path == NULL) goto error;
     memset(path, 0, sizeof(NSVGpath));
-
-    path->pts = (float*)p.allocator(p.npts * 2 * sizeof(float));
+    pts_sz = p.npts * 2 * sizeof(float);
+    path->pts = (float*)p.allocator(pts_sz);
     if (path->pts == NULL) goto error;
+    p.image_size+=pts_sz;
     path->closed = closed;
     path->npts = p.npts;
 
@@ -1242,6 +1356,7 @@ static gfx_result svg_add_shape(svg_parse_result& p) {
         return gfx_result::invalid_state;
     shape = (NSVGshape*)p.allocator(sizeof(NSVGshape));
     if (shape == NULL) goto error;
+    p.image_size+=sizeof(NSVGshape);
     memset(shape, 0, sizeof(NSVGshape));
 
     memcpy(shape->id, attr->id, sizeof shape->id);
@@ -1914,6 +2029,11 @@ static gfx_result svg_parse_path_elem(svg_parse_result& ctx) {
     if (!s.read() || s.node_type() != ml_node_type::attribute) {
         return gfx_result::invalid_format;
     }
+    char style_val[256];
+    char class_val[128];
+    style_val[0]='\0';
+    class_val[0]='\0';
+    
     bool should_parse_path = false;
     while (s.node_type() == ml_node_type::attribute) {
         if (0 == strcmp("d", s.value())) {
@@ -1951,11 +2071,36 @@ static gfx_result svg_parse_path_elem(svg_parse_result& ctx) {
             }
             while (s.node_type() == ml_node_type::attribute_content || s.node_type() == ml_node_type::attribute_end && s.read())
             ;   
+        } else if(0 == strcmp("style", s.value())) {
+            if(!s.read()) {
+                return gfx_result::invalid_format;
+            }
+            strncpy(style_val,s.value(),sizeof(style_val));
+            if(!s.read()) {
+                return gfx_result::invalid_format;
+            }
+        } else if(0 == strcmp("class", s.value())) {
+            if(!s.read()) {
+                return gfx_result::invalid_format;
+            }
+            strncpy(class_val,s.value(),sizeof(class_val));
+            if(!s.read()) {
+                return gfx_result::invalid_format;
+            }
         } else {
             svg_parse_attr(ctx);
         }
         while (s.node_type() == ml_node_type::attribute_content || s.node_type() == ml_node_type::attribute_end && s.read())
             ;
+    }
+    if(*class_val) {
+        res = svg_apply_classes(ctx,class_val);
+        if (res != gfx_result::success) {
+            return res;
+        }
+    }
+    if(*style_val) {
+        svg_parse_style(ctx,style_val);
     }
     if(should_parse_path) {
         res = svg_parse_path(ctx,ctx.d);
@@ -1965,14 +2110,140 @@ static gfx_result svg_parse_path_elem(svg_parse_result& ctx) {
     }
     return gfx_result::success;
 }
+static gfx_result svg_parse_css_selector(svg_parse_result&p,char** cur) {
+    gfx_result res;
+    char* tmp = nullptr;
+    char* ss = *cur;
+    svg_css_class* cls = nullptr;
+    while(nsvg__isspace(*ss)) ++ss;
+    if(*ss=='.') {
+        cls = (svg_css_class*)p.allocator(sizeof(svg_css_class));
+        if(cls==nullptr) {
+            res= gfx_result::out_of_memory;
+            goto error;
+        }
+        int i = sizeof(cls->selector)-1;
+        char* psz = cls->selector;
+        while(i && *ss!='{') {
+            if(!nsvg__isspace(*ss)) {
+                *psz++=*ss;
+                --i;
+            }
+            ++ss;
+        }
+        *psz='\0';
+        while(*ss && *ss!='{') ++ss;
+        if(!*ss) {
+            res= gfx_result::invalid_format;
+            goto error;
+        }
+        // skip '{'
+        ++ss;
+        size_t sz = 1;
+        while(*ss && *ss!='}') {
+            // skip whitespace
+            while(*ss && nsvg__isspace(*ss)) ++ss;
+            if(!*ss) {
+                res= gfx_result::invalid_format;
+                goto error;
+            }
+            char*se = ss;
+            while(*se && *se!='}' && !nsvg__isspace(*se)) ++ se;
+            if(!*se) {
+                res= gfx_result::invalid_format;
+                goto error;
+            }
+            size_t new_sz = sz+(se-ss);
+            if(tmp==nullptr) {
+                tmp = (char*)p.allocator(new_sz+1);
+            } else {
+                tmp = (char*)p.reallocator(tmp,new_sz+1);
+            }
+            if(tmp==nullptr) {
+                res = gfx_result::out_of_memory;
+                goto error;
+            }
+            memcpy(tmp+sz-1,ss,se-ss);
+            tmp[sz+(se-ss)]='\0';
+            sz = new_sz;
+            ss+=(se-ss+1);
+            if(*se=='}') break;
+        }
+        cls->value = tmp;
+        cls->next = nullptr;
+        if(p.css_classes==nullptr) {
+            p.css_classes = cls;
+        } else {
+            p.css_class_tail->next =cls;
+        }
+        p.css_class_tail = cls;
+        *cur = ss;
+        return gfx_result::success;
+    } 
+    // not supported. Skip this selector
+    while(*ss && *ss!='}') ++ss;
+    if(!*ss) {
+        res= gfx_result::invalid_format;
+        goto error;
+    }
+    if(!*ss) {
+        *cur = ss;
+        return gfx_result::canceled;
+    }
+    *cur = ss;
+    return gfx_result::success;
+error:
+    if(cls!=nullptr) {
+        p.deallocator(cls);
+    }
+    if(tmp!=nullptr) {
+        p.deallocator(tmp);
+    }
+    return res;
+}
+static gfx_result svg_parse_style_elem(svg_parse_result&p) {
+    //printf("parse <style>\n");
+    reader_t& s = *p.reader;
+    char* content = nullptr;
+    size_t content_size = 0;
+    while(s.read() && s.node_type()!=ml_node_type::element_end) {
+        if(s.node_type()==ml_node_type::content) {
+            if(content_size==0) {
+                content_size = 1;
+            }
+            content_size += strlen(s.value());
+            if(content==nullptr) {
+                content = (char*)p.allocator(content_size);
+                if(content==nullptr) {
+                    return gfx_result::out_of_memory;
+                }
+                *content = '\0';
+            } else {
+                content = (char*)p.reallocator(content,content_size);
+                if(content==nullptr) {
+                    return gfx_result::out_of_memory;
+                }
+            }
+            strcat(content,s.value());
+        }
+    }
+    char* ss = content;
+    gfx_result res= gfx_result::success;
+    while(res==gfx_result::success) {
+        res = svg_parse_css_selector(p,&ss);
+        if(res!=gfx_result::success) {
+            p.deallocator(content);
+            return res;
+        }
+    }
+    p.deallocator(content);
+    return gfx_result::success;
+}
 static gfx_result svg_parse_svg_elem(svg_parse_result& ctx) {
     //printf("parse <svg>\n");
     reader_t& s = *ctx.reader;
-    if (!s.read() || s.node_type() != ml_node_type::attribute) {
-        return gfx_result::invalid_format;
-    }
     gfx_result res;
-    while (s.node_type() == ml_node_type::attribute) {
+    while (s.read() && s.node_type() == ml_node_type::attribute) {
         if (0 == strcmp("width", s.value())) {
             if (!s.read() || s.node_type() != ml_node_type::attribute_content) {
                 return gfx_result::invalid_format;
@@ -2033,7 +2304,7 @@ static gfx_result svg_parse_svg_elem(svg_parse_result& ctx) {
         } else {
             svg_parse_attr(ctx);
         }
-        while ((s.node_type() == ml_node_type::attribute_content || s.node_type() == ml_node_type::attribute_end)) {
+        while ((s.node_type() == ml_node_type::attribute_content)) {
             if (!s.read()) {
                 return gfx_result::invalid_format;
             }
@@ -2045,19 +2316,22 @@ static gfx_result svg_parse_svg_elem(svg_parse_result& ctx) {
 static void svg_parse_start_element(svg_parse_result& p)
 {   
     reader_t& s = *p.reader;
-    //printf("parse <%s>\n",s.value());
-	strncpy(p.lname,s.value(),sizeof(p.lname));
-    if (p.defsFlag) {
-		// Skip everything but gradients in defs
+    strncpy(p.lname,s.value(),sizeof(p.lname));
+    //printf("parse <%s>\n",p.lname);
+	if (p.defsFlag) {
+		// Skip everything but gradients and styles in defs
 		if (strcmp(s.value(), "linearGradient") == 0) {
 			svg_parse_gradient_elem(p, NSVG_PAINT_LINEAR_GRADIENT);
 		} else if (strcmp(s.value(), "radialGradient") == 0) {
 			svg_parse_gradient_elem(p,  NSVG_PAINT_RADIAL_GRADIENT);
 		} else if (strcmp(s.value(), "stop") == 0) {
 			svg_parse_gradient_stop_elem(p);
-		}
-		return;
-	}
+		} else if(strcmp(s.value(),"style")==0) {
+            svg_parse_style_elem(p);
+        }
+        //printf("%s in defs\n",s.value());
+        return;
+	} 
     
 	if (strcmp(s.value(), "g") == 0) {
 		//printf("parse <g>\n");
@@ -2114,6 +2388,7 @@ static void svg_parse_end_element(svg_parse_result& p)
 	} else if (strcmp(s.is_empty_element()?p.lname:s.value(), "path") == 0) {
 		p.pathFlag = 0;
 	} else if (strcmp(s.is_empty_element()?p.lname:s.value(), "defs") == 0) {
+        //printf("end defs %d\n",(int)s.is_empty_element());
 		p.defsFlag = 0;
 	}
 }
@@ -2132,6 +2407,7 @@ gfx_result svg_parse_document(reader_t& reader, svg_parse_result* result) {
     }
     return gfx_result::success;
 }
+
 void svg_doc::do_move(svg_doc& rhs) {
     m_doc_data = rhs.m_doc_data;
     rhs.m_doc_data = nullptr;
@@ -2163,10 +2439,12 @@ gfx_result svg_doc::read(stream* svg_stream, svg_doc* out_doc, uint16_t dpi, voi
     reader_t reader(svg_stream);
     svg_parse_result parse_res;
     memset(&parse_res, 0, sizeof(svg_parse_result));
+    parse_res.image_size = 0;
     parse_res.image = (NSVGimage*)allocator(sizeof(NSVGimage));
     if (parse_res.image == nullptr) {
         return gfx_result::out_of_memory;
     }
+    parse_res.image_size+=sizeof(NSVGimage);
     memset(parse_res.image, 0, sizeof(NSVGimage));
     // Init style
     nsvg__xformIdentity(parse_res.attr[0].xform);
@@ -2189,6 +2467,8 @@ gfx_result svg_doc::read(stream* svg_stream, svg_doc* out_doc, uint16_t dpi, voi
     parse_res.deallocator = deallocator;
     parse_res.dpi = dpi;
     parse_res.d_size = 0;
+    parse_res.css_classes = nullptr;
+    parse_res.css_class_tail = nullptr;
     parse_res.d = nullptr;
     gfx_result res = svg_parse_document(reader, &parse_res);
     if (res != gfx_result::success) {
@@ -2204,7 +2484,7 @@ gfx_result svg_doc::read(stream* svg_stream, svg_doc* out_doc, uint16_t dpi, voi
     NSVGimage* img = parse_res.image;
     parse_res.image = NULL;
     out_doc->m_doc_data = (void*)img;
-
+    //printf("image size: %d kb\n",parse_res.image_size/1024);
     svg_delete_parse_result(parse_res);
 
     return gfx_result::success;

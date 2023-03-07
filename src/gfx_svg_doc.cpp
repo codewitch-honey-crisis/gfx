@@ -483,13 +483,13 @@ static gfx_result svg_parse_attribs(svg_parse_result& p) {
                 return gfx_result::invalid_format;
             }
             strcpy(p.style_val,s.value());
-            while(s.node_type()==ml_node_type::attribute_content||s.node_type()==ml_node_type::attribute_end && s.read());
+            while((s.node_type()==ml_node_type::attribute_content||s.node_type()==ml_node_type::attribute_end) && s.read());
         } else if(strcmp("class",s.value())==0) {
             if(!s.read()) {
                 return gfx_result::invalid_format;
             }
             strcpy(p.class_val,s.value());
-            while(s.node_type()==ml_node_type::attribute_content||s.node_type()==ml_node_type::attribute_end && s.read());
+            while((s.node_type()==ml_node_type::attribute_content||s.node_type()==ml_node_type::attribute_end) && s.read());
         } else {
             svg_parse_attr(p);
         }

@@ -16,10 +16,6 @@ namespace gfx {
         svg_doc(svg_doc&& rhs);
         svg_doc& operator=(svg_doc&& rhs);
         static gfx_result read(stream* input,svg_doc* out_doc, uint16_t dpi=96,void*(allocator)(size_t)=::malloc,void*(reallocator)(void*,size_t)=::realloc,void(deallocator)(void*)=::free);
-#if 0
-        // uses original nanosvg parser for testing
-        static gfx_result read2(stream* input,svg_doc* out_doc, uint16_t dpi=96,void*(allocator)(size_t)=::malloc,void*(reallocator)(void*,size_t)=::realloc,void(deallocator)(void*)=::free);
-#endif
         bool initialized() const;
         void draw(float scale,const srect16& rect, void(read_callback)(int x, int y, unsigned char* r,unsigned char* g,unsigned char* b,unsigned char* a,void* state),void*read_callback_state,void(write_callback)(int x, int y, unsigned char r,unsigned char g,unsigned char b,unsigned char a,void* state),void*write_callback_state,void*(allocator)(size_t)=::malloc,void*(reallocator)(void*,size_t)=::realloc,void(deallocator)(void*)=::free);
         float scale(float line_height) const;

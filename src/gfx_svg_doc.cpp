@@ -3,6 +3,7 @@
 #define NANOSVG_IMPLEMENTATION
 #define NANOSVGRAST_IMPLEMENTATION
 #define NANOSVG_ALL_COLOR_KEYWORDS
+//#define SVG_DUMP_PARSE
 #include <string.h>
 
 #include <ml_reader.hpp>
@@ -25,6 +26,10 @@ struct svg_parse_result {
     void* (*reallocator)(void*, size_t);
     void (*deallocator)(void*);
     char lname[32];
+    char aname[512];
+    char avalue[512];
+    char style_val[256];
+    char class_val[128];
     char* d;
     size_t d_size;
     NSVGattrib attr[NSVG_MAX_ATTR];
@@ -43,45 +48,45 @@ struct svg_parse_result {
     char pathFlag;
     char defsFlag;
 };
-#if 0
+#ifdef SVG_DUMP_PARSE
 static void dump_path(NSVGpath* path) {
     if (path == nullptr) {
-        printf("\t\t<null>\n");
+        //printf("\t\t<null>\n");
         return;
     }
-    printf("\t\tclosed: %d\n", (int)path->closed);
-    printf("\t\tbounds: %f %f %f %f\n", path->bounds[0], path->bounds[1], path->bounds[2], path->bounds[3]);
-    printf("\t\tnpts: %d\n", (int)path->npts);
+    //printf("\t\tclosed: %d\n", (int)path->closed);
+    //printf("\t\tbounds: %f %f %f %f\n", path->bounds[0], path->bounds[1], path->bounds[2], path->bounds[3]);
+    //printf("\t\tnpts: %d\n", (int)path->npts);
 }
 static void dump_css_class(svg_css_class* cls) {
     if(cls==nullptr) {
-        printf("\t<null>\n");
+        //printf("\t<null>\n");
         return;
     }
-    printf("\tselector: %s\n",cls->selector);
-    printf("\tvalue: %s\n",cls->value);
+    //printf("\tselector: %s\n",cls->selector);
+    //printf("\tvalue: %s\n",cls->value);
 }
 static void dump_shape(NSVGshape* shape) {
     if (shape == nullptr) {
-        printf("\t<null>\n");
+        //printf("\t<null>\n");
         return;
     }
-    printf("\tid: %s\n", shape->id);
-    printf("\tflags: %d\n", (int)shape->flags);
-    printf("\tbounds: %f %f %f %f\n", shape->bounds[0], shape->bounds[1], shape->bounds[2], shape->bounds[3]);
-    printf("\topacity: %f\n", shape->opacity);
-    printf("\tfillGradient: %s\n", shape->fillGradient);
-    printf("\tfillRule: %d\n", (int)shape->fillRule);
-    printf("\tmiterLimit: %f\n", shape->miterLimit);
-    printf("\tstrokeDashCount: %d\n", (int)shape->strokeDashCount);
-    printf("\tstrokeDashOffset: %f\n", shape->strokeDashOffset);
+    //printf("\tid: %s\n", shape->id);
+    //printf("\tflags: %d\n", (int)shape->flags);
+    //printf("\tbounds: %f %f %f %f\n", shape->bounds[0], shape->bounds[1], shape->bounds[2], shape->bounds[3]);
+    //printf("\topacity: %f\n", shape->opacity);
+    //printf("\tfillGradient: %s\n", shape->fillGradient);
+    //printf("\tfillRule: %d\n", (int)shape->fillRule);
+    //printf("\tmiterLimit: %f\n", shape->miterLimit);
+    //printf("\tstrokeDashCount: %d\n", (int)shape->strokeDashCount);
+    //printf("\tstrokeDashOffset: %f\n", shape->strokeDashOffset);
     NSVGpath* pa = shape->paths;
     int count = 0;
     while (pa != nullptr) {
         ++count;
         pa = pa->next;
     }
-    printf("\tpaths: %d\n", count);
+    //printf("\tpaths: %d\n", count);
     pa = shape->paths;
     while (pa != nullptr) {
         dump_path(pa);
@@ -89,37 +94,37 @@ static void dump_shape(NSVGshape* shape) {
     }
 }
 static void dump_parse_res(svg_parse_result& p) {
-    printf("attrHead: %d\n", p.attrHead);
-    printf("npts: %d\n", p.npts);
-    printf("cpts: %d\n", p.cpts);
-    printf("viewMinx: %f, viewMiny: %f\n", p.viewMinx, p.viewMiny);
-    printf("viewWidth: %f, viewHeight: %f\n", p.viewWidth, p.viewHeight);
-    printf("alignX: %d, alignY: %d, alignType: %d\n", p.alignX, p.alignY, p.alignType);
-    printf("dpi: %f\n", p.dpi);
-    printf("pathsFlag: %d\n", (int)p.pathFlag);
-    printf("defsFlag: %d\n", (int)p.defsFlag);
+    //printf("attrHead: %d\n", p.attrHead);
+    //printf("npts: %d\n", p.npts);
+    //printf("cpts: %d\n", p.cpts);
+    //printf("viewMinx: %f, viewMiny: %f\n", p.viewMinx, p.viewMiny);
+    //printf("viewWidth: %f, viewHeight: %f\n", p.viewWidth, p.viewHeight);
+    //printf("alignX: %d, alignY: %d, alignType: %d\n", p.alignX, p.alignY, p.alignType);
+    //printf("dpi: %f\n", p.dpi);
+    //printf("pathsFlag: %d\n", (int)p.pathFlag);
+    //printf("defsFlag: %d\n", (int)p.defsFlag);
     svg_css_class* cls = p.css_classes;
     int cls_count = 0;
     while(cls!=nullptr) {
         ++cls_count;
         cls = cls->next;
     }
-    printf("css_classes count: %d\n",cls_count);
+    //printf("css_classes count: %d\n",cls_count);
     cls = p.css_classes;
     while(cls!=nullptr) {
         dump_css_class(cls);
         cls = cls->next;
     }
     if (p.image != nullptr) {
-        printf("image.width: %f\n", p.image->width);
-        printf("image.height: %f\n", p.image->height);
+        //printf("image.width: %f\n", p.image->width);
+        //printf("image.height: %f\n", p.image->height);
         NSVGshape* sh = p.image->shapes;
         int count = 0;
         while (sh != nullptr) {
             ++count;
             sh = sh->next;
         }
-        printf("image.shapes count: %d\n", count);
+        //printf("image.shapes count: %d\n", count);
         sh = p.image->shapes;
         while (sh != nullptr) {
             dump_shape(sh);
@@ -127,28 +132,28 @@ static void dump_parse_res(svg_parse_result& p) {
             //break;
         }
     }
-    printf("\n");
+    //printf("\n");
 }
 static void dump_parse_res(NSVGparser& p) {
-    printf("attrHead: %d\n", p.attrHead);
-    printf("npts: %d\n", p.npts);
-    printf("cpts: %d\n", p.cpts);
-    printf("viewMinx: %f, viewMiny: %f\n", p.viewMinx, p.viewMiny);
-    printf("viewWidth: %f, viewHeight: %f\n", p.viewWidth, p.viewHeight);
-    printf("alignX: %d, alignY: %d, alignType: %d\n", p.alignX, p.alignY, p.alignType);
-    printf("dpi: %f\n", p.dpi);
-    printf("pathsFlag: %d\n", (int)p.pathFlag);
-    printf("defsFlag: %d\n", (int)p.defsFlag);
+    //printf("attrHead: %d\n", p.attrHead);
+    //printf("npts: %d\n", p.npts);
+    //printf("cpts: %d\n", p.cpts);
+    //printf("viewMinx: %f, viewMiny: %f\n", p.viewMinx, p.viewMiny);
+    //printf("viewWidth: %f, viewHeight: %f\n", p.viewWidth, p.viewHeight);
+    //printf("alignX: %d, alignY: %d, alignType: %d\n", p.alignX, p.alignY, p.alignType);
+    //printf("dpi: %f\n", p.dpi);
+    //printf("pathsFlag: %d\n", (int)p.pathFlag);
+    //printf("defsFlag: %d\n", (int)p.defsFlag);
     if (p.image != nullptr) {
-        printf("image.width: %f\n", p.image->width);
-        printf("image.height: %f\n", p.image->height);
+        //printf("image.width: %f\n", p.image->width);
+        //printf("image.height: %f\n", p.image->height);
         NSVGshape* sh = p.image->shapes;
         int count = 0;
         while (sh != nullptr) {
             ++count;
             sh = sh->next;
         }
-        printf("image.shapes count: %d\n", count);
+        //printf("image.shapes count: %d\n", count);
         sh = p.image->shapes;
         while (sh != nullptr) {
             dump_shape(sh);
@@ -156,7 +161,7 @@ static void dump_parse_res(NSVGparser& p) {
             //break;
         }
     }
-    printf("\n");
+    //printf("\n");
 }
 #endif
 static int svg_parse_name_value(svg_parse_result& p, const char* start, const char* end);
@@ -204,6 +209,7 @@ static void svg_delete_parse_result(svg_parse_result& p) {
     }
     nsvgDelete(p.image, p.deallocator);
     p.deallocator(p.pts);
+    p.deallocator(&p);
 }
 static svg_css_class* svg_find_next_css_class(svg_css_class* start, const char* name) {
     size_t nl = strlen(name);
@@ -225,13 +231,14 @@ static gfx_result svg_apply_classes(svg_parse_result& p, const char* classes) {
     while(*ss) {
         sz = cn;
         *sz='\0';
-        while(*ss && nsvg__isspace(*ss)) { ++ss; printf("-");}
+        while(*ss && nsvg__isspace(*ss)) { ++ss; }
         if(!*ss) return gfx_result::invalid_format;
         int i = sizeof(cn)-1;
         while(i && *ss && !nsvg__isspace(*ss)) {
             *(sz++)=*(ss++);
             --i;
         }
+        *sz='\0';
         if(p.css_classes!=nullptr && *cn) {
             svg_css_class* cls=svg_find_next_css_class(p.css_classes,cn);
             while(cls!=nullptr) {
@@ -243,7 +250,6 @@ static gfx_result svg_apply_classes(svg_parse_result& p, const char* classes) {
     return gfx_result::success;
 }
 static int svg_parse_attr(svg_parse_result& p, const char* name, const char* value) {
-    //printf("%s = %s\n",name,value);
     float xform[6];
     NSVGattrib* attr = svg_get_attr(p);
     if (!attr) return 0;
@@ -435,8 +441,6 @@ static void svg_parse_style(svg_parse_result& p, const char* str) {
 static int svg_parse_name_value(svg_parse_result& p, const char* start, const char* end) {
     const char* str;
     const char* val;
-    char name[512];
-    char value[512];
     int n;
 
     str = start;
@@ -450,17 +454,17 @@ static int svg_parse_name_value(svg_parse_result& p, const char* start, const ch
 
     n = (int)(str - start);
     if (n > 511) n = 511;
-    if (n) memcpy(name, start, n);
-    name[n] = 0;
+    if (n) memcpy(p.aname, start, n);
+    p.aname[n] = 0;
 
     while (val < end && (*val == ':' || nsvg__isspace(*val))) ++val;
 
     n = (int)(end - val);
     if (n > 511) n = 511;
-    if (n) memcpy(value, val, n);
-    value[n] = 0;
+    if (n) memcpy(p.avalue, val, n);
+    p.avalue[n] = 0;
 
-    return svg_parse_attr(p, name, value);
+    return svg_parse_attr(p, p.aname, p.avalue);
 }
 static gfx_result svg_parse_attribs(svg_parse_result& p) {
     reader_t& s = *p.reader;
@@ -470,37 +474,35 @@ static gfx_result svg_parse_attribs(svg_parse_result& p) {
     if (!s.read()) {
         return gfx_result::invalid_format;
     }
-    char style_val[256];
-    char class_val[128];
-    style_val[0]='\0';
-    class_val[0]='\0';
+    p.style_val[0]='\0';
+    p.class_val[0]='\0';
 
     while (s.node_type() == ml_node_type::attribute) {
         if(strcmp("style",s.value())==0) {
             if(!s.read()) {
                 return gfx_result::invalid_format;
             }
-            strcpy(style_val,s.value());
+            strcpy(p.style_val,s.value());
             while(s.node_type()==ml_node_type::attribute_content||s.node_type()==ml_node_type::attribute_end && s.read());
         } else if(strcmp("class",s.value())==0) {
             if(!s.read()) {
                 return gfx_result::invalid_format;
             }
-            strcpy(class_val,s.value());
+            strcpy(p.class_val,s.value());
             while(s.node_type()==ml_node_type::attribute_content||s.node_type()==ml_node_type::attribute_end && s.read());
         } else {
             svg_parse_attr(p);
         }
     }
     gfx_result res;
-    if(*class_val) {
-        res = svg_apply_classes(p,class_val);
+    if(*p.class_val) {
+        res = svg_apply_classes(p,p.class_val);
         if (res != gfx_result::success) {
             return res;
         }
     }
-    if(*style_val) {
-        svg_parse_style(p,style_val);
+    if(*p.style_val) {
+        svg_parse_style(p,p.style_val);
         if (res != gfx_result::success) {
             return res;
         }
@@ -2029,10 +2031,8 @@ static gfx_result svg_parse_path_elem(svg_parse_result& ctx) {
     if (!s.read() || s.node_type() != ml_node_type::attribute) {
         return gfx_result::invalid_format;
     }
-    char style_val[256];
-    char class_val[128];
-    style_val[0]='\0';
-    class_val[0]='\0';
+    ctx.style_val[0]='\0';
+    ctx.class_val[0]='\0';
     
     bool should_parse_path = false;
     while (s.node_type() == ml_node_type::attribute) {
@@ -2075,7 +2075,7 @@ static gfx_result svg_parse_path_elem(svg_parse_result& ctx) {
             if(!s.read()) {
                 return gfx_result::invalid_format;
             }
-            strncpy(style_val,s.value(),sizeof(style_val));
+            strncpy(ctx.style_val,s.value(),sizeof(ctx.style_val));
             if(!s.read()) {
                 return gfx_result::invalid_format;
             }
@@ -2083,7 +2083,7 @@ static gfx_result svg_parse_path_elem(svg_parse_result& ctx) {
             if(!s.read()) {
                 return gfx_result::invalid_format;
             }
-            strncpy(class_val,s.value(),sizeof(class_val));
+            strncpy(ctx.class_val,s.value(),sizeof(ctx.class_val));
             if(!s.read()) {
                 return gfx_result::invalid_format;
             }
@@ -2093,14 +2093,14 @@ static gfx_result svg_parse_path_elem(svg_parse_result& ctx) {
         while (s.node_type() == ml_node_type::attribute_content || s.node_type() == ml_node_type::attribute_end && s.read())
             ;
     }
-    if(*class_val) {
-        res = svg_apply_classes(ctx,class_val);
+    if(*ctx.class_val) {
+        res = svg_apply_classes(ctx,ctx.class_val);
         if (res != gfx_result::success) {
             return res;
         }
     }
-    if(*style_val) {
-        svg_parse_style(ctx,style_val);
+    if(*ctx.style_val) {
+        svg_parse_style(ctx,ctx.style_val);
     }
     if(should_parse_path) {
         res = svg_parse_path(ctx,ctx.d);
@@ -2164,7 +2164,7 @@ static gfx_result svg_parse_css_selector(svg_parse_result&p,char** cur) {
                 goto error;
             }
             memcpy(tmp+sz-1,ss,se-ss);
-            tmp[sz+(se-ss)]='\0';
+            tmp[sz+(se-ss)-1]='\0';
             sz = new_sz;
             ss+=(se-ss+1);
             if(*se=='}') break;
@@ -2437,7 +2437,11 @@ gfx_result svg_doc::read(stream* svg_stream, svg_doc* out_doc, uint16_t dpi, voi
         return gfx_result::invalid_argument;
     }
     reader_t reader(svg_stream);
-    svg_parse_result parse_res;
+    void* p = allocator(sizeof(svg_parse_result));
+    if(p==nullptr) {
+        return gfx_result::out_of_memory;
+    }
+    svg_parse_result& parse_res = *(svg_parse_result*)p;
     memset(&parse_res, 0, sizeof(svg_parse_result));
     parse_res.image_size = 0;
     parse_res.image = (NSVGimage*)allocator(sizeof(NSVGimage));
@@ -2480,7 +2484,9 @@ gfx_result svg_doc::read(stream* svg_stream, svg_doc* out_doc, uint16_t dpi, voi
 
     // Scale to viewBox
     svg_scale_to_viewbox(parse_res, "px");
-    //dump_parse_res(parse_res);
+#ifdef SVG_DUMP_PARSE
+    dump_parse_res(parse_res);
+#endif
     NSVGimage* img = parse_res.image;
     parse_res.image = NULL;
     out_doc->m_doc_data = (void*)img;

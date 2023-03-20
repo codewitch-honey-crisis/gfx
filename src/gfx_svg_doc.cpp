@@ -503,9 +503,6 @@ static gfx_result svg_parse_attribs(svg_parse_result& p) {
     }
     if(*p.style_val) {
         svg_parse_style(p,p.style_val);
-        if (res != gfx_result::success) {
-            return res;
-        }
     }
     return gfx_result::success;
 }
@@ -732,7 +729,7 @@ static void svg_scale_to_viewbox(svg_parse_result& p, const char* units) {
 }
 static gfx_result svg_parse_gradient_elem(svg_parse_result& ctx, signed char type) {
     reader_t& s = *ctx.reader;
-    int i;
+ 
     NSVGgradientData* grad = (NSVGgradientData*)ctx.allocator(sizeof(NSVGgradientData));
     if (grad == NULL) return gfx_result::out_of_memory;
     ctx.image_size+=sizeof(NSVGgradientData);
@@ -1444,8 +1441,6 @@ static gfx_result svg_parse_rect_elem(svg_parse_result& p) {
     float h = 0.0f;
     float rx = -1.0f;  // marks not set
     float ry = -1.0f;
-    int i;
-    gfx_result res;
     while (s.node_type() == ml_node_type::attribute) {
         if (strcmp(s.value(), "x") == 0 && s.read() && s.node_type() == ml_node_type::attribute_content) {
             x = svg_parse_coordinate(p, s.value(), svg_actual_orig_x(p), svg_actual_width(p));
@@ -1563,7 +1558,6 @@ static gfx_result svg_parse_circle_elem(svg_parse_result& p) {
     float cx = 0.0f;
     float cy = 0.0f;
     float r = 0.0f;
-    int i;
     gfx_result res;
     while (s.node_type() == ml_node_type::attribute) {
         if (strcmp(s.value(), "cx") == 0 && s.read() && s.node_type() == ml_node_type::attribute_content) {
@@ -1632,7 +1626,6 @@ static gfx_result svg_parse_ellipse_elem(svg_parse_result& p) {
     float cy = 0.0f;
     float rx = 0.0f;
     float ry = 0.0f;
-    int i;
     gfx_result res;
     
     while (s.node_type() == ml_node_type::attribute) {
@@ -1705,7 +1698,6 @@ static gfx_result svg_parse_line_elem(svg_parse_result& p) {
     float y1 = 0.0;
     float x2 = 0.0;
     float y2 = 0.0;
-    int i;
     while (s.node_type() == ml_node_type::attribute) {
         if (strcmp(s.value(), "x1") == 0 && s.read() && s.node_type() == ml_node_type::attribute_content) {
             x1 = svg_parse_coordinate(p, s.value(), svg_actual_orig_x(p), svg_actual_width(p));
@@ -1757,7 +1749,6 @@ static gfx_result svg_parse_poly_elem(svg_parse_result& p, int closeFlag) {
         return gfx_result::invalid_format;
     }
 
-    int i;
     const char* ss;
     float args[2];
     int nargs, npts = 0;
@@ -1814,7 +1805,6 @@ static gfx_result svg_parse_poly_elem(svg_parse_result& p, int closeFlag) {
 }
 
 static gfx_result svg_parse_path(svg_parse_result& p, const char* d) {
-    reader_t& s = *p.reader;
     gfx_result res;
     const char* str = d;
     char cmd = '\0';
@@ -1823,9 +1813,7 @@ static gfx_result svg_parse_path(svg_parse_result& p, const char* d) {
     int rargs = 0;
     char initPoint;
     float cpx, cpy, cpx2, cpy2;
-    const char* tmp[4];
     char closedFlag;
-    int i;
     char item[64];
 
     svg_reset_path(p);
@@ -2069,7 +2057,7 @@ static gfx_result svg_parse_path_elem(svg_parse_result& ctx) {
                 }
                 strcat(ctx.d,s.value());
             }
-            while (s.node_type() == ml_node_type::attribute_content || s.node_type() == ml_node_type::attribute_end && s.read())
+            while ((s.node_type() == ml_node_type::attribute_content || s.node_type() == ml_node_type::attribute_end) && s.read())
             ;   
         } else if(0 == strcmp("style", s.value())) {
             if(!s.read()) {
@@ -2090,7 +2078,7 @@ static gfx_result svg_parse_path_elem(svg_parse_result& ctx) {
         } else {
             svg_parse_attr(ctx);
         }
-        while (s.node_type() == ml_node_type::attribute_content || s.node_type() == ml_node_type::attribute_end && s.read())
+        while ((s.node_type() == ml_node_type::attribute_content || s.node_type() == ml_node_type::attribute_end) && s.read())
             ;
     }
     if(*ctx.class_val) {
@@ -2242,7 +2230,6 @@ static gfx_result svg_parse_style_elem(svg_parse_result&p) {
 static gfx_result svg_parse_svg_elem(svg_parse_result& ctx) {
     //printf("parse <svg>\n");
     reader_t& s = *ctx.reader;
-    gfx_result res;
     while (s.read() && s.node_type() == ml_node_type::attribute) {
         if (0 == strcmp("width", s.value())) {
             if (!s.read() || s.node_type() != ml_node_type::attribute_content) {
@@ -2402,6 +2389,8 @@ gfx_result svg_parse_document(reader_t& reader, svg_parse_result* result) {
             break;
             case ml_node_type::element_end:
                 svg_parse_end_element(*result);
+            break;
+            default:
             break;
         }
     }

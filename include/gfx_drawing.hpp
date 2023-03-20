@@ -3953,7 +3953,7 @@ struct draw {
             *b=0xFF;
             *a=0xFF;
             spoint16 pt(x,y);
-            if (nullptr == pst->clip || pst->clip->intersects(pt) && pst->dst->bounds().intersects((point16)pt)) {
+            if (nullptr == pst->clip || (pst->clip->intersects(pt) && pst->dst->bounds().intersects((point16)pt))) {
                 typename Destination::pixel_type bpx;
                 gfx_result res = pst->dst->point((point16)pt, &bpx);
                 if (gfx_result::success != res) {

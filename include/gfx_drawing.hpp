@@ -3979,7 +3979,7 @@ struct draw {
         point(*pst->dst,spoint16(x,y),px,pst->clip);
     }
     template <typename Destination>
-    static inline gfx_result svg_impl(Destination& destination, const srect16& bounds,svg_doc& doc, float scale, const srect16* clip ,void*(allocator)(size_t),void*(reallocator)(void*,size_t),void(deallocator)(void*),bool async) {
+    static inline gfx_result svg_impl(Destination& destination, const srect16& bounds,const svg_doc& doc, float scale, const srect16* clip ,void*(allocator)(size_t),void*(reallocator)(void*,size_t),void(deallocator)(void*),bool async) {
         draw_svg_render_state<Destination> rst;
         rst.dst = &destination;
         rst.clip = clip;
@@ -4272,12 +4272,12 @@ struct draw {
     }
     // draws an SVG document to the destination rectangle and scale with an optional clipping rectangle
     template <typename Destination>
-    static inline gfx_result svg(Destination& destination, const srect16& bounds,svg_doc& doc, float scale = 1.0, const srect16* clip = nullptr,void*(allocator)(size_t)=::malloc,void*(reallocator)(void*,size_t)=::realloc,void(deallocator)(void*)=::free) {
+    static inline gfx_result svg(Destination& destination, const srect16& bounds,const svg_doc& doc, float scale = 1.0, const srect16* clip = nullptr,void*(allocator)(size_t)=::malloc,void*(reallocator)(void*,size_t)=::realloc,void(deallocator)(void*)=::free) {
         return svg_impl(destination,bounds,doc,scale,clip,allocator,reallocator,deallocator,false);
     }
     // asynchronously draws an SVG document to the destination rectangle and scale with an optional clipping rectangle
     template <typename Destination>
-    static inline gfx_result svg_async(Destination& destination, const srect16& bounds,svg_doc& doc, float scale = 1.0, const srect16* clip = nullptr,void*(allocator)(size_t)=::malloc,void*(reallocator)(void*,size_t)=::realloc,void(deallocator)(void*)=::free) {
+    static inline gfx_result svg_async(Destination& destination, const srect16& bounds,const svg_doc& doc, float scale = 1.0, const srect16* clip = nullptr,void*(allocator)(size_t)=::malloc,void*(reallocator)(void*,size_t)=::realloc,void(deallocator)(void*)=::free) {
         return svg_impl(destination,bounds,doc,scale, clip,allocator,reallocator,deallocator,true);
     }
     // retrieves a batch writer that can be used to write a batch operation to the display
@@ -4596,12 +4596,12 @@ struct draw {
     }
     // draws an SVG document to the destination rectangle and scale with an optional clipping rectangle
     template <typename Destination>
-    static inline gfx_result svg(Destination& destination, const rect16& bounds,svg_doc& doc, float scale = 1.0, const srect16* clip = nullptr,void*(allocator)(size_t)=::malloc,void*(reallocator)(void*,size_t)=::realloc,void(deallocator)(void*)=::free) {
+    static inline gfx_result svg(Destination& destination, const rect16& bounds,const svg_doc& doc, float scale = 1.0, const srect16* clip = nullptr,void*(allocator)(size_t)=::malloc,void*(reallocator)(void*,size_t)=::realloc,void(deallocator)(void*)=::free) {
         return svg(destination,(srect16)bounds,doc,scale,clip,allocator,reallocator,deallocator);
     }
     // asynchronously draws an SVG document to the destination rectangle and scale with an optional clipping rectangle
     template <typename Destination>
-    static inline gfx_result svg_async(Destination& destination, const rect16& bounds,svg_doc& doc, float scale = 1.0, const srect16* clip = nullptr,void*(allocator)(size_t)=::malloc,void*(reallocator)(void*,size_t)=::realloc,void(deallocator)(void*)=::free) {
+    static inline gfx_result svg_async(Destination& destination, const rect16& bounds,const svg_doc& doc, float scale = 1.0, const srect16* clip = nullptr,void*(allocator)(size_t)=::malloc,void*(reallocator)(void*,size_t)=::realloc,void(deallocator)(void*)=::free) {
         return svg_async(destination,(srect16)bounds,doc,scale, clip,allocator,reallocator,deallocator);
     }
     // retrieves a batch writer that can be used to write to the destination

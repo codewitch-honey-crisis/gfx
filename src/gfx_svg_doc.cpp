@@ -2420,7 +2420,12 @@ svg_doc& svg_doc::operator=(svg_doc&& rhs) {
     do_move(rhs);
     return *this;
 }
-
+svg_doc::svg_doc(stream* svg_stream, uint16_t dpi, void*(allocator)(size_t), void*(reallocator)(void*, size_t), void(deallocator)(void*)) {
+    svg_doc tmp;
+    if(gfx_result::success == svg_doc::read(svg_stream,&tmp,dpi,allocator,reallocator,deallocator)) {
+        do_move(tmp);
+    }
+}
 gfx_result svg_doc::read(stream* svg_stream, svg_doc* out_doc, uint16_t dpi, void*(allocator)(size_t), void*(reallocator)(void*, size_t), void(deallocator)(void*)) {
     if (out_doc == nullptr || svg_stream == nullptr || !svg_stream->caps().read) {
         return gfx_result::invalid_argument;
@@ -2553,7 +2558,7 @@ float svg_doc::scale(ssize16 dimensions) const {
 float svg_doc::scale(size16 dimensions) const {
     return scale(sizef(dimensions.width,dimensions.height));
 }   
-void svg_doc::draw(float scale, const srect16& rect, void(read_callback)(int x, int y, unsigned char* r, unsigned char* g, unsigned char* b, unsigned char* a, void* state), void* read_callback_state, void(write_callback)(int x, int y, unsigned char r, unsigned char g, unsigned char b, unsigned char a, void* state), void* write_callback_state, void*(allocator)(size_t),void*(reallocator)(void*,size_t),void(deallocator)(void*)) {
+void svg_doc::draw(float scale, const srect16& rect, void(read_callback)(int x, int y, unsigned char* r, unsigned char* g, unsigned char* b, unsigned char* a, void* state), void* read_callback_state, void(write_callback)(int x, int y, unsigned char r, unsigned char g, unsigned char b, unsigned char a, void* state), void* write_callback_state, void*(allocator)(size_t),void*(reallocator)(void*,size_t),void(deallocator)(void*)) const {
     if (initialized()) {
         NSVGrasterizer* rasterizer = nsvgCreateRasterizer(allocator,reallocator,deallocator);
         nsvgRasterize(rasterizer, (NSVGimage*)m_doc_data, rect.x1, rect.y1, scale, nullptr, read_callback, read_callback_state, write_callback, write_callback_state, rect.width(), rect.height(), rect.width() * 4);

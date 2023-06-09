@@ -2029,7 +2029,7 @@ struct draw {
     };
     template <typename Destination, typename Source, typename PixelType>
     struct draw_icon_helper<Destination, Source, PixelType, false> final {
-        static gfx_result do_draw(Destination& destination, spoint16 location, const Source& source, PixelType forecolor, PixelType backcolor, bool transparent_background, bool invert, srect16* clip, bool async) {
+        static gfx_result do_draw(Destination& destination, spoint16 location, const Source& source, PixelType forecolor, PixelType backcolor, bool transparent_background, bool invert, const srect16* clip, bool async) {
             srect16 bounds(location, (ssize16)source.dimensions());
             if (clip != nullptr) {
                 bounds = bounds.crop(*clip);
@@ -2103,7 +2103,7 @@ struct draw {
     };
     template <typename Destination, typename Source, typename PixelType>
     struct draw_icon_helper<Destination, Source, PixelType, true> final {
-        static gfx_result do_draw(Destination& destination, spoint16 location, const Source& source, PixelType forecolor, PixelType backcolor, bool transparent_background, bool invert, srect16* clip, bool async) {
+        static gfx_result do_draw(Destination& destination, spoint16 location, const Source& source, PixelType forecolor, PixelType backcolor, bool transparent_background, bool invert, const srect16* clip, bool async) {
             if (transparent_background == false) {
                 bool opaque = true;
                 if (PixelType::template has_channel_names<channel_name::A>::value) {

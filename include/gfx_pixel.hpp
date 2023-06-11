@@ -672,7 +672,7 @@ namespace gfx {
         channel_traits<channel_name::Y,((BitDepth/4)+(BitDepth%4))>,
         channel_traits<channel_name::U,(BitDepth/4)>,
         channel_traits<channel_name::V,(BitDepth/4)>,
-        channel_traits<channel_name::A,(BitDepth/4)>
+        channel_traits<channel_name::A,(BitDepth/4),0,(1<<(BitDepth/4))-1,(1<<(BitDepth/4))-1>
     >;
 
     // creates a YCbCr pixel by making each channel 
@@ -692,7 +692,7 @@ namespace gfx {
         channel_traits<channel_name::Y,((BitDepth/4)+(BitDepth%4))>,
         channel_traits<channel_name::Cb,(BitDepth/4)>,
         channel_traits<channel_name::Cr,(BitDepth/4)>,
-        channel_traits<channel_name::A,(BitDepth/4)>
+        channel_traits<channel_name::A,(BitDepth/4),0,(1<<(BitDepth/4))-1,(1<<(BitDepth/4))-1>
     >;
     // creates an indexed pixel
     template<size_t BitDepth>
@@ -715,7 +715,7 @@ namespace gfx {
         channel_traits<channel_name::H,(BitDepth/4)>,
         channel_traits<channel_name::S,(BitDepth/4)>,
         channel_traits<channel_name::V,((BitDepth/4)+(BitDepth%4))>,
-        channel_traits<channel_name::A,(BitDepth/4)>
+        channel_traits<channel_name::A,(BitDepth/4),0,(1<<(BitDepth/4))-1,(1<<(BitDepth/4))-1>
     >;
 
     // creates a HSL pixel by making each channel 
@@ -735,7 +735,7 @@ namespace gfx {
         channel_traits<channel_name::H,(BitDepth/4)>,
         channel_traits<channel_name::S,(BitDepth/4)>,
         channel_traits<channel_name::L,((BitDepth/4)+(BitDepth%4))>,
-        channel_traits<channel_name::A,(BitDepth/4)>
+        channel_traits<channel_name::A,(BitDepth/4),0,(1<<(BitDepth/4))-1,(1<<(BitDepth/4))-1>
     >;
 
 
@@ -758,7 +758,7 @@ namespace gfx {
         channel_traits<channel_name::M,(BitDepth/5)>,
         channel_traits<channel_name::Y,(BitDepth/5)>,
         channel_traits<channel_name::K,((BitDepth/5)+(BitDepth%5))>,
-        channel_traits<channel_name::A,(BitDepth/5)>
+        channel_traits<channel_name::A,(BitDepth/5),0,(1<<(BitDepth/5))-1,(1<<(BitDepth/5))-1>
     >;
     template<size_t BitDepth>
     using alpha_pixel = pixel<

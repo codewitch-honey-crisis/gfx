@@ -1850,6 +1850,7 @@ struct draw {
             uint16_t Weighting, WeightingComplementMask;
             int16_t DeltaX, DeltaY, Temp, XDir;
             srect16 r = rect;
+            typename Destination::pixel_type bgc;
             /* Make sure the line runs top to bottom */
             if (r.y1 > r.y2) {
                 Temp = r.y1;
@@ -1929,13 +1930,15 @@ struct draw {
                     Weighting = ErrorAcc >> IntensityShift;
                     point16 p;
                     if(translate(r.point1(),&p)) {
-                        destination.point(p,&backcolor);
+                        destination.point(p,&bgc);
+                        convert_palette_to(destination,bgc,&backcolor);
                     }
                     PixelType blended = color.blend(backcolor, 1.0-((float)Weighting / (float)255.0));
                     res = point_impl(destination, r.point1(), blended, &clip, async);
                     spoint16 point2 = r.point1().offset(XDir,0);
                     if(translate(point2,&p)) {
-                        destination.point(p,&backcolor);
+                        destination.point(p,&bgc);
+                        convert_palette_to(destination,bgc,&backcolor);
                     }
                     blended = color.blend(backcolor,1.0-( (Weighting ^ WeightingComplementMask) / (float)255.0));
                     res = point_impl(destination, point2, blended, &clip, async);
@@ -1964,13 +1967,15 @@ struct draw {
                 Weighting = ErrorAcc >> IntensityShift;
                 point16 p;
                 if(translate(r.point1(),&p)) {
-                    destination.point(p,&backcolor);
+                    destination.point(p,&bgc);
+                    convert_palette_to(destination,bgc,&backcolor);
                 }
                 PixelType blended = color.blend(backcolor, 1.0-((float)Weighting / (float)255.0));
                 res = point_impl(destination, r.point1(), blended, &clip, async);
                 spoint16 point2 = r.point1().offset(0,1);
                 if(translate(point2,&p)) {
-                    destination.point(p,&backcolor);
+                    destination.point(p,&bgc);
+                    convert_palette_to(destination,bgc,&backcolor);
                 }
                 blended = color.blend(backcolor, 1.0-((float)(Weighting ^ WeightingComplementMask) / (float)255.0));
                 res = point_impl(destination, point2, blended, &clip, async);

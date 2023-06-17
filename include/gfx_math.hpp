@@ -57,7 +57,7 @@ struct math {
     template<typename T> constexpr static T clamp(T minimum, T value, T maximum) {
         return max(minimum, (min(value, maximum)));
     }
-    template<typename T> constexpr static T abs(T value) {
+    template<typename T> constexpr static T absx(T value) {
         return value > 0 ? value : -value;
     }
     template<typename T> constexpr static T udiv255(T value) {

@@ -75,7 +75,7 @@ namespace gfx {
                     const size_t line_block_pels = line_len_bits>(128*8)?(128*8)/Source::pixel_type::bit_depth:dstr.width();
                     const size_t line_block_bits = line_block_pels*Source::pixel_type::bit_depth;
                     const size_t buf_size = (line_block_bits+7)/8;
-                    uint8_t buf[buf_size];
+                    uint8_t buf[buf_size+1];
                     buf[buf_size-1]=0;
                     while(dy<dye) {
                         size_t dx=0;
@@ -137,7 +137,7 @@ namespace gfx {
             const size_t offs = (location.y*dimensions().width+location.x)*bit_depth;
             const size_t offs_bits = offs % 8;
             // now set the pixel
-            uint8_t tmp[pixel_type::packed_size+(((int)pixel_type::pad_right_bits)<=offs_bits)];
+            uint8_t tmp[pixel_type::packed_size+(((int)pixel_type::pad_right_bits)<=offs_bits)+1];
             typename pixel_type::int_type v = rhs.value();
             memcpy(tmp,&v,sizeof(typename pixel_type::int_type));
             // below doesn't work with strict aliasing:
@@ -388,7 +388,7 @@ namespace gfx {
             const size_t bit_depth = pixel_type::bit_depth;
             const size_t offs = (location.y*dimensions.width+location.x)*bit_depth;
             const size_t offs_bits = offs % 8;
-            uint8_t tmp[pixel_type::packed_size+(((int)pixel_type::pad_right_bits)<=offs_bits)];
+            uint8_t tmp[pixel_type::packed_size+(((int)pixel_type::pad_right_bits)<=offs_bits)+1];
             tmp[pixel_type::packed_size]=0;
             memcpy(tmp,((uint8_t*)buffer)+offs/8,sizeof(tmp));
             if(0<offs_bits)

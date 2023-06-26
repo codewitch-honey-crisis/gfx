@@ -1192,7 +1192,7 @@ struct draw {
                     if (r != gfx_result::success)
                         return r;
                     typename Destination::pixel_type p;
-                    r = convert_palette_to(destination, src, pp, &p);
+                    r = convert_palette_from(destination, pp, &p);
                     if (gfx_result::success != r) {
                         return r;
                     }
@@ -2174,7 +2174,7 @@ struct draw {
             if (!Destination::caps::blt) {
                 auto full_bmp = create_bitmap_from(destination, dstr.dimensions());
                 if (full_bmp.begin() != nullptr) {
-                    r = copy_to_fast<decltype(full_bmp), decltype(destination), Destination::caps::copy_to>::do_copy(full_bmp, destination, dstr, {0, 0});
+                    r = copy_to_fast<decltype(full_bmp), Destination, Destination::caps::copy_to>::do_copy(full_bmp, destination, dstr, {0, 0});
                     if (r != gfx_result::success) {
                         return r;
                     }

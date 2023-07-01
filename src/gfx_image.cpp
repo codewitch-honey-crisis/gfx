@@ -20,6 +20,32 @@ namespace gfx {
     }
     
     gfx_result png_image::dimensions(stream* input, size16* out_dimensions) {
+        uint8_t buf[1024];
+        if(input==nullptr || out_dimensions==nullptr) {
+            return gfx_result::invalid_argument;
+        }
+        pngle_t *pngle = pngle_new();
+        if(pngle==nullptr) {
+            return gfx_result::out_of_memory;
+        }
+        int remain = 0;
+        size_t len;
+        while ((len = input->read(buf + remain, sizeof(buf) - remain)) > 0) {
+            int fed = pngle_feed(pngle, buf, remain + len);
+            if (fed < 0) {
+                pngle_destroy(pngle);
+                return gfx_result::invalid_format;
+            }
+            pngle_ihdr_t* hdr = pngle_get_ihdr(pngle);
+            if(hdr!=nullptr) {
+                *out_dimensions = size16(hdr->width,hdr->height);
+                pngle_destroy(pngle);
+                return gfx_result::success;
+            }
+            remain = remain + len - fed;
+            if (remain > 0) memmove(buf, buf + fed, remain);
+        }
+        pngle_destroy(pngle);
         return gfx_result::not_supported;
     }
     gfx_result png_image::load(stream* input, callback out_func,void* state, uint8_t* fourcc) {
@@ -38,7 +64,6 @@ namespace gfx {
         load_state.dimensions = {0,0};
         pngle_set_draw_callback(pngle, pngle_on_draw,&load_state);
         int remain = 0;
-        bool first = fourcc!=nullptr;
         size_t len;
         if(fourcc!=nullptr) {
             memcpy(buf,fourcc,4);

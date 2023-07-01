@@ -1,5 +1,62 @@
 #include <gfx_image.hpp>
+#include "pngle.h"
 namespace gfx {
+    struct pngle_load_state {
+        pngle_t* pngle;
+        size16 dimensions;
+        png_image::callback draw_callback;
+        void* draw_callback_state;
+    };
+    static void pngle_on_draw(pngle_t *pngle, uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint8_t rgba[4], void* state) {
+        pngle_load_state& s = *(pngle_load_state*)state;
+        rgba_pixel<32> px(rgba[0], rgba[1], rgba[2], rgba[3]);
+        if(s.dimensions.width==0) {
+            pngle_ihdr_t* hdr = pngle_get_ihdr(s.pngle);
+            if(hdr!=nullptr) {
+                s.dimensions = size16(hdr->width,hdr->height);
+            }
+        }
+        s.draw_callback(s.dimensions,rect16(point16(x,y),size16(w,h)),px,s.draw_callback_state);
+    }
+    
+    gfx_result png_image::dimensions(stream* input, size16* out_dimensions) {
+        return gfx_result::not_supported;
+    }
+    gfx_result png_image::load(stream* input, callback out_func,void* state, uint8_t* fourcc) {
+        uint8_t buf[1024];
+        if(input==nullptr || out_func==nullptr) {
+            return gfx_result::invalid_argument;
+        }
+        pngle_t *pngle = pngle_new();
+        if(pngle==nullptr) {
+            return gfx_result::out_of_memory;
+        }
+        pngle_load_state load_state;
+        load_state.draw_callback = out_func;
+        load_state.draw_callback_state = state;
+        load_state.pngle = pngle;
+        load_state.dimensions = {0,0};
+        pngle_set_draw_callback(pngle, pngle_on_draw,&load_state);
+        int remain = 0;
+        bool first = fourcc!=nullptr;
+        size_t len;
+        if(fourcc!=nullptr) {
+            memcpy(buf,fourcc,4);
+            remain = 4;
+        }
+        while ((len = input->read(buf + remain, sizeof(buf) - remain)) > 0) {
+            int fed = pngle_feed(pngle, buf, remain + len);
+            if (fed < 0) {
+                pngle_destroy(pngle);
+                return gfx_result::invalid_format;
+            }
+
+            remain = remain + len - fed;
+            if (remain > 0) memmove(buf, buf + fed, remain);
+        }
+        pngle_destroy(pngle);
+        return gfx_result::not_supported;
+    }
     void* jpeg_image::alloc_pool(				/* Pointer to allocated memory block (NULL:no memory available) */
 							jpeg_image::JDEC *jd,		/* Pointer to the decompressor object */
 							unsigned int nd /* Number of bytes to allocate */
@@ -604,11 +661,11 @@ namespace gfx {
         jd->inbuf = seg = (uint8_t *)alloc_pool(jd, JD_SZBUF); /* Allocate stream input buffer */
         if (!seg)
             return JDR_MEM1;
-
-        if (jd->infunc(jd, seg, 2) != 2)
+         if (jd->infunc(jd, seg, 2) != 2)
             return JDR_INP; /* Check SOI marker */
-        if (LDB_WORD(seg) != 0xFFD8)
+        if (LDB_WORD(seg) != 0xFFD8) {
             return JDR_FMT1; /* Err: SOI is not detected */
+        }
         ofs = 2;
 
         for (;;)
@@ -618,8 +675,9 @@ namespace gfx {
                 return JDR_INP;
             marker = LDB_WORD(seg);	 /* Marker */
             len = LDB_WORD(seg + 2); /* Length field */
-            if (len <= 2 || (marker >> 8) != 0xFF)
+            if (len <= 2 || (marker >> 8) != 0xFF) {
                 return JDR_FMT1;
+            }
             len -= 2;		/* Content size excluding length field */
             ofs += 4 + len; /* Number of bytes loaded */
 
@@ -845,12 +903,25 @@ namespace gfx {
     }
     unsigned int jpeg_image::infunc(jpeg_image::JDEC *decoder, uint8_t *buf, unsigned int len)
     {
+        size_t adv=0;
         if(0!=len) {
+            if(decoder->read_fourcc<4) {
+                const size_t rem = 4-decoder->read_fourcc;
+                adv = len<rem?len:rem;
+                if(buf!=nullptr) {
+                    memcpy(buf,decoder->fourcc+decoder->read_fourcc,adv);
+                }
+                decoder->read_fourcc+=adv;
+                len-=adv;
+            }
+            if(len==0) {
+                return adv;
+            }
             //Read bytes from input file
             JpegDev *jd = (JpegDev *)decoder->device;
             
             if (buf != nullptr) {
-                len=jd->input_stream->read(buf,len);
+                len=jd->input_stream->read(buf+adv,len);
             } else {
                 // TODO: If this seeks past the end of the streem it's not detected right now
                 if(jd->input_stream->caps().seek) {
@@ -864,7 +935,7 @@ namespace gfx {
                 }
             }
         }
-        return len;
+        return len+adv;
     }
 
     int jpeg_image::outfunc(jpeg_image::JDEC *decoder, void *bitmap, jpeg_image::JRECT *rect)
@@ -885,6 +956,11 @@ namespace gfx {
         }
 
         JDEC decoder;
+        
+        if(4!=input->read(decoder.fourcc,4)) {
+            ::free(work);
+            return gfx_result::io_error;
+        }
         decoder.width = 0;
         decoder.height = 0;
         JpegDev jd;
@@ -893,6 +969,12 @@ namespace gfx {
         jd.out = nullptr;
         jd.result = gfx_result::success;
         //Prepare and decode the jpeg.
+        uint8_t fourcc[4];
+        if(4!=input->read(decoder.fourcc,4)) {
+            ::free(work);
+            return gfx_result::io_error;
+        }
+        decoder.read_fourcc = 0;
         jd_prepare(&decoder, infunc, work, WORKSZ, (void *)&jd);
         if(decoder.width>0&&decoder.height>0) {
             out_dimensions->width = decoder.width;
@@ -904,7 +986,7 @@ namespace gfx {
         return gfx_result::unknown_error;
         
     }
-    gfx_result jpeg_image::load(stream* input,callback out_func,void* state) {
+    gfx_result jpeg_image::load(stream* input,callback out_func,void* state, uint8_t* fourcc) {
         if(nullptr==input)
             return gfx_result::invalid_argument;
         if(nullptr==out_func)
@@ -924,6 +1006,15 @@ namespace gfx {
         jd.state = state;
         jd.out = out_func;
         jd.result = gfx_result::success;
+        if(fourcc==nullptr) {
+            if(4!=input->read(decoder.fourcc,4)) {
+                ::free(work);
+                return gfx_result::io_error;
+            }
+        } else {
+            memcpy(decoder.fourcc,fourcc,4);
+        }
+        decoder.read_fourcc = 0;
         //Prepare and decode the jpeg.
         r = jd_prepare(&decoder, infunc, work, WORKSZ, (void *)&jd);
         if(JDR_OK!=r) {

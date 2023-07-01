@@ -3634,91 +3634,110 @@ struct draw {
             rect_orientation::denormalized,
             pointx<float>(NAN, NAN),
             async};
-        gfx_result r = jpeg_image::load(
-            source_stream, [](size16 dimensions, jpeg_image::region_type& region, point16 location, void* state) {
-                gfx_result r = gfx_result::success;
-                load_context& ctx =
-                    *(load_context*)state;
-                if (isnan(ctx.scale.x)) {
-                    if (ctx.src_rect.x2 == uint16_t(0xFFFF) && ctx.src_rect.y2 == uint16_t(0xFFFF)) {
-                        ctx.src_rect.x2 = dimensions.width + ctx.src_rect.x1 - 1;
-                        ctx.src_rect.y2 = dimensions.height + ctx.src_rect.y1 - 1;
-                    }
-                    ctx.src_rect = ctx.src_rect.crop(dimensions.bounds());
-                    ctx.orient = ctx.dst_rect.orientation();
-                    ctx.src_rect.normalize_inplace();
-                    ctx.dst_rect.normalize_inplace();
-                    if (dimensions == (size16)ctx.dst_rect.dimensions()) {
-                        ctx.resize_type = bitmap_resize::crop;
-                    }
-                    if (bitmap_resize::crop == ctx.resize_type) {
-                        ctx.scale.x = ctx.scale.y = 1.0;
-                    } else {
-                        ctx.scale.x = float(dimensions.width) / ctx.dst_rect.dimensions().width;
-                        ctx.scale.y = float(dimensions.height) / ctx.dst_rect.dimensions().height;
-                        // printf("ctx scale: (%f, %f)\r\n",ctx.scale.x,ctx.scale.y);
-                    }
-                    switch (ctx.resize_type) {
-                        case bitmap_resize::crop:
-                        case bitmap_resize::resize_fast:
-                            break;
-                        case bitmap_resize::resize_bilinear:
-                            return gfx_result::not_supported;
-                        case bitmap_resize::resize_bicubic:
-                            return gfx_result::not_supported;
-                    }
-                }
-                if ((location.x + region.dimensions().width - 1 >= ctx.src_rect.x1) &&
-                    (location.y + region.dimensions().height - 1 >= ctx.src_rect.y1)) {
-                    const spoint16 dst_offset = {
-                        int16_t(((int)ctx.dst_rect.x1) - (int)ctx.src_rect.x1),
-                        int16_t(((int)ctx.dst_rect.y1) - (int)ctx.src_rect.y1)};
-                    bool early_exit = false;
-                    srect16 region_rect = (srect16)region.bounds();
-                    region_rect.offset_inplace(location.x, location.y);
-                    switch (ctx.resize_type) {
-                        case bitmap_resize::crop: {
-                            if (region_rect.y1 <= ((int)ctx.src_rect.y2) && region_rect.x1 <= ((int)ctx.src_rect.x2)) {
-                                region_rect = region_rect.crop((srect16)ctx.src_rect);
-                                // in case we need to debug:
-                                // printf("region rect = (%d, %d)-(%d, %d) - size = (%d, %d)\r\n",region_rect.x1,region_rect.y1,region_rect.x2,region_rect.y2,region_rect.width(),region_rect.height());
-                                rect16 region_rect_unoffset = (rect16)region_rect.offset(-location.x, -location.y);
-                                srect16 target_rect = ((srect16)region_rect).offset(dst_offset.x, dst_offset.y);
-                                if (ctx.dst_rect.intersects(target_rect)) {
-                                    target_rect = target_rect.crop(ctx.dst_rect);
-                                    region_rect.x2 = ctx.src_rect.x1 + target_rect.width() - 1;
-                                    region_rect.y2 = ctx.src_rect.y1 + target_rect.height() - 1;
-                                    if (ctx.async) {
-                                        r = draw::bitmap_async(ctx.destination, target_rect, region, region_rect_unoffset, ctx.resize_type, nullptr, ctx.clip);
-                                    } else {
-                                        r = draw::bitmap(ctx.destination, target_rect, region, region_rect_unoffset, ctx.resize_type, nullptr, ctx.clip);
-                                    }
-                                    if (gfx_result::success != r) {
-                                        return r;
-                                    }
-                                } else if (target_rect.y1 > ctx.dst_rect.y2 || (target_rect.y1 == ctx.dst_rect.y2 && target_rect.x1 > ctx.dst_rect.x2)) {
-                                    early_exit = true;
-                                }
-                            }
-                            // early out if we don't need the rest:
-                            if (early_exit) {
-                                return gfx_result::canceled;
-                            }
-                        } break;
-                        // TODO: Implement these - not easy or cheap
-                        case bitmap_resize::resize_fast: {
+        uint8_t fourcc[4];
+        if(4!=source_stream->read(fourcc,4)) {
+            return gfx_result::io_error;
+        }
+        if(fourcc[1]==0xFF && fourcc[1]==0xd8) {
+            gfx_result r = jpeg_image::load(
+                source_stream, [](size16 dimensions, jpeg_image::region_type& region, point16 location, void* state) {
+                    gfx_result r = gfx_result::success;
+                    load_context& ctx =
+                        *(load_context*)state;
+                    if (isnan(ctx.scale.x)) {
+                        if (ctx.src_rect.x2 == uint16_t(0xFFFF) && ctx.src_rect.y2 == uint16_t(0xFFFF)) {
+                            ctx.src_rect.x2 = dimensions.width + ctx.src_rect.x1 - 1;
+                            ctx.src_rect.y2 = dimensions.height + ctx.src_rect.y1 - 1;
+                        }
+                        ctx.src_rect = ctx.src_rect.crop(dimensions.bounds());
+                        ctx.orient = ctx.dst_rect.orientation();
+                        ctx.src_rect.normalize_inplace();
+                        ctx.dst_rect.normalize_inplace();
+                        if (dimensions == (size16)ctx.dst_rect.dimensions()) {
+                            ctx.resize_type = bitmap_resize::crop;
+                        }
+                        if (bitmap_resize::crop == ctx.resize_type) {
+                            ctx.scale.x = ctx.scale.y = 1.0;
+                        } else {
+                            ctx.scale.x = float(dimensions.width) / ctx.dst_rect.dimensions().width;
+                            ctx.scale.y = float(dimensions.height) / ctx.dst_rect.dimensions().height;
+                            // printf("ctx scale: (%f, %f)\r\n",ctx.scale.x,ctx.scale.y);
+                        }
+                        switch (ctx.resize_type) {
+                            case bitmap_resize::crop:
+                            case bitmap_resize::resize_fast:
+                                break;
                             case bitmap_resize::resize_bilinear:
+                                return gfx_result::not_supported;
                             case bitmap_resize::resize_bicubic:
                                 return gfx_result::not_supported;
                         }
                     }
-                }
+                    if ((location.x + region.dimensions().width - 1 >= ctx.src_rect.x1) &&
+                        (location.y + region.dimensions().height - 1 >= ctx.src_rect.y1)) {
+                        const spoint16 dst_offset = {
+                            int16_t(((int)ctx.dst_rect.x1) - (int)ctx.src_rect.x1),
+                            int16_t(((int)ctx.dst_rect.y1) - (int)ctx.src_rect.y1)};
+                        bool early_exit = false;
+                        srect16 region_rect = (srect16)region.bounds();
+                        region_rect.offset_inplace(location.x, location.y);
+                        switch (ctx.resize_type) {
+                            case bitmap_resize::crop: {
+                                if (region_rect.y1 <= ((int)ctx.src_rect.y2) && region_rect.x1 <= ((int)ctx.src_rect.x2)) {
+                                    region_rect = region_rect.crop((srect16)ctx.src_rect);
+                                    // in case we need to debug:
+                                    // printf("region rect = (%d, %d)-(%d, %d) - size = (%d, %d)\r\n",region_rect.x1,region_rect.y1,region_rect.x2,region_rect.y2,region_rect.width(),region_rect.height());
+                                    rect16 region_rect_unoffset = (rect16)region_rect.offset(-location.x, -location.y);
+                                    srect16 target_rect = ((srect16)region_rect).offset(dst_offset.x, dst_offset.y);
+                                    if (ctx.dst_rect.intersects(target_rect)) {
+                                        target_rect = target_rect.crop(ctx.dst_rect);
+                                        region_rect.x2 = ctx.src_rect.x1 + target_rect.width() - 1;
+                                        region_rect.y2 = ctx.src_rect.y1 + target_rect.height() - 1;
+                                        if (ctx.async) {
+                                            r = draw::bitmap_async(ctx.destination, target_rect, region, region_rect_unoffset, ctx.resize_type, nullptr, ctx.clip);
+                                        } else {
+                                            r = draw::bitmap(ctx.destination, target_rect, region, region_rect_unoffset, ctx.resize_type, nullptr, ctx.clip);
+                                        }
+                                        if (gfx_result::success != r) {
+                                            return r;
+                                        }
+                                    } else if (target_rect.y1 > ctx.dst_rect.y2 || (target_rect.y1 == ctx.dst_rect.y2 && target_rect.x1 > ctx.dst_rect.x2)) {
+                                        early_exit = true;
+                                    }
+                                }
+                                // early out if we don't need the rest:
+                                if (early_exit) {
+                                    return gfx_result::canceled;
+                                }
+                            } break;
+                            // TODO: Implement these - not easy or cheap
+                            case bitmap_resize::resize_fast: {
+                                case bitmap_resize::resize_bilinear:
+                                case bitmap_resize::resize_bicubic:
+                                    return gfx_result::not_supported;
+                            }
+                        }
+                    }
 
+                    return r;
+                },
+                &context,fourcc);
+            if (r != gfx_result::canceled && r != gfx_result::success) {
                 return r;
-            },
-            &context);
-        if (r != gfx_result::canceled && r != gfx_result::success) {
-            return r;
+            }
+        } else if(fourcc[0]==0x89 && fourcc[1]=='P' && fourcc[2]=='N' && fourcc[3]=='G') { 
+            if(resize_type!=bitmap_resize::crop) {
+                return gfx_result::not_supported;
+            }
+            if(destination_rect.orientation()!=rect_orientation::normalized) {
+                return gfx_result::not_supported;
+            }
+            return png_image::load(source_stream,[](size16 dimensions, const rect16& bounds,png_image::pixel_type color, void* state){
+                load_context& ctx = *(load_context*)state;
+                return draw::filled_rectangle(ctx.destination,bounds.offset(ctx.dst_rect.top_left()),color,ctx.clip);
+            },&context,fourcc);
+        } else {
+            return gfx_result::invalid_format;
         }
         return gfx_result::success;
     }

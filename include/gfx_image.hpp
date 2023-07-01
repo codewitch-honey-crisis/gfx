@@ -14,7 +14,20 @@
 /----------------------------------------------------------------------------*/
 
 namespace gfx {
-    
+    struct png_image final {
+        using pixel_type = rgba_pixel<32>;
+        typedef gfx_result(*callback)(size16 dimensions, const rect16& bounds,pixel_type color, void* state);
+        static gfx_result dimensions(stream* input, size16* out_dimensions);
+        static gfx_result load(stream* input,callback out_func,void* state=nullptr,uint8_t*fourcc=nullptr);
+#ifdef ARDUINO
+        inline static gfx_result load(Stream* input,callback out_func,void* state=nullptr,uint8_t* fourcc=nullptr) {
+            arduino_stream stm(input);
+            return load(&stm,out_func,state,fourcc);
+        }
+#endif  
+    private:
+
+    };
     struct jpeg_image final {
         #ifdef GFX_JPEG_AS_RGB
         using pixel_type = rgb_pixel<24>;
@@ -47,6 +60,8 @@ namespace gfx {
 
         struct JDEC final
         {
+            uint8_t fourcc[4];
+            uint8_t read_fourcc;
             unsigned int dctr;										 /* Number of bytes available in the input buffer */
             uint8_t *dptr;											 /* Current data read ptr */
             uint8_t *inbuf;											 /* Bit stream input buffer */
@@ -160,11 +175,11 @@ namespace gfx {
         static int outfunc(JDEC *decoder, void *bitmap, JRECT *rect);
     public:
         static gfx_result dimensions(stream* input, size16* out_dimensions);
-        static gfx_result load(stream* input,callback out_func,void* state=nullptr);
+        static gfx_result load(stream* input,callback out_func,void* state=nullptr,uint8_t*fourcc=nullptr);
 #ifdef ARDUINO
-        inline static gfx_result load(Stream* input,callback out_func,void* state=nullptr) {
+        inline static gfx_result load(Stream* input,callback out_func,void* state=nullptr,uint8_t* fourcc=nullptr) {
             arduino_stream stm(input);
-            return load(&stm,out_func,state);
+            return load(&stm,out_func,state,fourcc);
         }
 #endif  
     };

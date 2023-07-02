@@ -3638,7 +3638,8 @@ struct draw {
         if(4!=source_stream->read(fourcc,4)) {
             return gfx_result::io_error;
         }
-        if(fourcc[1]==0xFF && fourcc[1]==0xd8) {
+        if(fourcc[0]==0xFF && fourcc[1]==0xd8) {
+            
             gfx_result r = jpeg_image::load(
                 source_stream, [](size16 dimensions, jpeg_image::region_type& region, point16 location, void* state) {
                     gfx_result r = gfx_result::success;

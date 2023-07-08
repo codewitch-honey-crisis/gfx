@@ -396,7 +396,8 @@ namespace gfx {
                 ++result;
             }
             if(result==out_count) return result;
-            if(split_rect.right()>right()) {
+            if(split_rect.right()<right()) {
+                Serial.println("Split right");
                 *(out_rects++)=rectx(split_rect.right(),split_rect.top(),right(),split_rect.bottom());
                 ++result;
             }

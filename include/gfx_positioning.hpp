@@ -23,6 +23,12 @@ namespace gfx {
         constexpr inline explicit operator pointx<bits::unsignedx<value_type>>() const {
             return pointx<bits::unsignedx<value_type>>(bits::unsignedx<value_type>(x),bits::unsignedx<value_type>(y));
         }
+        constexpr inline bool operator==(const type& rhs) const {
+            return x == rhs.x && y == rhs.y;
+        }
+        constexpr inline bool operator!=(const type& rhs) const {
+            return x != rhs.x || y != rhs.y;
+        }
         // offsets the point by the specified amounts.
         constexpr inline pointx offset(bits::signedx<value_type> x, bits::signedx<value_type> y) const {
             return type(this->x+x,this->y+y);
@@ -40,9 +46,7 @@ namespace gfx {
         constexpr inline void offset_inplace(pointx<bits::signedx<value_type>> adjust) {
             offset_inplace(adjust.x,adjust.y);
         }
-        constexpr inline bool operator==(const type& rhs) const { 
-            return x==rhs.x && y==rhs.y;   
-        }
+
         constexpr static const inline pointx min() { return { bits::num_metrics<value_type>::min,bits::num_metrics<value_type>::min }; }
         constexpr static const inline pointx zero() { return { bits::num_metrics<value_type>::zero,bits::num_metrics<value_type>::zero }; }
         constexpr static const inline pointx max() { return { bits::num_metrics<value_type>::max,bits::num_metrics<value_type>::max }; }
@@ -76,6 +80,9 @@ namespace gfx {
         }
         constexpr inline bool operator==(const sizex& rhs) const { 
             return width==rhs.width && height==rhs.height;   
+        }
+        constexpr inline bool operator!=(const sizex& rhs) const {
+            return width!=rhs.width || height!=rhs.height;
         }
         constexpr static const inline sizex min() { return { bits::num_metrics<value_type>::min,bits::num_metrics<value_type>::min }; }
         constexpr static const inline sizex max() { return { bits::num_metrics<value_type>::max,bits::num_metrics<value_type>::max }; }
@@ -126,7 +133,12 @@ namespace gfx {
             x2(center.x + distance - 1), 
             y2(center.y + distance - 1) {
         }
-        
+        constexpr inline bool operator==(const type& rhs) const {
+            return x1 == rhs.x1 && y1 == rhs.y1 && x2==rhs.x2 && y2==rhs.y2;
+        }
+        constexpr inline bool operator!=(const type& rhs) const {
+            return x1 != rhs.x1 || y1 != rhs.y1 || x2!=rhs.x2 && y2!=rhs.y2;
+        }
         // indicates the leftmost position
         constexpr inline T left() const {
             return (x1 <= x2) ? x1 : x2;
@@ -397,6 +409,7 @@ namespace gfx {
             }
             if(result==out_count) return result;
             if(split_rect.right()<right()) {
+                Serial.println("Split right");
                 *(out_rects++)=rectx(split_rect.right(),split_rect.top(),right(),split_rect.bottom());
                 ++result;
             }
@@ -414,10 +427,6 @@ namespace gfx {
         explicit operator rectx<bits::unsignedx<value_type>>() const {
             using t = bits::unsignedx<value_type>;
             return rectx<bits::unsignedx<value_type>>(t(x1),t(y1),t(x2),t(y2));
-        }
-        constexpr inline bool operator==(const rectx& rhs) const { 
-            return x1==rhs.x1 && y1==rhs.y1 &&
-                x2==rhs.x2 && y2==rhs.y2;
         }
     };
     

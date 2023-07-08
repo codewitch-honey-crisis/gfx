@@ -383,7 +383,7 @@ namespace gfx {
             return rectx<T>(x2,y2,x1,y1);
         }
         // splits a rectangle by another rectangle, returning between 0 and 4 rectangles as a result
-        constexpr size_t split(rectx& split_rect,size_t out_count, rectx* out_rects) const {
+        constexpr size_t split(const rectx& split_rect,size_t out_count, rectx* out_rects) const {
             if(0==out_count || !intersects(split_rect)) return 0;
             size_t result = 0;
             if(split_rect.top()>top()) {

@@ -87,15 +87,20 @@ namespace gfx {
         constexpr static const inline sizex min() { return { bits::num_metrics<value_type>::min,bits::num_metrics<value_type>::min }; }
         constexpr static const inline sizex max() { return { bits::num_metrics<value_type>::max,bits::num_metrics<value_type>::max }; }
 
-        inline float aspect_ratio() const {
+        constexpr inline float aspect_ratio() const {
             return (float)width/(float)height;
+        }
+
+        constexpr size_t area() const {
+            return width*height;
         }
     };
     enum struct rect_orientation {
         normalized = 0,
         denormalized = 1,
         flipped_horizontal = 2 | denormalized,
-        flipped_vertical = 4 | denormalized
+        flipped_vertical = 4 | denormalized,
+        flipped_all = flipped_horizontal | flipped_vertical
     };
     // represents a rectangle with integer coordinates
     template <typename T>
@@ -409,7 +414,6 @@ namespace gfx {
             }
             if(result==out_count) return result;
             if(split_rect.right()<right()) {
-                Serial.println("Split right");
                 *(out_rects++)=rectx(split_rect.right(),split_rect.top(),right(),split_rect.bottom());
                 ++result;
             }
@@ -419,6 +423,26 @@ namespace gfx {
                 ++result;
             }
             return result;
+        }
+        constexpr rectx merge(const rectx& other) const {
+            rectx result = this->normalize();
+            rectx othern = other.normalize();
+            if(result.x1>othern.x1) {
+                result.x1 = othern.x1;
+            }
+            if(result.x2<othern.x2) {
+                result.x2 = othern.x2;
+            }
+            if(result.y1>othern.y1) {
+                result.y1 = othern.y1;
+            }
+            if(result.y2<othern.y2) {
+                result.y2 = othern.y2;
+            }
+            return result;
+        }
+        constexpr size_t area() const {
+            return width()*height();
         }
         explicit operator rectx<bits::signedx<value_type>>() const {
             using t = bits::signedx<value_type>;

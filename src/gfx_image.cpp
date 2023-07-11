@@ -994,7 +994,6 @@ namespace gfx {
         jd.out = nullptr;
         jd.result = gfx_result::success;
         //Prepare and decode the jpeg.
-        uint8_t fourcc[4];
         if(4!=input->read(decoder.fourcc,4)) {
             ::free(work);
             return gfx_result::io_error;

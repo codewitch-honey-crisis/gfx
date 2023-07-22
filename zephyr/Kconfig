@@ -1,0 +1,5 @@
+menu "htcw_gfx configuration"
+  config HTCW_GFX
+    bool "Enable HTCW_GFX"
+    default n
+endmenu

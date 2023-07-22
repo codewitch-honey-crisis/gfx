@@ -1,0 +1,7 @@
+name: htcw_gfx
+build:
+  depends: 
+    - htcw_bits
+    - htcw_io
+    - htcw_ml
+    - htcw_data

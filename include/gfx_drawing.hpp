@@ -2,7 +2,7 @@
 #define HTCW_GFX_DRAWING_HPP
 #include <math.h>
 
-#include <cmath>
+//#include <cmath>
 
 #include "gfx_bitmap.hpp"
 #include "gfx_core.hpp"
@@ -2072,7 +2072,8 @@ struct draw {
             if (r != gfx_result::success) {
                 return r;
             }
-            double a = NAN, oa = NAN;
+            bool has_a = false, has_oa = false;
+            double a = 0, oa = -1;
             r = b.begin_batch(destination, dstr, async);
             if (r != gfx_result::success) {
                 return r;
@@ -2165,7 +2166,7 @@ struct draw {
             if (r != gfx_result::success) {
                 return r;
             }
-            double a = NAN, oa = NAN;
+            double a = 0, oa = -1;
 
             if (r != gfx_result::success) {
                 return r;
@@ -3622,6 +3623,7 @@ struct draw {
             bitmap_resize resize_type;
             const srect16* clip;
             rect_orientation orient;
+            bool has_scale;
             pointx<float> scale;
             bool async;
         };
@@ -3632,7 +3634,8 @@ struct draw {
             resize_type,
             clip,
             rect_orientation::denormalized,
-            pointx<float>(NAN, NAN),
+            false,
+            pointx<float>(-1, -1),
             async};
         uint8_t fourcc[4];
         if(4!=source_stream->read(fourcc,4)) {
@@ -3645,7 +3648,7 @@ struct draw {
                     gfx_result r = gfx_result::success;
                     load_context& ctx =
                         *(load_context*)state;
-                    if (isnan(ctx.scale.x)) {
+                    if (!ctx.has_scale) {
                         if (ctx.src_rect.x2 == uint16_t(0xFFFF) && ctx.src_rect.y2 == uint16_t(0xFFFF)) {
                             ctx.src_rect.x2 = dimensions.width + ctx.src_rect.x1 - 1;
                             ctx.src_rect.y2 = dimensions.height + ctx.src_rect.y1 - 1;
@@ -3659,8 +3662,10 @@ struct draw {
                         }
                         if (bitmap_resize::crop == ctx.resize_type) {
                             ctx.scale.x = ctx.scale.y = 1.0;
+                            ctx.has_scale = true;
                         } else {
                             ctx.scale.x = float(dimensions.width) / ctx.dst_rect.dimensions().width;
+                            ctx.has_scale = true;
                             ctx.scale.y = float(dimensions.height) / ctx.dst_rect.dimensions().height;
                             // printf("ctx scale: (%f, %f)\r\n",ctx.scale.x,ctx.scale.y);
                         }

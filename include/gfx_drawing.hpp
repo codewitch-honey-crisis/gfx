@@ -2,7 +2,7 @@
 #define HTCW_GFX_DRAWING_HPP
 #include <math.h>
 
-//#include <cmath>
+#include <cmath>
 
 #include "gfx_bitmap.hpp"
 #include "gfx_core.hpp"

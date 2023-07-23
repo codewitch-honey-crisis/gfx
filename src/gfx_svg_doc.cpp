@@ -1,3 +1,4 @@
+#include <cstdlib>
 #include <gfx_math.hpp>
 #include <gfx_svg_doc.hpp>
 #define NANOSVG_IMPLEMENTATION

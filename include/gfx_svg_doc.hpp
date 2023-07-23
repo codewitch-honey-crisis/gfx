@@ -2,6 +2,7 @@
 #define HTCW_GFX_SVG_DOC_HPP
 #include "gfx_core.hpp"
 #include "gfx_positioning.hpp"
+#include <cstdlib>
 #include <string.h>
 namespace gfx {
     class svg_doc final {

@@ -3,6 +3,7 @@
 #include "gfx_core.hpp"
 #include "gfx_positioning.hpp"
 #include <string.h>
+#include <cstdlib>
 namespace gfx {
     class svg_doc final {
         void* m_doc_data;

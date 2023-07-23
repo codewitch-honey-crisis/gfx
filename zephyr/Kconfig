@@ -1,5 +1,8 @@
+
 menu "htcw_gfx configuration"
   config HTCW_GFX
     bool "Enable HTCW_GFX"
+    depends on CPP
+    select REQUIRES_FULL_LIBC
     default n
 endmenu

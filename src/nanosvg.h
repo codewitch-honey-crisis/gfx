@@ -1,7 +1,3 @@
-#ifdef __cplusplus
-#include <cstdlib>
-#include <cmath>
-#endif
 
 /*
  * Copyright (c) 2013-14 Mikko Mononen memon@inside.org

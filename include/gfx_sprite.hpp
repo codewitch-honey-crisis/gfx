@@ -10,9 +10,9 @@ namespace gfx {
     
     template<typename PixelType,typename PaletteType = palette<PixelType,PixelType>>
     class sprite final {
-        using bitmap_type = bitmap<PixelType,PaletteType>;
+        using bitmap_type = const_bitmap<PixelType,PaletteType>;
         bitmap_type m_bitmap;
-        using mask_type = bitmap<gsc_pixel<1>>;
+        using mask_type = const_bitmap<gsc_pixel<1>>;
         mask_type m_mask;
         
     public:
@@ -20,7 +20,7 @@ namespace gfx {
         using pixel_type = PixelType;
         using palette_type = PaletteType;
         using caps = gfx_caps<true,false,false,false,false,true,true>;
-        sprite(size16 size, void* buf, void* mask_buf,const palette_type* palette=nullptr) : 
+        sprite(size16 size, const void* buf, const void* mask_buf,const palette_type* palette=nullptr) : 
                 m_bitmap(size,buf,palette),m_mask(size,mask_buf) {
         }
 

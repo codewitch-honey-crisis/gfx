@@ -1995,35 +1995,31 @@ struct draw {
         helpers::suspender<Destination, Destination::caps::suspend, Destination::caps::async> stok(destination, false);
 
         for (int y = 0; y < size.height; ++y) {
-            int run_start = -1;
-            typename Sprite::pixel_type px, opx;
-            for (int x = 0; x < size.width; ++x) {
+            int run_start=-1;
+            typename Sprite::pixel_type px(0,true), opx(0,true);
+            //for (int x = 0; x < size.width; ++x) {
+            int x = 0;
+            while(x<size.width) {
                 run_start = -1;
-                const point16 pt = point16(uint16_t(x), uint16_t(y));
-                const spoint16 pt2 = ((spoint16)pt).offset(location.x, location.y);
-                if (source.hit_test(pt)) {
-                    if (-1 == run_start) {
-                        run_start = x;
-                        opx = px;
+                //const spoint16 pt2 = ((spoint16)pt).offset(location.x, location.y);
+                //const point16 pt = point16(uint16_t(x), uint16_t(y));
+                while(x<size.width) {
+                    while(!source.hit_test(point16(x,y)) && x<size.width) {
+                        ++x;
                     }
-                    source.point(pt, &px);
-                    if (opx != px) {
-                        if (run_start != -1) {
-                            line_impl(destination, {int16_t(run_start + location.x), pt2.y, int16_t(x + location.x - 1), pt2.y}, opx, clip, async);
+                    if(x<size.width) {
+                        run_start = x;                        
+                        source.point(point16(x,y),&px);
+                        opx=px;
+                        while(x<size.width && source.hit_test(point16(x,y)) && opx==px) {
+                            opx=px;
+                            ++x;
+                            source.point(point16(x,y),&px);
                         }
-                        opx = px;
-                        run_start = x;
+                        line_impl(destination,srect16(run_start+location.x,y+location.y,run_start+x-1+location.x,y+location.y),px,clip,async);
                     }
-                    destination.point((point16)pt2, px);
-                } else {
-                    if (run_start != -1) {
-                        line_impl(destination, {int16_t(run_start + location.x), pt2.y, int16_t(x + location.x - 1), pt2.y}, opx, clip, async);
-                    }
-                    run_start = -1;
                 }
-            }
-            if (run_start != -1) {
-                line_impl(destination, {int16_t(run_start + location.x), int16_t(y + location.y), int16_t(size.width - 1 + location.x), int16_t(y + location.y)}, opx, clip, async);
+                ++y;
             }
         }
 

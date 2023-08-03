@@ -1997,12 +1997,9 @@ struct draw {
         for (int y = 0; y < size.height; ++y) {
             int run_start=-1;
             typename Sprite::pixel_type px(0,true), opx(0,true);
-            //for (int x = 0; x < size.width; ++x) {
             int x = 0;
             while(x<size.width) {
                 run_start = -1;
-                //const spoint16 pt2 = ((spoint16)pt).offset(location.x, location.y);
-                //const point16 pt = point16(uint16_t(x), uint16_t(y));
                 while(x<size.width) {
                     while(!source.hit_test(point16(x,y)) && x<size.width) {
                         ++x;
@@ -2016,10 +2013,9 @@ struct draw {
                             ++x;
                             source.point(point16(x,y),&px);
                         }
-                        line_impl(destination,srect16(run_start+location.x,y+location.y,run_start+x-1+location.x,y+location.y),px,clip,async);
+                        line_impl(destination,srect16(run_start+location.x,y+location.y,x-1+location.x,y+location.y),opx,clip,async);
                     }
                 }
-                ++y;
             }
         }
 

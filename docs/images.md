@@ -4,7 +4,7 @@
 
 # 3. Images
 
-Images allow you to load potentially large picture/image data iteratively onto a draw target. They are typically streamed from a source, such as an SD card, or flash memory. Currently the only image format supported is JPG.
+Images allow you to load potentially large picture/image data iteratively onto a draw target. They are typically streamed from a source, such as an SD card, or flash memory. Supported image formats are JPG and PNG.
 
 Images aren't draw sources because they are compressed and because they are never loaded into memory all at once. Due to that, there is no way to randomly access the pixel data, which is a requirement for draw sources.
 

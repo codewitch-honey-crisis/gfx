@@ -444,7 +444,20 @@ See the [Tools](tools.md) page for information on getting icons for your project
 
 <a name="5.7"></a>
 
-## 5.7 Alpha blending
+## 5.7 SVGs
+
+SVGs are a standard scalable vector graphics format that can be drawn in any size.
+
+```cpp
+svg_doc doc;
+svg_doc::read(&input,&doc);
+draw::svg(lcd,lcd.bounds(),doc,1.0);
+```
+See the [Tools](tools.md) page for information on getting SVGs for your project.
+
+<a name="5.8"></a>
+
+## 5.8 Alpha blending
 
 Alpha blending occurs whenever a pixel with an alpha channel is drawn to a supporting draw target - that is a draw target which can act as both a draw source and a draw destination. To enable alpha blending, simply declare a pixel that carries an alpha channel and then use that to perform your drawing.
 
@@ -468,21 +481,21 @@ draw::filled_rectangle(
         col);
 ```
 
-<a name="5.7.1"></a>
+<a name="5.8.1"></a>
 
-### 5.7.1 Performance considerations
+### 5.8.1 Performance considerations
 
 Alpha blending can take significant bus traffic and computation time and so it should be used with care. Drawing rectangles and individual pixels is fastest, assuming you have a little RAM to spare, but most alpha blending operations must draw pixel by pixel instead of pushing pixels in bulk which signficantly slows things down.
 
-<a name="5.7.2"></a>
+<a name="5.8.2"></a>
 
-### 5.7.2 Draw target considerations
+### 5.8.2 Draw target considerations
 
 A draw target that can alpha blend must be both a draw source and a draw destination or alpha blending will not occur and the alpha channel will be ignored. Some displays such as the SSD1351 over SPI cannot alpha blend at all. In those cases, you must first blend to a bitmap, then draw the blended bitmap to the screen.
 
-<a name="5.8"></a>
+<a name="5.9"></a>
 
-## 5.8 Suspend and resume
+## 5.9 Suspend and resume
 
 Double buffering for supported displays is facilitated through `draw::suspend<>()` and `draw::resume<>()`. Once suspend is called, subsequent drawing operations will not show up on the draw destination until resume is called on that destination. Repeated calls to `suspend<>()` must be balanced with the same number of repeated calls to `resume<>()` so that the calls can be nested. GFX automatically suspends during intrinsic drawing operations so that a line for example will be drawn all at once. However, you can use these calls to extend the suspension across several drawing operations:
 
@@ -518,9 +531,9 @@ for (int y = 0; y < epaper.dimensions().height; y += 16) {
 draw::resume(epaper);
 ```
 
-<a name="5.9"></a>
+<a name="5.10"></a>
 
-## 5.9 Batching
+## 5.10 Batching
 
 Batching can dramatically speed up complicated draw operations by avoiding sending redundant coordinate data to a device, or - memory permitting, by using a temporary memory buffer to hold the batched draws, and sending it to the target all at once.
 

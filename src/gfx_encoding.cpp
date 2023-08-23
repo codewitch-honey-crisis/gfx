@@ -171,7 +171,6 @@ gfx_result to_utf32(const char* in, uint32_t* out_codepoint, size_t* in_out_leng
     if(*in_out_length==0) {
         *in_out_length = trailingBytesForUTF8[(size_t)*in]+1;
     }
-    uint16_t out_tmp[4];
     switch (encoding) {
         case gfx_encoding::utf8: {
             return utf8_to_utf32(in, out_codepoint, in_out_length);

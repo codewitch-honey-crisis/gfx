@@ -219,7 +219,7 @@ Read a font from a (file) stream like this:
 file_stream fs("/spiffs/Georgia_24pt.vlw");
 vlw_font georgia;
 // should check the error result here:
-open_font::open(&fs,&georgia);
+vlw_font::open(&fs,&georgia);
 // maziro now contains the font
 ```
 Embed a font in a header using fontgen and the use it like this:
@@ -227,7 +227,7 @@ Embed a font in a header using fontgen and the use it like this:
 #define GEORGIA_24PT_IMPLEMENTATION
 #include "Georgia_24pt.h"
 ...
-const open_font& georgia = Georgia_24pt;
+const vlw_font& georgia = Georgia_24pt;
 // georgia now contains the font
 ```
 Storing in RAM is the same as reading from a file except you use a `buffer_stream` instead of a file_stream, and point it to the VLW you loaded from a file into memory.

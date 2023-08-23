@@ -10,7 +10,7 @@ Fonts can be used to render textual information to a draw destination. Fonts in 
 
 ## 4.1 Truetype/Opentype Vector
 
-Truetype/Opentype fonts are represented by the `open_font` class. Rather than operating from RAM, these fonts are often streamed from storage due to their size. They only use memory temporarily during the rendering process. Unlike raster, these fonts produce crisp, clean edges and can be scaled to any size. Unlike raster, they require a lot of resources to render. Furthermore they support Unicode.
+Truetype/Opentype fonts are represented by the `open_font` class. Rather than operating from RAM, these fonts are often streamed from storage due to their size. They only use memory temporarily during the rendering process. Unlike simple raster, these fonts produce crisp, clean edges and can be scaled to any size. Unlike raster, they require a lot of resources to render. Furthermore they support Unicode.
 
 <a name="4.1.1"></a>
 
@@ -87,12 +87,13 @@ open_font::open(&fs,&maziro);
 ```
 Embed a font in a header using fontgen and the use it like this:
 ```cpp
+#define MAZIRO_IMPLEMENTATION
 #include "Maziro.h"
 ...
-const open_font& maziro = Maziro_ttf;
+const open_font& maziro = Maziro;
 // maziro now contains the font
 ```
-Storing in RAM is the same as reading from a file except you use a buffer_stream instead of a file_stream, and point it to the TTF you loaded from a file into memory.
+Storing in RAM is the same as reading from a file except you use a `buffer_stream` instead of a file_stream, and point it to the TTF you loaded from a file into memory.
 
 <a name="4.1.3"></a>
 
@@ -133,7 +134,7 @@ ssize16 measure_text(
     unsigned int tab_width=4) const;
 ```
 This function works similarly to the `open_font` function with the same name in that it gives you a `ssize16` structure that contains the width and height of the final text area. You use it like this:
-```
+```cpp
 ssize16 text_size = myfont.measure_text(screen.dimensions(), text);
 ```
 
@@ -154,7 +155,8 @@ font::read(&fs,&acer8x8);
 // acer8x8 now contains the font
 ```
 Embed a font in a header using fontgen and the use it like this:
-```
+```cpp
+#define BM437_ACER_VGA_8X8_IMPLEMENTATION
 #include "Bm437_Acer_VGA_8x8.h"
 ...
 const font& acer8x8 = Bm437_Acer_VGA_8x8_FON;
@@ -166,6 +168,77 @@ const font& acer8x8 = Bm437_Acer_VGA_8x8_FON;
 ### 4.2.3 Performance considerations
 
 Raster fonts are generally much faster than TrueType fonts and faster still when loaded into RAM versus being included in a header. They are also more quickly drawn when they do not have a transparent background.
+
+<a name="4.3"></a>
+
+## 4.3 VLW Raster
+
+VLW fonts are created using the [Processing](https://processing.org/) application and are represented by the `vlw_font` class. Like TrueType these are often streamed from storage due to their size. They only use memory temporarily during the rendering process. Unlike simple raster fonts, these fonts produce crisp, clean edges. They require less resources to render than TrueType, but more than Win 3.1 raster, and so they present a good compromise when scaling isn't required. They also support Unicode.
+
+<a name="4.3.1"></a>
+
+### 4.3.1 Layout
+
+It's pretty easy to lay out raster fonts - even these. Once you have a font open you can use `measure_text()` to compute the dimensions of some text:
+```cpp
+// measures the size of the text 
+// within the destination size
+ssize16 measure_text(
+    // the total size of the layout 
+    // area
+    ssize16 dest_size,
+    // the text to measure
+    const char* text,
+    // the width of a tab
+    // in characters
+    unsigned int tab_width=4,
+    // the encoding to use
+    gfx_encoding encoding = gfx_encoding::utf8) const;
+```
+This function works similarly to the `font` function with the same name in that it gives you a `ssize16` structure that contains the width and height of the final text area. You use it like this:
+
+```cpp
+ssize16 text_size = myfont.measure_text(screen.dimensions(), text);
+```
+Later we'll cover drawing text using these fonts with `draw`.
+
+<a name="4.3.2"></a>
+
+### 4.3.2 Storage considerations
+
+It's easiest to load a VLW font from something like SPIFFS (ESP32) or an SD card. However, doing so comes with a significant performance penalty.
+
+Another option is to embed the font as a header generated using fontgen ([section 9.2](tools.md#9.2)) and then simply reference that.
+
+Finally, for devices with enough RAM, you can read the entire font stream into RAM and then work off of that, but these font files are typically large, though not as large as TrueType in many cases.
+
+Read a font from a (file) stream like this:
+```cpp
+// the following line varies
+// depending on platform:
+file_stream fs("/spiffs/Georgia_24pt.vlw");
+vlw_font georgia;
+// should check the error result here:
+open_font::open(&fs,&georgia);
+// maziro now contains the font
+```
+Embed a font in a header using fontgen and the use it like this:
+```cpp
+#define GEORGIA_24PT_IMPLEMENTATION
+#include "Georgia_24pt.h"
+...
+const open_font& georgia = Georgia_24pt;
+// georgia now contains the font
+```
+Storing in RAM is the same as reading from a file except you use a `buffer_stream` instead of a file_stream, and point it to the VLW you loaded from a file into memory.
+
+<a name="4.3.3"></a>
+
+### 4.3.3 Performance considerations
+
+Storage primarily dictates performance. Working from something like SPIFFS or SD will be pretty slow. Working from an embedded header is much faster. Working from a stream loaded into extended RAM such as PSRAM can improve performance dramatically on systems that can handle it, such as an ESP32 WROVER.
+
+Rendering VLW is relatively simple but alpha blending can slow down performance. For best performance, draw to a bitmap.
 
 [→ Drawing](drawing.md)
 

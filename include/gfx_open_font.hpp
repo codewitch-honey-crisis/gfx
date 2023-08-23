@@ -32,10 +32,8 @@ namespace gfx {
         void glyph_hmetrics(int glyph_index, int* advance_width, int* left_side_bearing) const;
         void glyph_bitmap_bounding_box(int glyph_index,float scale_x,float scale_y,float shift_x,float shift_y,int* x1, int* y1, int* x2, int* y2) const;
         int glyph_index(const char* sz, size_t* out_advance, gfx_encoding encoding = gfx_encoding::utf8,open_font_cache* cache = nullptr) const;
+        int glyph_index(uint32_t codepoint,open_font_cache* cache = nullptr) const;
         void font_vmetrics(int* ascent, int* descent, int* line_gap) const;
-        static int latin1_to_utf8(unsigned char* out, size_t outlen, const unsigned char* in, size_t inlen);
-        static int utf8_to_utf16(uint16_t* out, size_t outlen, const unsigned char* in, size_t inlen);
-        static int to_utf32_codepoint(const char* in,size_t in_length, int* codepoint, gfx_encoding encoding=gfx_encoding::utf8);
         open_font(const open_font& rhs)=delete;
         open_font& operator=(const open_font& rhs)=delete;
     public:

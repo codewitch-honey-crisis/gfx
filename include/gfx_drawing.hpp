@@ -6,10 +6,12 @@
 
 #include "gfx_bitmap.hpp"
 #include "gfx_core.hpp"
+#include "gfx_encoding.hpp"
 #include "gfx_draw_helpers.hpp"
-#include "gfx_font.hpp"
 #include "gfx_image.hpp"
+#include "gfx_font.hpp"
 #include "gfx_open_font.hpp"
+#include "gfx_vlw_font.hpp"
 #include "gfx_palette.hpp"
 #include "gfx_pixel.hpp"
 #include "gfx_positioning.hpp"
@@ -67,6 +69,31 @@ struct open_text_info final {
         this->cache = cache;
     }
 };
+struct vlw_text_info final {
+    const char* text;
+    const gfx::vlw_font* font;
+    bool transparent_background;
+    bool no_antialiasing;
+    gfx_encoding encoding;
+    unsigned int tab_width;
+    inline vlw_text_info() {
+        text = nullptr;
+        font = nullptr;
+        transparent_background = true;
+        no_antialiasing = false;
+        tab_width = 4;
+        encoding = gfx_encoding::utf8;
+    }
+    inline vlw_text_info(const char* text, const gfx::vlw_font& font, bool transparent_background = true,bool no_antialiasing = false, unsigned int tab_width = 4, gfx_encoding encoding = gfx_encoding::utf8) {
+        this->text = text;
+        this->font = &font;
+        this->transparent_background = transparent_background;
+        this->no_antialiasing = no_antialiasing;
+        this->tab_width = tab_width;
+        this->encoding = encoding;
+    }
+};
+
 enum struct bitmap_resize {
     crop = 0,
     resize_fast = 1,
@@ -3303,6 +3330,107 @@ struct draw {
             return gfx_result::success;
         }
     };
+    template<typename Destination,typename PixelType>
+    struct vlw_font_render_state {
+        Destination* dst;
+        PixelType color, bgcolor;
+        bool transparent_background;
+        bool no_antialiasing;
+        int x, y;
+        const srect16* clip;
+        bool async;
+    };
+    template <typename Destination, typename PixelType, bool Read>
+    struct draw_vlw_font_helper_impl {
+        static void render_callback(int x, int y, int c, void* state) {
+            const vlw_font_render_state<Destination, PixelType> st = *(vlw_font_render_state<Destination, PixelType>*)state;
+            if(c!=0) {
+                point16 pt(st.x+x,st.y+y);
+                if(st.clip==nullptr||st.clip->intersects((spoint16)pt)) {    
+                    if(st.transparent_background || st.no_antialiasing) {
+                        st.dst->point(pt,st.color);
+                    } else {
+                        PixelType col = st.bgcolor;
+                        if(c!=0) {
+                            st.color.blend(col,((float)c/255.0f),&col);
+                            st.dst->point(pt,col);
+                        }
+                    }
+                }
+            }
+        }
+    };
+    template <typename Destination, typename PixelType>
+    struct draw_vlw_font_helper_impl<Destination, PixelType, true> {
+        static void render_callback(int x, int y, int c, void* state) {
+            const vlw_font_render_state<Destination, PixelType> st = *(vlw_font_render_state<Destination, PixelType>*)state;
+            constexpr static const bool has_alpha = PixelType::template has_channel_names<channel_name::A>::value;
+            float d = c / 255.0f;
+            if (d > 0.0f) {
+                if (st.no_antialiasing) {
+                    d = 1.0f;
+                }
+                point16 pt(x + st.x,y + st.y);
+                if (nullptr == st.clip || st.clip->intersects((spoint16)pt)) {
+                    if ((st.no_antialiasing && !has_alpha) || d == 1.0f) {
+                        draw::point(*st.dst, (spoint16)pt, st.color);
+                    } else {
+                        typename Destination::pixel_type bpx;
+                        gfx_result r = st.dst->point(pt, &bpx);
+                        if (gfx_result::success != r) {
+                            return;
+                        }
+                        PixelType bppx;
+                        r = convert_palette_to(*st.dst, bpx, &bppx);
+                        if (gfx_result::success != r) {
+                            return;
+                        }
+                        if (has_alpha) {
+                            constexpr static const size_t a_index = PixelType::template channel_index_by_name<channel_name::A>::value;
+                            // Serial.println(a_index);
+                            float ff = st.color.template channelr_unchecked<a_index>();
+                            d *= ff;
+                            // Serial.printf("%f\n",ff);
+                        }
+                        PixelType px;
+                        r = st.color.blend(bppx, d, &px);
+                        if (gfx_result::success != r) {
+                            return;
+                        }
+                        // return (int)draw::point(*pst->destination,(spoint16)pt,px);
+                        r = convert_palette_from(*st.dst, px, &bpx);
+                        if (gfx_result::success != r) {
+                            return;
+                        }
+                        st.dst->point(pt, bpx);
+                    }
+                }
+            }
+        }
+    };
+    // this doesn't need to be a template struct but it is because we may add batching and such later
+    template <typename Destination, typename PixelType>
+    struct draw_vlw_font_helper {
+        static gfx_result do_draw(Destination& destination, const vlw_font& font, const vlw_font::glyph& glyph,uint32_t bitmap_offset, spoint16 location, PixelType color, PixelType backcolor, bool transparent_background, bool no_antialiasing, const srect16* clip, bool async) {
+            gfx_result r = gfx_result::success;
+            // suspend if we can
+            helpers::suspender<Destination, Destination::caps::suspend, Destination::caps::async> stok(destination, async);
+
+            void (*render_cb)(int x, int y, int c, void* state) = (transparent_background) ? draw_vlw_font_helper_impl < Destination, PixelType, Destination::pixel_type::bit_depth != 1 && Destination::caps::read > ::render_callback : draw_vlw_font_helper_impl<Destination, PixelType, false>::render_callback;
+
+            vlw_font_render_state<Destination, PixelType> state;
+            state.x = location.x;
+            state.y = location.y;
+            state.dst = &destination;
+            state.clip = clip;
+            state.color = color;
+            state.bgcolor = backcolor;
+            state.transparent_background = transparent_background;
+            state.no_antialiasing = no_antialiasing;
+            state.async = async;
+            return font.draw(render_cb, glyph, bitmap_offset,&state);
+        }
+    };
 
     template <typename Destination, typename PixelType>
     static gfx_result line_impl(Destination& destination, const srect16& rect, PixelType color, const srect16* clip, bool async) {
@@ -3864,20 +3992,33 @@ struct draw {
 
         height = baseline;
         int advw;
-        size_t advsz;
-        int gi = info.font->glyph_index(sz, &advsz, info.encoding, info.cache);
+        size_t advsz=0;
+        int gi;// = info.font->glyph_index(sz, &advsz, info.encoding, info.cache);
+        uint32_t codepoint=uint32_t(-1);
         float xpos = info.offset.x, ypos = baseline + info.offset.y;
         float x_extent = 0, y_extent = 0;
         bool adv_line = false;
         // suspend if we can
         helpers::suspender<Destination, Destination::caps::suspend, Destination::caps::async> stok(destination, async);
         ssize16 dest_size = dest_rect.dimensions();
-
-        while (*sz) {
+        size_t szlen = strlen(sz);
+        while (szlen || codepoint!=uint32_t(-1)) {
+            gfx_result res;
+            if(codepoint==uint32_t(-1)) {
+                advsz = szlen;
+                res = to_utf32(sz,&codepoint,&advsz,info.encoding);
+                if(res!=gfx_result::success) {
+                    return res;
+                }
+                sz+=advsz;
+                szlen-=advsz;
+            }
+            gi = info.font->glyph_index(codepoint,info.cache);
+            if(0>gi) continue;
             // Serial.printf("gi: %d\n",(int)gi);
-            if (*sz < 32) {
+            if (codepoint < 32) {
                 int ti;
-                switch (*sz) {
+                switch (codepoint) {
                     case '\t':
                         ti = xpos / sctw;
                         xpos = (ti + 1) * sctw;
@@ -3898,8 +4039,7 @@ struct draw {
                     xpos = 0;
                     ypos += lgap * info.scale;
                 }
-                sz += advsz;
-                gi = info.font->glyph_index(sz, &advsz, info.encoding, info.cache);
+                codepoint=uint32_t(-1);
                 continue;
             }
             info.font->glyph_hmetrics(gi, &advw, nullptr);
@@ -3931,8 +4071,13 @@ struct draw {
                 y_extent = ypos + height;
             }
             xpos += (advw * info.scale);
-            if (*(sz + advsz)) {
-                int gi2 = info.font->glyph_index(sz + advsz, &advsz, info.encoding, info.cache);
+            codepoint=uint32_t(-1);
+            if (szlen) {
+                advsz = szlen;
+                res = to_utf32(sz,&codepoint,&advsz,info.encoding);
+                sz+=advsz;
+                szlen-=advsz;
+                int gi2 = info.font->glyph_index(codepoint, info.cache);
                 int a = (info.font->kern_advance_width(gi, gi2) * info.scale);
 
                 xpos += a;
@@ -3942,10 +4087,104 @@ struct draw {
                 adv_line = false;
                 ypos += lgap * info.scale;
             }
-            ++sz;
         }
         return gfx_result::success;
     }
+        // draws text to the specified destination rectangle with the specified font and colors and optional clipping rectangle
+    template <typename Destination, typename PixelType>
+    static gfx_result text_impl(
+        Destination& destination,
+        const srect16& dest_rect,
+        const vlw_text_info& info,
+        PixelType color,
+        PixelType backcolor,
+        const srect16* clip,
+        bool async) {
+        gfx_result r = gfx_result::success;
+        if (nullptr == info.text || nullptr == info.font)
+            return gfx_result::invalid_argument;
+
+        srect16 dr = dest_rect.normalize();
+        // suspend if we can
+        helpers::suspender<Destination, Destination::caps::suspend, Destination::caps::async> stok(destination, async);
+        
+        if(!info.transparent_background) {
+            draw::filled_rectangle(destination,dest_rect,backcolor,clip);
+        }
+        info.font->start_draw();
+        uint16_t x= 0, y=0;
+        const char* sz = info.text;
+        size_t szlen = strlen(sz);
+        while(szlen) {
+            uint32_t cp;
+            size_t sz_adv =szlen;
+            gfx_result res = to_utf32(sz,&cp,&sz_adv,info.encoding);
+            if(res!=gfx_result::success) {
+                info.font->end_draw();
+                return res;
+            }
+            int x_adv;
+            bool nl = false,cr = false;
+            if(cp==0xA0 || cp == ' ') {
+                x_adv=info.font->space_width();
+            } else if(cp=='\n') {
+                x_adv = 0;
+                nl = true;
+                cr = true;
+            } else if(cp=='\r') {
+                x_adv = 0;
+                cr = true;
+            } else if(cp=='\t') {
+                int ti = x/(info.tab_width*info.font->space_width());
+                x_adv=((ti+1)*(info.tab_width*info.font->space_width()))-x;
+            } else if(cp>0x20) {
+                vlw_font::glyph g;
+                uint32_t b_ofs;
+                res=info.font->get_char_data(cp,&g,&b_ofs);
+                if(gfx_result::success!=res) {
+                    // Draw missing char rect
+                    srect16 mr(x,y,x+info.font->space_width()-1,y+info.font->y_advance());
+                    mr.offset_inplace(dest_rect.top_left());
+                    draw::rectangle(destination,mr,color,clip);
+                    x_adv = info.font->space_width();
+                } else {
+                    x_adv = g.x_advance;
+                    
+                    res = draw_vlw_font_helper<Destination, PixelType>::do_draw(destination, *info.font,g,b_ofs, spoint16(x+dest_rect.x1,y+dest_rect.y1), color, backcolor, info.transparent_background, info.no_antialiasing, clip, async);
+                    if(gfx_result::success!=res) {
+                        info.font->end_draw();
+                        return res;
+                    }
+                }
+            } else {
+                x_adv = 0;
+            }
+            int y_adv = 0;
+            if(!cr) {
+                if(x_adv+x>=dest_rect.width()) {
+                    cr = true;
+                    nl = true;
+                }
+            }
+            if(nl) {
+                y_adv = info.font->y_advance()+1;
+            }
+            if(cr) {
+                x=0;
+            } else {
+                x+=x_adv;
+            }
+            y+=y_adv;
+            if(y>=dest_rect.height()) {
+                break;
+            }
+            szlen-=sz_adv;
+            sz+=sz_adv;   
+        }
+        info.font->end_draw();
+        return gfx_result::success;
+    }
+
     template<typename Destination> 
     struct draw_svg_render_state {
         Destination* dst;
@@ -4238,6 +4477,63 @@ struct draw {
         Destination& destination,
         const srect16& dest_rect,
         const open_text_info& info,
+        PixelType color,
+        PixelType backcolor = convert<::gfx::rgb_pixel<3>, PixelType>(::gfx::rgb_pixel<3>(0, 0, 0)),
+        const srect16* clip = nullptr) {
+        return text_impl(destination, dest_rect, info, color, backcolor, clip, true);
+    }
+    // draws text to the specified destination rectangle with the specified font and colors and optional clipping rectangle
+    template <typename Destination, typename PixelType>
+    inline static gfx_result text(
+        Destination& destination,
+        const srect16& dest_rect,
+        const char* text,
+        const vlw_font& font,
+        PixelType color,
+        PixelType backcolor = convert<::gfx::rgb_pixel<3>, PixelType>(::gfx::rgb_pixel<3>(0, 0, 0)),
+        bool transparent_background = true,
+        bool no_antialiasing = false,
+        unsigned int tab_width = 4,
+        gfx_encoding encoding = gfx_encoding::utf8,
+        const srect16* clip = nullptr) {
+        vlw_text_info info(text, font, transparent_background, no_antialiasing, tab_width, encoding);
+        return text_impl(destination, dest_rect, info, color, backcolor, clip, false);
+    }
+    // asynchronously draws text to the specified destination rectangle with the specified font and colors and optional clipping rectangle
+    template <typename Destination, typename PixelType>
+    inline static gfx_result text_async(
+        Destination& destination,
+        const srect16& dest_rect,
+        spoint16 offset,
+        const char* text,
+        const vlw_font& font,
+        PixelType color,
+        PixelType backcolor = convert<::gfx::rgb_pixel<3>, PixelType>(::gfx::rgb_pixel<3>(0, 0, 0)),
+        bool transparent_background = true,
+        bool no_antialiasing = false,
+        gfx_encoding encoding = gfx_encoding::utf8,
+        unsigned int tab_width = 4,
+        const srect16* clip = nullptr) {
+        vlw_text_info info(text, font, transparent_background, no_antialiasing, tab_width, encoding);
+        return text_impl(destination, dest_rect, info, color, backcolor, clip, true);
+    }
+    // draws text to the specified destination rectangle with the specified font and colors and optional clipping rectangle
+    template <typename Destination, typename PixelType>
+    inline static gfx_result text(
+        Destination& destination,
+        const srect16& dest_rect,
+        const vlw_text_info& info,
+        PixelType color,
+        PixelType backcolor = convert<::gfx::rgb_pixel<3>, PixelType>(::gfx::rgb_pixel<3>(0, 0, 0)),
+        const srect16* clip = nullptr) {
+        return text_impl(destination, dest_rect, info, color, backcolor, clip, false);
+    }
+    // asynchronously draws text to the specified destination rectangle with the specified font and colors and optional clipping rectangle
+    template <typename Destination, typename PixelType>
+    inline static gfx_result text_async(
+        Destination& destination,
+        const srect16& dest_rect,
+        const vlw_text_info& info,
         PixelType color,
         PixelType backcolor = convert<::gfx::rgb_pixel<3>, PixelType>(::gfx::rgb_pixel<3>(0, 0, 0)),
         const srect16* clip = nullptr) {
@@ -4564,6 +4860,60 @@ struct draw {
         Destination& destination,
         const rect16& dest_rect,
         const open_text_info& info,
+        PixelType color,
+        PixelType backcolor = convert<::gfx::rgb_pixel<3>, PixelType>(::gfx::rgb_pixel<3>(0, 0, 0)),
+        const srect16* clip = nullptr) {
+        return draw::text(destination, (srect16)dest_rect, info, color, backcolor, clip);
+    }
+    // draws text to the specified destination rectangle with the specified font and colors and optional clipping rectangle
+    template <typename Destination, typename PixelType>
+    inline static gfx_result text(
+        Destination& destination,
+        const rect16& dest_rect,
+        const char* text,
+        const vlw_font& font,
+        PixelType color,
+        PixelType backcolor = convert<::gfx::rgb_pixel<3>, PixelType>(::gfx::rgb_pixel<3>(0, 0, 0)),
+        bool transparent_background = true,
+        bool no_antialiasing = false,
+        unsigned int tab_width = 4,
+        gfx_encoding encoding = gfx_encoding::utf8,
+        const srect16* clip = nullptr) {
+        return draw::text(destination, (srect16)dest_rect, text, font, color, backcolor, transparent_background, no_antialiasing, tab_width, encoding, clip);
+    }
+    // asynchronously draws text to the specified destination rectangle with the specified font and colors and optional clipping rectangle
+    template <typename Destination, typename PixelType>
+    inline static gfx_result text_async(
+        Destination& destination,
+        const rect16& dest_rect,
+        const char* text,
+        const vlw_font& font,
+        PixelType color,
+        PixelType backcolor = convert<::gfx::rgb_pixel<3>, PixelType>(::gfx::rgb_pixel<3>(0, 0, 0)),
+        bool transparent_background = true,
+        bool no_antialiasing = false,
+        unsigned int tab_width = 4,
+        gfx_encoding encoding = gfx_encoding::utf8,
+        const srect16* clip = nullptr) {
+        return draw::text(destination, (srect16)dest_rect, text, font, color, backcolor, transparent_background, no_antialiasing, tab_width, encoding, clip);
+    }
+    // draws text to the specified destination rectangle with the specified font and colors and optional clipping rectangle
+    template <typename Destination, typename PixelType>
+    inline static gfx_result text(
+        Destination& destination,
+        const rect16& dest_rect,
+        const vlw_text_info& info,
+        PixelType color,
+        PixelType backcolor = convert<::gfx::rgb_pixel<3>, PixelType>(::gfx::rgb_pixel<3>(0, 0, 0)),
+        const srect16* clip = nullptr) {
+        return draw::text(destination, (srect16)dest_rect, info, color, backcolor, clip);
+    }
+    // asynchronously draws text to the specified destination rectangle with the specified font and colors and optional clipping rectangle
+    template <typename Destination, typename PixelType>
+    inline static gfx_result text_async(
+        Destination& destination,
+        const rect16& dest_rect,
+        const vlw_text_info& info,
         PixelType color,
         PixelType backcolor = convert<::gfx::rgb_pixel<3>, PixelType>(::gfx::rgb_pixel<3>(0, 0, 0)),
         const srect16* clip = nullptr) {

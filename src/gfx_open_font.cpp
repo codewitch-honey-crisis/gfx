@@ -1,4 +1,5 @@
 #include <gfx_core.hpp>
+#include <gfx_encoding.hpp>
 #define STB_RECT_PACK_IMPLEMENTATION
 #define STBRP_STATIC
 #include "stb_rect_pack.h"
@@ -4787,6 +4788,7 @@ namespace gfx {
        render_cb,state,width,height,out_stride,scale_x,scale_y,shift_x,shift_y,glyph);
     }
     void open_font::glyph_bitmap_bounding_box(int glyph_index,float scale_x,float scale_y,float shift_x,float shift_y,int* x1, int* y1, int* x2, int* y2) const {
+      
       stbtt::stbtt_GetGlyphBitmapBoxSubpixel((const stbtt::stbtt_fontinfo*)m_info_data,glyph_index,scale_x,scale_y,shift_x,shift_y,x1,y1,x2,y2);
     }
     void open_font::font_vmetrics(int* ascent, int* descent, int* line_gap) const {
@@ -4809,38 +4811,43 @@ namespace gfx {
        }
        const char* sz = text;
        while(*sz) {
-         int cp;
-         int c = to_utf32_codepoint(sz,4,&cp,encoding);
-         if(c<0) {
+         uint32_t cp;
+         size_t siz = 0;
+         gfx_result res= to_utf32(sz,&cp,&siz,encoding);
+         if(res!=gfx_result::success) {
             return;
          }
          const int* pi = cache->m_cache->find(cp);
          if(nullptr==pi) {
-            int result = stbtt::stbtt_FindGlyphIndex((const stbtt::stbtt_fontinfo*)m_info_data,cp);
-            cache->m_cache->insert({cp,result});
+            int result = stbtt::stbtt_FindGlyphIndex((const stbtt::stbtt_fontinfo*)m_info_data,(int)cp);
+            cache->m_cache->insert({(int)cp,result});
          }
        }
     }
     int open_font::glyph_index(const char* sz, size_t* out_advance, gfx_encoding encoding,open_font_cache* cache) const {
-       int cp;
-       int c = to_utf32_codepoint(sz,4,&cp,encoding);
-       if(c<0) {
-          if(out_advance) *out_advance = 0;
+       uint32_t cp;
+       size_t siz = 0;
+       gfx_result res = to_utf32(sz,&cp,&siz,encoding);
+       if(res!=gfx_result::success) {
+         //Serial.printf("Encoding error for %d\n",(int)*sz);
          return -1;
        }
-       if(out_advance) *out_advance = c;
+       return glyph_index((int)cp,cache);
+    }
+    int open_font::glyph_index(uint32_t codepoint,open_font_cache* cache) const {
        int result;
        if(cache) {
           if(cache->initialize()) {
-             const int* pi = cache->m_cache->find(cp);
+             const int* pi = cache->m_cache->find((int)codepoint);
              if(pi!=nullptr) {
                 return *pi;
              }
-             result = stbtt::stbtt_FindGlyphIndex((const stbtt::stbtt_fontinfo*)m_info_data,cp);
-             cache->m_cache->insert({cp,result});
+             result = stbtt::stbtt_FindGlyphIndex((const stbtt::stbtt_fontinfo*)m_info_data,(int)codepoint);
+             cache->m_cache->insert({(int)codepoint,result});
           }
        }
-       result = stbtt::stbtt_FindGlyphIndex((const stbtt::stbtt_fontinfo*)m_info_data,cp);
+       result = stbtt::stbtt_FindGlyphIndex((const stbtt::stbtt_fontinfo*)m_info_data,(int)codepoint);
+       //Serial.printf("gi = %d\n",(int)result);
        return result;
     }
     void open_font::free() {
@@ -4933,9 +4940,22 @@ namespace gfx {
         float xpos=offset.x,ypos=offset.y;
         float x_extent=0,y_extent=0;
         bool adv_line = false;
+        uint32_t codepoint = uint32_t(-1);
         const char*sz=text;
-        while(*sz) {
-            if(*sz<32) {
+        size_t szlen = strlen(sz);
+        size_t advsz = szlen;
+        while(szlen || codepoint!=uint32_t(-1)) {
+            gfx_result res;
+            if(codepoint==uint32_t(-1)) {
+                advsz = szlen;
+                res = to_utf32(sz,&codepoint,&advsz,encoding);
+                if(res!=gfx_result::success) {
+                    return ssize16(0,0);
+                }
+                sz+=advsz;
+                szlen-=advsz;
+            }
+            if(codepoint<32) {
                 int ti;
                 switch(*sz) {
                     case '\t':
@@ -4963,14 +4983,14 @@ namespace gfx {
                     }
                     ypos+=lgap*scale;
                 }
-                ++sz;
+                codepoint=uint32_t(-1);
                 continue;
             }
-            size_t adv;
-            if(cache!=nullptr) {
-               
+            gi=glyph_index(codepoint,cache);
+            if(0>gi) {
+               codepoint=uint32_t(-1);
+               continue;
             }
-            gi=glyph_index(sz,&adv,encoding,cache);
             stbtt::stbtt_GetGlyphHMetrics(info,gi,&advw,&lsb);
             stbtt::stbtt_GetGlyphBitmapBoxSubpixel(info,gi,scale,scale,xpos-floor(xpos),0,&x1,&y1,&x2,&y2);
             float xe = x2-x1;
@@ -4990,15 +5010,19 @@ namespace gfx {
                 y_extent=ypos+height;
             }
             xpos+=(advw*scale);    
-            if(*(sz+adv)) {
-               size_t adv2;
-               int gi2=glyph_index(sz+adv,&adv2,encoding,cache);
+            codepoint=uint32_t(-1);
+            if(szlen) {
+                advsz = szlen;
+                res = to_utf32(sz,&codepoint,&advsz,encoding);
+                sz+=advsz;
+                szlen-=advsz;
+                int gi2 = glyph_index(codepoint, cache);
                xpos+=(stbtt::stbtt_GetGlyphKernAdvance(info,gi,gi2)*scale);
+               gi=gi2;
             }
             if(adv_line) {
                 ypos+=lgap*scale;
             }
-            sz+=adv;
         }
         return {(int16_t)(ceil(x_extent)),(int16_t)(ceil(y_extent+abs(dsc*scale)))};
     }
@@ -5022,105 +5046,5 @@ namespace gfx {
          }    
          return gfx_result::success;
     }
-    // from libxml http://xmlsoft.org/
-   int open_font::latin1_to_utf8(unsigned char* out, size_t outlen, const unsigned char* in, size_t inlen)
-   {
-      unsigned char* outstart= out;
-      unsigned char* outend= out+outlen;
-      const unsigned char* inend= in+inlen;
-      unsigned char c;
-
-      while (in < inend) {
-         c= *in++;
-         if (c < 0x80) {
-               if (out >= outend)  return -1;
-               *out++ = c;
-               return 1;
-         }
-         else {
-               if (out >= outend)  return -1;
-               *out++ = 0xC0 | (c >> 6);
-               if (out >= outend)  return -1;
-               *out++ = 0x80 | (0x3F & c);
-               return 2;
-         }
-      }
-      return out-outstart;
-   }
-   // from libxml http://xmlsoft.org/
-   int open_font::utf8_to_utf16(uint16_t* out, size_t outlen, const unsigned char* in, size_t inlen)
-   {
-      uint16_t* outstart= out;
-      uint16_t* outend= out+outlen;
-      const unsigned char* inend= in+inlen;
-      unsigned int c, d, trailing;
-
-      while (in < inend) {
-         d= *in++;
-         if      (d < 0x80)  { c= d; trailing= 0; }
-         else if (d < 0xC0)  return -2;    /* trailing byte in leading position */
-         else if (d < 0xE0)  { c= d & 0x1F; trailing= 1; }
-         else if (d < 0xF0)  { c= d & 0x0F; trailing= 2; }
-         else if (d < 0xF8)  { c= d & 0x07; trailing= 3; }
-         else return -2;    /* no chance for this in UTF-16 */
-
-         for ( ; trailing; trailing--) {
-            if ((in >= inend) || (((d= *in++) & 0xC0) != 0x80))  return -1;
-            c <<= 6;
-            c |= d & 0x3F;
-         }
-
-         /* assertion: c is a single UTF-4 value */
-         if (c < 0x10000) {
-               if (out >= outend)  return -1;
-               *out++ = c;
-               return 1;
-         }
-         else if (c < 0x110000) {
-               if (out+1 >= outend)  return -1;
-               c -= 0x10000;
-               *out++ = 0xD800 | (c >> 10);
-               *out++ = 0xDC00 | (c & 0x03FF);
-               return 2;
-         }
-         else  return -1;
-      }
-      return out-outstart;
-   }
-   int open_font::to_utf32_codepoint(const char* in,size_t in_length, int* codepoint, gfx_encoding encoding) {
-      int c;
-      uint16_t out_tmp[4];
-      switch(encoding) {
-         case gfx_encoding::utf8: {
-            c = utf8_to_utf16(out_tmp,4,(const unsigned char*)in,in_length);
-         }
-         break;
-         case gfx_encoding::latin1: {
-            unsigned char out_tmp1[4];
-            c = latin1_to_utf8(out_tmp1,4,(const unsigned char*)in,in_length);
-            if(c<0) {
-               *codepoint = 0;
-               return c;
-            }
-            c=utf8_to_utf16(out_tmp,4,out_tmp1,4);
-         }
-         break;
-         default:
-            c=0;
-            break;
-      }
-      switch(c) {
-         case 1:
-            *codepoint = out_tmp[0];
-            break;
-         case 2:
-            *codepoint = (out_tmp[0] << 10) + out_tmp[1] - 0x35fdc00;
-            break;
-         default:
-            *codepoint = 0;
-            break;
-      }
-      return c;
-   }
-
+   
 }

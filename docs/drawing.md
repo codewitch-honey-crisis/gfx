@@ -382,7 +382,7 @@ draw::text(lcd,
 
 ## 5.4 Images
 
-As mentioned in [section 3](images.md), images are not draw sources because they are loaded incrementally and cannot provide random access access to their pixel data. Due to that, there is a `draw::image<>()` method for images that works in lieu of `draw::bitmap<>()`. Rather than take a draw source like `draw::bitmap<>()`, `draw::image<>()` takes a `stream` as its input pixel source. The stream must be in JPG format.
+As mentioned in [section 3](images.md), images are not draw sources because they are loaded incrementally and cannot provide random access access to their pixel data. Due to that, there is a `draw::image<>()` method for images that works in lieu of `draw::bitmap<>()`. Rather than take a draw source like `draw::bitmap<>()`, `draw::image<>()` takes a `stream` as its input pixel source. The stream must be in JPG or PNG format.
 ```cpp
 template<typename Destination>
 static gfx_result image(

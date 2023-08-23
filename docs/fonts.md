@@ -93,7 +93,7 @@ Embed a font in a header using fontgen and the use it like this:
 const open_font& maziro = Maziro;
 // maziro now contains the font
 ```
-Storing in RAM is the same as reading from a file except you use a `buffer_stream` instead of a file_stream, and point it to the TTF you loaded from a file into memory.
+Storing in RAM is the same as reading from a file except you use a `buffer_stream` instead of a `file_stream`, and point it to the TTF you loaded from a file into memory.
 
 <a name="4.1.3"></a>
 
@@ -230,7 +230,7 @@ Embed a font in a header using fontgen and the use it like this:
 const vlw_font& georgia = Georgia_24pt;
 // georgia now contains the font
 ```
-Storing in RAM is the same as reading from a file except you use a `buffer_stream` instead of a file_stream, and point it to the VLW you loaded from a file into memory.
+Storing in RAM is the same as reading from a file except you use a `buffer_stream` instead of a `file_stream`, and point it to the VLW you loaded from a file into memory.
 
 <a name="4.3.3"></a>
 

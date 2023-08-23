@@ -82,7 +82,7 @@ static gfx_result utf8_to_utf32(const char* utf8, uint32_t* out_codepoint, size_
         }
         /* Do this check whether lenient or strict */
         if (!is_legal_utf8(source, extraBytesToRead + 1)) {
-            Serial.printf("Illegal UTF-8. in_len = %d\n",(int)in_len);
+            //Serial.printf("Illegal UTF-8. in_len = %d\n",(int)in_len);
             result = gfx_result::invalid_format;
             break;
         }

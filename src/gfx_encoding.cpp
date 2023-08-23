@@ -168,9 +168,8 @@ gfx_result static latin1_to_utf8(const char* in,  size_t* in_out_in_length, char
     return gfx_result::success;
 }
 gfx_result to_utf32(const char* in, uint32_t* out_codepoint, size_t* in_out_length, gfx_encoding encoding) {
-    int c;
     if(*in_out_length==0) {
-        *in_out_length = trailingBytesForUTF8[*in]+1;
+        *in_out_length = trailingBytesForUTF8[(size_t)*in]+1;
     }
     uint16_t out_tmp[4];
     switch (encoding) {

@@ -322,7 +322,6 @@ ssize16 vlw_font::measure_text(
                 x_ext = x_ext<ext?ext:x_ext;
             } else if(cp>0x20) {
                 vlw_font::glyph g;
-                uint32_t b_ofs;
                 gfx_result r=find_glyph(m_stream,m_glyph_count, cp);
                 y_ext = y+m_y_advance+m_max_descent+g.y_delta;
                 if(gfx_result::success!=r) {
@@ -413,8 +412,6 @@ gfx_result vlw_font::draw(draw_callback draw_cb, const glyph& glyph, uint32_t bi
     }
     for(int y = 0;y<glyph.size.height;++y) {
         for(int x = 0;x<glyph.size.width;++x) {
-            uint8_t tmp;
-            size_t s=1;
             uint32_t ofs = (x+y*glyph.size.width);
             draw_cb(x+glyph.x_delta,y+y_adj,*(vlw_font_bitmap_buffer+ofs),state);
         }

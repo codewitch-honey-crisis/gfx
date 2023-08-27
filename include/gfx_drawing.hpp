@@ -3348,12 +3348,13 @@ struct draw {
                 point16 pt(st.x+x,st.y+y);
                 if(st.clip==nullptr||st.clip->intersects((spoint16)pt)) {    
                     if(st.transparent_background || st.no_antialiasing) {
-                        st.dst->point(pt,st.color);
+                        draw::point(*st.dst,pt,st.color);
                     } else {
                         PixelType col = st.bgcolor;
                         if(c!=0) {
                             st.color.blend(col,((float)c/255.0f),&col);
-                            st.dst->point(pt,col);
+                            draw::point(*st.dst,pt,col);
+                            //st.dst->point(pt,col);
                         }
                     }
                 }

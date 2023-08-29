@@ -3413,7 +3413,6 @@ struct draw {
     template <typename Destination, typename PixelType>
     struct draw_vlw_font_helper {
         static gfx_result do_draw(Destination& destination, const vlw_font& font, const vlw_font::glyph& glyph,uint32_t bitmap_offset, spoint16 location, PixelType color, PixelType backcolor, bool transparent_background, bool no_antialiasing, const srect16* clip, bool async) {
-            gfx_result r = gfx_result::success;
             // suspend if we can
             helpers::suspender<Destination, Destination::caps::suspend, Destination::caps::async> stok(destination, async);
 
@@ -4101,11 +4100,9 @@ struct draw {
         PixelType backcolor,
         const srect16* clip,
         bool async) {
-        gfx_result r = gfx_result::success;
         if (nullptr == info.text || nullptr == info.font)
             return gfx_result::invalid_argument;
 
-        srect16 dr = dest_rect.normalize();
         // suspend if we can
         helpers::suspender<Destination, Destination::caps::suspend, Destination::caps::async> stok(destination, async);
         

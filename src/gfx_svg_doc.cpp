@@ -327,11 +327,11 @@ static int svg_parse_attr(svg_parse_result& p) {
     reader_t& s = *p.reader;
     char name[32];
     char value[reader_t::capture_size];
-    strncpy(name, s.value(), sizeof(name));
+    memcpy(name, s.value(), sizeof(name));
     if (!s.read() || s.node_type() != ml_node_type::attribute_content) {
         return 0;
     }
-    strncpy(value, s.value(), sizeof(value));
+    memcpy(value, s.value(), sizeof(value));
     if (!s.read() || s.node_type() == ml_node_type::attribute_content) {
         //printf("attribute is too long\n");
         return 0;
@@ -752,7 +752,7 @@ static gfx_result svg_parse_gradient_elem(svg_parse_result& ctx, signed char typ
         return gfx_result::invalid_format;
     }
     while (s.node_type() == ml_node_type::attribute) {
-        strncpy(ctx.lname, s.value(), sizeof(ctx.lname));
+        memcpy(ctx.lname, s.value(), sizeof(ctx.lname));
         if (strcmp(ctx.lname, "id") == 0) {
             char* sz = grad->id;
             size_t ssz = sizeof(grad->id);
@@ -773,11 +773,11 @@ static gfx_result svg_parse_gradient_elem(svg_parse_result& ctx, signed char typ
         } else {
             char name[32];
             char value[reader_t::capture_size];
-            strncpy(name, s.value(), sizeof(name));
+            memcpy(name, s.value(), sizeof(name));
             if (!s.read() || s.node_type() != ml_node_type::attribute_content) {
                 return gfx_result::invalid_format;
             }
-            strncpy(value, s.value(), sizeof(value));
+            memcpy(value, s.value(), sizeof(value));
             if (!s.read() || s.node_type() != ml_node_type::attribute_end) {
                 return gfx_result::not_supported;
             }
@@ -2063,7 +2063,7 @@ static gfx_result svg_parse_path_elem(svg_parse_result& ctx) {
             if(!s.read()) {
                 return gfx_result::invalid_format;
             }
-            strncpy(ctx.style_val,s.value(),sizeof(ctx.style_val));
+            memcpy(ctx.style_val,s.value(),sizeof(ctx.style_val));
             if(!s.read()) {
                 return gfx_result::invalid_format;
             }
@@ -2071,7 +2071,7 @@ static gfx_result svg_parse_path_elem(svg_parse_result& ctx) {
             if(!s.read()) {
                 return gfx_result::invalid_format;
             }
-            strncpy(ctx.class_val,s.value(),sizeof(ctx.class_val));
+            memcpy(ctx.class_val,s.value(),sizeof(ctx.class_val));
             if(!s.read()) {
                 return gfx_result::invalid_format;
             }
@@ -2303,7 +2303,7 @@ static gfx_result svg_parse_svg_elem(svg_parse_result& ctx) {
 static void svg_parse_start_element(svg_parse_result& p)
 {   
     reader_t& s = *p.reader;
-    strncpy(p.lname,s.value(),sizeof(p.lname));
+    memcpy(p.lname,s.value(),sizeof(p.lname));
     //printf("parse <%s>\n",p.lname);
 	if (p.defsFlag) {
 		// Skip everything but gradients and styles in defs

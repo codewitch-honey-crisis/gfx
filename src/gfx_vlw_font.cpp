@@ -323,7 +323,6 @@ ssize16 vlw_font::measure_text(
             } else if(cp>0x20) {
                 vlw_font::glyph g;
                 gfx_result r=find_glyph(m_stream,m_glyph_count, cp);
-                y_ext = y+m_y_advance+m_max_descent+g.y_delta;
                 if(gfx_result::success!=r) {
                     x_adv = m_space_width;
                     x_ext = x+x_adv;
@@ -331,6 +330,7 @@ ssize16 vlw_font::measure_text(
                     x_ext = x_ext<ext?ext:x_ext;
                     //Serial.print((char)cp);
                 } else {
+                    y_ext = y+m_y_advance+m_max_descent+g.y_delta;
                     r=read_glyph(m_stream,&g);
                     if(gfx_result::success!=r) {
                         return ssize16(0,0);

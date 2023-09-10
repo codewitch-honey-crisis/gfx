@@ -132,18 +132,38 @@ namespace gfx {
             if(nullptr==begin()) {
                 return gfx_result::out_of_memory;
             }
-            // clip
-            const size_t bit_depth = pixel_type::bit_depth;
-            const size_t offs = (location.y*dimensions().width+location.x)*bit_depth;
-            const size_t offs_bits = offs % 8;
-            // now set the pixel
-            uint8_t tmp[pixel_type::packed_size+(((int)pixel_type::pad_right_bits)<=offs_bits)+1];
-            typename pixel_type::int_type v = rhs.value();
-            memcpy(tmp,&v,sizeof(typename pixel_type::int_type));
-            // below doesn't work with strict aliasing:
-            //*((typename pixel_type::int_type*)tmp)=rhs.value();
-            bits::shift_right(tmp,0,pixel_type::bit_depth+offs_bits,offs_bits);
-            bits::set_bits(offs_bits,pixel_type::bit_depth,begin()+offs/8,tmp);
+            constexpr static const size_t bit_depth = pixel_type::bit_depth;
+            size_t offs = (location.y*dimensions().width+location.x);
+            switch(bit_depth) {
+                case 8: {
+                    uint8_t* p = ((uint8_t*)begin())+offs;
+                    *p=rhs.value();
+                    break;
+                }
+                case 16: {
+                    uint16_t *p = ((uint16_t*)begin())+offs;
+                    *p=rhs.value();    
+                    break;
+                } case 32: {
+                    uint32_t *p = ((uint32_t*)begin())+offs;
+                    *p=rhs.value();    
+                    break;
+                }
+                default: {
+                    offs *= bit_depth;
+                    const size_t offs_bits = offs % 8;
+                    // now set the pixel
+                    uint8_t tmp[pixel_type::packed_size+(((int)pixel_type::pad_right_bits)<=offs_bits)+1];
+                    typename pixel_type::int_type v = rhs.value();
+                    memcpy(tmp,&v,sizeof(typename pixel_type::int_type));    
+                    // below doesn't work with strict aliasing:
+                    //*((typename pixel_type::int_type*)tmp)=rhs.value();
+                    bits::shift_right(tmp,0,pixel_type::bit_depth+offs_bits,offs_bits);
+                    bits::set_bits(offs_bits,pixel_type::bit_depth,begin()+offs/8,tmp);
+                    break;
+                }
+            }
+
             return gfx_result::success;
         }
     public:
@@ -176,21 +196,44 @@ namespace gfx {
                 *out_pixel = pixel_type();
                 return gfx_result::success;
             }
-            const size_t bit_depth = pixel_type::bit_depth;
-            const size_t offs = (location.y*dimensions().width+location.x)*bit_depth;
-            const size_t offs_bits = offs % 8;
-            uint8_t tmp[pixel_type::packed_size+(((int)pixel_type::pad_right_bits)<=offs_bits)+1];
-            tmp[pixel_type::packed_size]=0;
-            memcpy(tmp,begin()+offs/8,sizeof(tmp));
-            if(0<offs_bits)
-                bits::shift_left(tmp,0,sizeof(tmp)*8,offs_bits);
-            pixel_type result;
-            typename pixel_type::int_type r = 0;
-            memcpy(&r,tmp,pixel_type::packed_size);
-            r=helpers::order_guard(r);
-            r&=pixel_type::mask;
-            result.native_value=r;
-            *out_pixel=result;
+            constexpr static const size_t bit_depth = pixel_type::bit_depth;
+            size_t offs = (location.y*dimensions().width+location.x);
+
+            switch(bit_depth) {
+                case 8: {
+                    const typename pixel_type::int_type *p = ((typename pixel_type::int_type*)begin())+offs;
+                    out_pixel->value(*p);
+                    break;
+                }
+                case 16: {
+                    const typename pixel_type::int_type *p = ((typename pixel_type::int_type*)begin())+offs;
+                    out_pixel->value(*p);
+                    break;
+                } case 32: {
+                    const typename pixel_type::int_type *p = ((typename pixel_type::int_type*)begin())+offs;
+                    out_pixel->value(*p);
+                    break;
+                }
+                default: {
+                    offs *= bit_depth;
+                     const size_t offs_bits = offs % 8;
+                    uint8_t tmp[pixel_type::packed_size+(((int)pixel_type::pad_right_bits)<=offs_bits)+1];
+                    tmp[pixel_type::packed_size]=0;
+                    memcpy(tmp,begin()+offs/8,sizeof(tmp));
+                    if(0<offs_bits)
+                        bits::shift_left(tmp,0,sizeof(tmp)*8,offs_bits);
+                    pixel_type result;
+                    typename pixel_type::int_type r = 0;
+                    memcpy(&r,tmp,pixel_type::packed_size);
+                    r=helpers::order_guard(r);
+                    r&=pixel_type::mask;
+                    result.native_value=r;
+                    *out_pixel=result;
+                    break;
+                }
+            }
+
+           
             return gfx_result::success;
         }
         gfx_result point(point16 location,pixel_type rhs) {

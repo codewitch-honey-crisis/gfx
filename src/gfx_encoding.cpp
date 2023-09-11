@@ -1,5 +1,4 @@
 #include <stdint.h>
-
 #include <gfx_encoding.hpp>
 namespace gfx {
 typedef uint32_t UTF32; /* at least 32 bits */
@@ -40,8 +39,10 @@ static bool is_legal_utf8(const UTF8* source, int length) {
             /* Everything else falls through when "true"... */
         case 4:
             if ((a = (*--srcptr)) < 0x80 || a > 0xBF) return false;
+            [[fallthrough]];
         case 3:
             if ((a = (*--srcptr)) < 0x80 || a > 0xBF) return false;
+            [[fallthrough]];
         case 2:
             if ((a = (*--srcptr)) > 0xBF) return false;
             switch (*source) {
@@ -60,9 +61,12 @@ static bool is_legal_utf8(const UTF8* source, int length) {
                     break;
                 default:
                     if (a < 0x80) return false;
+                    break;
             }
+            [[fallthrough]];
         case 1:
             if (*source >= 0x80 && *source < 0xC2) return false;
+            break;
     }
     if (*source > 0xF4) return false;
     return true;
@@ -95,30 +99,36 @@ static gfx_result utf8_to_utf32(const char* utf8, uint32_t* out_codepoint, size_
                 ch <<= 6;
                 ++*in_out_length;
                 --in_len;
+                [[fallthrough]];
             case 4:
                 ch += *source++;
                 ch <<= 6;
                 ++*in_out_length;
                 --in_len;
+                [[fallthrough]];
             case 3:
                 ch += *source++;
                 ch <<= 6;
                 ++*in_out_length;
                 --in_len;
+                [[fallthrough]];
             case 2:
                 ch += *source++;
                 ch <<= 6;
                 ++*in_out_length;
                 --in_len;
+                [[fallthrough]];
             case 1:
                 ch += *source++;
                 ch <<= 6;
                 ++*in_out_length;
                 --in_len;
+                [[fallthrough]];
             case 0:
                 ch += *source++;
                 ++*in_out_length;
                 --in_len;
+                break;
         }
         ch -= offsetsFromUTF8[extraBytesToRead];
         if (ch <= UNI_MAX_LEGAL_UTF32) {

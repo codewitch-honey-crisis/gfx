@@ -243,7 +243,7 @@ namespace gfx {
             // clip
             if(location.x>=dimensions().width||location.y>=dimensions().height)
                 return gfx_result::success;
-            if(pixel_type::template has_channel_names<channel_name::A>::value) {
+            /*if(pixel_type::template has_channel_names<channel_name::A>::value) {
                 pixel_type bgpx;
                 gfx_result r=point(location,&bgpx);
                 if(gfx_result::success!=r) {
@@ -253,7 +253,7 @@ namespace gfx {
                 if(gfx_result::success!=r) {
                     return r;
                 }
-            }
+            }*/
             return point_impl(location,rhs);
         }
         pixel_type point(point16 location) const {
@@ -318,7 +318,7 @@ namespace gfx {
         // fills a region of the bitmap with the specified pixel
         gfx_result fill(const rect16& dst,pixel_type pixel) {
             if(!dst.intersects(bounds())) return gfx_result::success;
-            if(pixel_type::template has_channel_names<channel_name::A>::value) {
+            /*if(pixel_type::template has_channel_names<channel_name::A>::value) {
                 pixel_type bgpx;
                 rect16 rc = dst.normalize().crop(bounds());
                 point16 pt;
@@ -340,7 +340,7 @@ namespace gfx {
                     }    
                 }
                 return gfx_result::success;    
-            } 
+            } */
             if(nullptr==begin()) {
                 return gfx_result::out_of_memory;
             }
@@ -684,9 +684,6 @@ namespace gfx {
             rf.y2=m_segment_height-1;
             size_t i = segment+1;
             for(int y=b.y1+m_segment_height;y<=b.y2;y+=m_segment_height) {
-                if(i>=m_dimensions.height/m_segment_height) {
-                    printf("crash!\r\n");
-                }
                 gfx_result r= segment_type(size16(m_dimensions.width,m_segment_height),m_segments[i],m_palette).fill(rf,color);
                 if(gfx_result::success!=r) {
                     return r;

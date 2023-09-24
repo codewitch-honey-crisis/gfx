@@ -243,7 +243,7 @@ namespace gfx {
             // clip
             if(location.x>=dimensions().width||location.y>=dimensions().height)
                 return gfx_result::success;
-            /*if(pixel_type::template has_channel_names<channel_name::A>::value) {
+            if(pixel_type::template has_channel_names<channel_name::A>::value) {
                 pixel_type bgpx;
                 gfx_result r=point(location,&bgpx);
                 if(gfx_result::success!=r) {
@@ -253,7 +253,7 @@ namespace gfx {
                 if(gfx_result::success!=r) {
                     return r;
                 }
-            }*/
+            }
             return point_impl(location,rhs);
         }
         pixel_type point(point16 location) const {

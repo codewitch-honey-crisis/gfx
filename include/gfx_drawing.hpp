@@ -3278,7 +3278,8 @@ struct draw {
                             return (int)r;
                         }
                         if (has_alpha) {
-                            constexpr static const size_t a_index = PixelType::template channel_index_by_name<channel_name::A>::value;
+                            constexpr static const int a_index = PixelType::template channel_index_by_name<channel_name::A>::value;
+                           
                             // Serial.println(a_index);
                             auto ff = pst->color.template channelr_unchecked<a_index>();
                             d *= ff;

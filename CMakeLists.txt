@@ -17,7 +17,7 @@ add_library(htcw_gfx src/gfx_drawing.cpp
                     src/miniz.c
                     src/pngle.c
 )
-target_link_libraries(htcw_gfx htcw_io htcw_data htcw_ml)
+target_link_libraries(htcw_gfx htcw_bits htcw_io htcw_data htcw_ml)
 target_include_directories(htcw_gfx PUBLIC
 "${PROJECT_SOURCE_DIR}/include"
 "${PROJECT_SOURCE_DIR}/src"

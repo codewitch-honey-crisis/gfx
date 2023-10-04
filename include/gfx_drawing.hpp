@@ -29,7 +29,7 @@ struct text_info final {
         transparent_background = true;
         tab_width = 4;
     }
-    inline text_info(const char* text, const gfx::font& font, bool transparent_background = true, bool tab_width = 4) {
+    inline text_info(const char* text, const gfx::font& font, bool transparent_background = true, int tab_width = 4) {
         this->text = text;
         this->font = &font;
         this->transparent_background = transparent_background;
@@ -4670,7 +4670,7 @@ struct draw {
     }
     // draws an anti-aliased line with the specified start and end point and of the specified color, with an optional clipping rectangle
     template <typename Destination, typename PixelType>
-    inline static gfx_result line(Destination& destination, const rect16& rect, PixelType color, PixelType backcolor = PixelType(), bool transparent_background = true, const srect16* clip = nullptr) {
+    inline static gfx_result line_aa(Destination& destination, const rect16& rect, PixelType color, PixelType backcolor = PixelType(), bool transparent_background = true, const srect16* clip = nullptr) {
         return line_aa(destination, (srect16)rect, color, backcolor, transparent_background, clip);
     }
     // asynchronously draws an anti-aliased line with the specified start and end point and of the specified color, with an optional clipping rectangle

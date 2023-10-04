@@ -394,7 +394,7 @@ namespace gfx {
         constexpr inline static typename ChannelRhs::int_type convert_channel_depth(typename ChannelLhs::int_type v) {
             typename ChannelRhs::int_type rv=0;
             if(ChannelLhs::bit_depth==0 || ChannelRhs::bit_depth==0) return 0;
-            const int srf = (int)ChannelLhs::bit_depth-(int)ChannelRhs::bit_depth;
+            const uint8_t srf = ((int)ChannelLhs::bit_depth-(int)ChannelRhs::bit_depth)&(HTCW_MAX_WORD-1);
             if(0<srf) {
                 rv = (typename ChannelRhs::int_type)(v>>(0>srf?0:srf));
                 rv = clamp(rv,ChannelRhs::min,ChannelRhs::max);

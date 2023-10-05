@@ -396,10 +396,10 @@ namespace gfx {
             if(ChannelLhs::bit_depth==0 || ChannelRhs::bit_depth==0) return 0;
             const uint8_t srf = ((int)ChannelLhs::bit_depth-(int)ChannelRhs::bit_depth)&(HTCW_MAX_WORD-1);
             if(0<srf) {
-                rv = (typename ChannelRhs::int_type)(v>>(0>srf?0:srf));
-                rv = clamp(rv,ChannelRhs::min,ChannelRhs::max);
-                //float vs = v*ChannelLhs::scaler;
-                //rv = clamp((typename ChannelRhs::int_type)(vs*ChannelRhs::scale+.5),ChannelRhs::min,ChannelRhs::max);
+                //rv = (typename ChannelRhs::int_type)(v>>(0>srf?0:srf));
+                //rv = clamp(rv,ChannelRhs::min,ChannelRhs::max);
+                float vs = v*ChannelLhs::scaler;
+                rv = clamp((typename ChannelRhs::int_type)(vs*ChannelRhs::scale+.5),ChannelRhs::min,ChannelRhs::max);
             } else if(0>srf) {
                 //rv = (typename ChannelRhs::int_type)(v<<(0<srf?0:-srf));
                 //rv = clamp(rv,ChannelRhs::min,ChannelRhs::max);

@@ -662,9 +662,11 @@ namespace gfx {
         unsigned int n, i, j, len;
         JRESULT rc;
 
-        if (!pool)
+        if (!pool) {
+            fprintf(stderr, "No pool\r\n");
             return JDR_PAR;
-
+            
+        }
         jd->pool = pool;	   /* Work memroy */
         jd->sz_pool = sz_pool; /* Size of given work memory */
         jd->infunc = infunc;   /* Stream input function */
@@ -684,11 +686,16 @@ namespace gfx {
             ;
 
         jd->inbuf = seg = (uint8_t *)alloc_pool(jd, JD_SZBUF); /* Allocate stream input buffer */
-        if (!seg)
+        if (!seg) {
+            fprintf(stderr, "No mem\r\n");
             return JDR_MEM1;
-         if (jd->infunc(jd, seg, 2) != 2)
+        }
+         if (jd->infunc(jd, seg, 2) != 2) {
+            fprintf(stderr, "Bad SOI Marker\r\n");
             return JDR_INP; /* Check SOI marker */
+         }
         if (LDB_WORD(seg) != 0xFFD8) {
+            fprintf(stderr, "SOI not detected\r\n");
             return JDR_FMT1; /* Err: SOI is not detected */
         }
         ofs = 2;
@@ -696,11 +703,14 @@ namespace gfx {
         for (;;)
         {
             /* Get a JPEG marker */
-            if (jd->infunc(jd, seg, 4) != 4)
+            if (jd->infunc(jd, seg, 4) != 4) {
+                fprintf(stderr, "JPEG marker not found\r\n");
                 return JDR_INP;
+            }
             marker = LDB_WORD(seg);	 /* Marker */
             len = LDB_WORD(seg + 2); /* Length field */
             if (len <= 2 || (marker >> 8) != 0xFF) {
+                fprintf(stderr, "Length field invalid\r\n");
                 return JDR_FMT1;
             }
             len -= 2;		/* Content size excluding length field */
@@ -994,12 +1004,13 @@ namespace gfx {
         jd.out = nullptr;
         jd.result = gfx_result::success;
         //Prepare and decode the jpeg.
-        if(4!=input->read(decoder.fourcc,4)) {
-            ::free(work);
-            return gfx_result::io_error;
-        }
         decoder.read_fourcc = 0;
-        jd_prepare(&decoder, infunc, work, WORKSZ, (void *)&jd);
+        int err = jd_prepare(&decoder, infunc, work, WORKSZ, (void *)&jd);
+        if(JDR_OK!=err) {
+            ::free(work);
+            return xlt_err(err);
+        }
+
         if(decoder.width>0&&decoder.height>0) {
             out_dimensions->width = decoder.width;
             out_dimensions->height = decoder.height;

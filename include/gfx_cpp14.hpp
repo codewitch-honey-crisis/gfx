@@ -16,5 +16,5 @@
 #include "gfx_bitmap.hpp"
 #include "gfx_viewport.hpp"
 #include "gfx_sprite.hpp"
-#include "gfx_svg_doc.hpp"
+#include "gfx_svg.hpp"
 #endif // HTCW_GFX

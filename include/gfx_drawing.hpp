@@ -16,7 +16,7 @@
 #include "gfx_pixel.hpp"
 #include "gfx_positioning.hpp"
 #include "gfx_sprite.hpp"
-#include "gfx_svg_doc.hpp"
+#include "gfx_svg.hpp"
 namespace gfx {
 struct text_info final {
     const char* text;

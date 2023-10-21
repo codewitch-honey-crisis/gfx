@@ -1972,34 +1972,6 @@ static float svg_get_average_scale(float* t) {
     return (sx + sy) * 0.5f;
 }
 
-static void svg_get_local_bounds(float* bounds, svg_shape* shape, float* xform) {
-    svg_path* path;
-    float curve[4 * 2], curveBounds[4];
-    int i, first = 1;
-    for (path = shape->paths; path != NULL; path = path->next) {
-        svg_xform_point(&curve[0], &curve[1], path->points[0], path->points[1], xform);
-        for (i = 0; i < path->point_count - 1; i += 3) {
-            svg_xform_point(&curve[2], &curve[3], path->points[(i + 1) * 2], path->points[(i + 1) * 2 + 1], xform);
-            svg_xform_point(&curve[4], &curve[5], path->points[(i + 2) * 2], path->points[(i + 2) * 2 + 1], xform);
-            svg_xform_point(&curve[6], &curve[7], path->points[(i + 3) * 2], path->points[(i + 3) * 2 + 1], xform);
-            svg_curve_bounds(curveBounds, curve);
-            if (first) {
-                bounds[0] = curveBounds[0];
-                bounds[1] = curveBounds[1];
-                bounds[2] = curveBounds[2];
-                bounds[3] = curveBounds[3];
-                first = 0;
-            } else {
-                bounds[0] = svg_minf(bounds[0], curveBounds[0]);
-                bounds[1] = svg_minf(bounds[1], curveBounds[1]);
-                bounds[2] = svg_maxf(bounds[2], curveBounds[2]);
-                bounds[3] = svg_maxf(bounds[3], curveBounds[3]);
-            }
-            curve[0] = curve[6];
-            curve[1] = curve[7];
-        }
-    }
-}
 static void svg_create_gradients(svg_parse_result& p) {
     svg_shape* shape;
 

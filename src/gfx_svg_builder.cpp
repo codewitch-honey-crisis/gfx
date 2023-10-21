@@ -1,4 +1,5 @@
 #include <gfx_svg.hpp>
+
 #include "svg_private.hpp"
 #define SVG_PI (3.14159265358979323846264338327f)
 #define SVG_KAPPA90 (0.5522847493f)  // Length proportional to radius of a cubic bezier handle for 90deg arcs.
@@ -61,8 +62,8 @@ svg_path_builder& svg_path_builder::operator=(svg_path_builder&& rhs) {
 gfx_result svg_path_builder::add_point(pointf pt) {
     if (!m_begin || m_size >= m_capacity - 1) {
         m_capacity = m_capacity ? (m_capacity * 2) : 8;
-        if(m_begin==nullptr) {
-            m_begin = (float*)m_allocator(m_capacity*sizeof(float));        
+        if (m_begin == nullptr) {
+            m_begin = (float*)m_allocator(m_capacity * sizeof(float));
         } else {
             m_begin = (float*)m_reallocator(m_begin, m_capacity * sizeof(float));
         }
@@ -359,15 +360,21 @@ gfx_result svg_path_builder::arc_to(pointf location, sizef radius, float x_angle
     m_cp.y1 = y2;
     return gfx_result::success;
 }
-gfx_result svg_path_builder::to_path(svg_path* out_path, bool closed, const svg_transform* xform) {
+gfx_result svg_path_builder::to_path(svg_path** out_path, bool closed, const svg_transform* xform) {
     if (out_path == nullptr) {
         return gfx_result::invalid_argument;
     }
-    out_path->closed = closed;
-    out_path->next = nullptr;
-    out_path->point_count = m_size/2;
-    out_path->points = (float*)m_allocator(m_size * sizeof(float));
-    if (out_path->points == nullptr) {
+    *out_path = (svg_path*)m_allocator(sizeof(svg_path));
+    if (*out_path == nullptr) {
+        return gfx_result::out_of_memory;
+    }
+    svg_path* p = *out_path;
+    p->closed = closed;
+    p->next = nullptr;
+    p->point_count = m_size / 2;
+    p->points = (float*)m_allocator(m_size * sizeof(float));
+    if (p->points == nullptr) {
+        m_deallocator(p);
         return gfx_result::out_of_memory;
     }
     for (size_t i = 0; i < m_size; i += 2) {
@@ -376,64 +383,212 @@ gfx_result svg_path_builder::to_path(svg_path* out_path, bool closed, const svg_
         if (xform != nullptr) {
             float dx, dy;
             svg_xform_point(&dx, &dy, px, py, xform->data);
-            out_path->points[i] = dx;
-            out_path->points[i + 1] = dy;
+            p->points[i] = dx;
+            p->points[i + 1] = dy;
         } else {
-            out_path->points[i] = px;
-            out_path->points[i + 1] = py;
+            p->points[i] = px;
+            p->points[i + 1] = py;
         }
     }
     // Find bounds
-    for (size_t i = 0; i < out_path->point_count - 1; i += 3) {
-        float* curve = &out_path->points[i * 2];
+    for (size_t i = 0; i < p->point_count - 1; i += 3) {
+        float* curve = &p->points[i * 2];
         float bounds[4];
         svg_curve_bounds(bounds, curve);
         if (i == 0) {
-            out_path->bounds.x1 = bounds[0];
-            out_path->bounds.y1 = bounds[1];
-            out_path->bounds.x2 = bounds[2];
-            out_path->bounds.y2 = bounds[3];
+            p->bounds.x1 = bounds[0];
+            p->bounds.y1 = bounds[1];
+            p->bounds.x2 = bounds[2];
+            p->bounds.y2 = bounds[3];
         } else {
-            out_path->bounds.x1 = svg_minf(out_path->bounds.x1, bounds[0]);
-            out_path->bounds.y1 = svg_minf(out_path->bounds.y1, bounds[1]);
-            out_path->bounds.x2 = svg_maxf(out_path->bounds.x2, bounds[2]);
-            out_path->bounds.y2 = svg_maxf(out_path->bounds.y2, bounds[3]);
+            p->bounds.x1 = svg_minf(p->bounds.x1, bounds[0]);
+            p->bounds.y1 = svg_minf(p->bounds.y1, bounds[1]);
+            p->bounds.x2 = svg_maxf(p->bounds.x2, bounds[2]);
+            p->bounds.y2 = svg_maxf(p->bounds.y2, bounds[3]);
         }
     }
     clear(true);
     return gfx_result::success;
 }
-svg_shape* svg_doc_builder::create_shape(const svg_shape_info& info) {
+float svg_doc_builder::to_pixels(svg_coordinate c, float orig, float length) {
+    switch (c.units) {
+        case svg_units::user:
+            return c.value;
+        case svg_units::px:
+            return c.value;
+        case svg_units::pt:
+            return c.value / 72.0f * m_dpi;
+        case svg_units::pc:
+            return c.value / 6.0f * m_dpi;
+        case svg_units::mm:
+            return c.value / 25.4f * m_dpi;
+        case svg_units::cm:
+            return c.value / 2.54f * m_dpi;
+        case svg_units::in:
+            return c.value * m_dpi;
+        case svg_units::em:
+            return c.value * m_font_size;
+        case svg_units::ex:
+            return c.value * m_font_size * 0.52f;  // x-height of Helvetica.
+        case svg_units::percent:
+            return orig + c.value / 100.0f * length;
+        default:
+            return c.value;
+    }
+    return c.value;
+}
+
+svg_gradient* svg_doc_builder::create_gradient(const svg_gradient_info& info, const float* local_bounds, float* xform, svg_paint_type* paint_type) {
+    const svg_gradient_stop* stops = info.stops;
+    svg_gradient* grad;
+    float ox, oy, sw, sh, sl;
+    int nstops = info.stop_count;
+    int refIter;
+    *paint_type = svg_paint_type::undefined;
+    size_t grad_sz = sizeof(svg_gradient) + sizeof(svg_gradient_stop) * (nstops - 1);
+    grad = (svg_gradient*)m_allocator(grad_sz);
+    if (grad == NULL) return NULL;
+    // The shape width and height.
+    grad->f = {0.0f, 0.0f};
+    ox = local_bounds[0];
+    oy = local_bounds[1];
+    sw = local_bounds[2] - local_bounds[0];
+    sh = local_bounds[3] - local_bounds[1];
+
+    sl = sqrtf(sw * sw + sh * sh) / sqrtf(2.0f);
+
+    if (info.type == svg_gradient_type::linear) {
+        float x1, y1, x2, y2, dx, dy;
+        x1 = to_pixels(info.linear.x1, ox, sw);
+        y1 = to_pixels(info.linear.y1, oy, sh);
+        x2 = to_pixels(info.linear.x2, ox, sw);
+        y2 = to_pixels(info.linear.y2, oy, sh);
+        // Calculate transform aligned to the line
+        dx = x2 - x1;
+        dy = y2 - y1;
+        grad->xform.data[0] = dy;
+        grad->xform.data[1] = -dx;
+        grad->xform.data[2] = dx;
+        grad->xform.data[3] = dy;
+        grad->xform.data[4] = x1;
+        grad->xform.data[5] = y1;
+    } else {
+        float cx, cy, fx, fy, r;
+        cx = to_pixels(info.radial.center_x, ox, sw);
+        cy = to_pixels(info.radial.center_y, oy, sh);
+        fx = to_pixels(info.radial.focus_x, ox, sw);
+        fy = to_pixels(info.radial.focus_y, oy, sh);
+        r = to_pixels(info.radial.radius, 0, sl);
+        // Calculate transform aligned to the circle
+        grad->xform.data[0] = r;
+        grad->xform.data[1] = 0;
+        grad->xform.data[2] = 0;
+        grad->xform.data[3] = r;
+        grad->xform.data[4] = cx;
+        grad->xform.data[5] = cy;
+        grad->f.x = fx / r;
+        grad->f.y = fy / r;
+    }
+    
+    svg_xform_multiply(grad->xform.data, info.xform.data);
+    svg_xform_multiply(grad->xform.data, xform);
+
+    grad->spread = info.spread;
+    memcpy(grad->stops, stops, nstops * sizeof(svg_gradient_stop));
+    grad->stop_count = nstops;
+    switch(info.type) {
+        case svg_gradient_type::linear:
+            *paint_type = svg_paint_type::linear_gradient;
+            break;
+            default:  // radial
+                *paint_type = svg_paint_type::radial_gradient;
+            break;
+    }
+    return grad;
+}
+void svg_doc_builder::add_gradient(svg_gradient_info* grad) {
+    if(m_gradients==nullptr) {
+        m_gradients = grad;
+        m_gradients_tail = grad;
+    } else {
+        m_gradients_tail->next = grad;
+        m_gradients_tail = grad;
+    }
+}
+svg_shape* svg_doc_builder::create_shape(svg_shape_info& info) {
     svg_shape* result = (svg_shape*)m_allocator(sizeof(svg_shape));
-    if(result==nullptr) {
+    if (result == nullptr) {
         return nullptr;
     }
-    result->fill = info.fill;
-    result->fill_gradient_id[0]=0;
+    memcpy(result->xform.data, info.xform.data, sizeof(float) * 6);
+    result->fill.type = info.fill.type;
+    result->fill_gradient = nullptr;
+
+    switch (info.fill.type) {
+        case svg_paint_type::color:
+            result->fill.color = info.fill.color;
+            break;
+        case svg_paint_type::radial_gradient:
+        case svg_paint_type::linear_gradient:
+            add_gradient(info.fill.gradient);
+            result->fill_gradient = info.fill.gradient;
+            //result->fill.type = svg_paint_type::undefined;
+            break;
+        default:  // svg_paint_type::none: svg_paint_type::undefined:
+            break;
+    }
+
     result->fill_rule = info.fill_rule;
     result->flags = !info.hidden;
-    result->id[0]=0;
+    result->id[0] = 0;
     result->miter_limit = info.miter_limit;
     result->next = nullptr;
     result->opacity = 1.0f;
     result->paths = nullptr;
-    result->stroke = info.stroke;
+    result->stroke.type = info.stroke.type;
+    result->stroke_gradient = nullptr;
+    switch (info.stroke.type) {
+        case svg_paint_type::color:
+            result->stroke.color = info.stroke.color;
+            break;
+        case svg_paint_type::radial_gradient:
+        case svg_paint_type::linear_gradient:
+            add_gradient(info.stroke.gradient);
+            result->stroke_gradient = info.stroke.gradient;
+            //result->stroke.type = svg_paint_type::undefined;
+            break;
+        default:  // svg_paint_type::none: svg_paint_type::undefined:
+            break;
+    }
     result->stroke_dash_count = info.stroke_dash_count;
-    memcpy(result->stroke_dash_array,info.stroke_dash_array,sizeof(float)*info.stroke_dash_count);
+    memcpy(result->stroke_dash_array, info.stroke_dash_array, sizeof(float) * info.stroke_dash_count);
     result->stroke_dash_offset = info.stroke_dash_offset;
     result->stroke_line_cap = info.stroke_line_cap;
     result->stroke_line_join = info.stroke_line_join;
     result->stroke_width = info.stroke_width;
-    memcpy(result->xform.data, info.xform.data,sizeof(float)*6);
+    
     return result;
 }
+void svg_doc_builder::do_free_gradient_infos() {
+    svg_gradient_info* grad = m_gradients;
+    while (grad != nullptr) {
+        svg_gradient_info* next = grad->next;
+        m_deallocator(grad);
+        grad = next;
+    }
+    m_gradients = nullptr;
+    m_gradients_tail = nullptr;
+}
 void svg_doc_builder::do_free() {
-    svg_delete_shapes(m_shape,m_deallocator);
+    do_free_gradient_infos();
+    svg_delete_shapes(m_shape, m_deallocator);
     m_shape = nullptr;
     m_shape_tail = nullptr;
 }
 void svg_doc_builder::do_move(svg_doc_builder& rhs) {
     do_free();
+    m_view_box = rhs.m_view_box;
+    m_dpi = rhs.m_dpi;
     m_allocator = rhs.m_allocator;
     m_reallocator = rhs.m_reallocator;
     m_deallocator = rhs.m_deallocator;
@@ -441,6 +596,10 @@ void svg_doc_builder::do_move(svg_doc_builder& rhs) {
     rhs.m_shape = nullptr;
     m_shape_tail = rhs.m_shape_tail;
     rhs.m_shape_tail = nullptr;
+    m_gradients = rhs.m_gradients;
+    rhs.m_gradients = nullptr;
+    m_gradients_tail = rhs.m_gradients_tail;
+    rhs.m_gradients_tail = nullptr;
 }
 void svg_doc_builder::add_shape(svg_shape* shape) {
     if (m_shape == nullptr) {
@@ -453,21 +612,18 @@ void svg_doc_builder::add_shape(svg_shape* shape) {
 }
 gfx_result svg_doc_builder::add_poly_impl(const pathf& path, bool closed, svg_shape_info& shape_info) {
     size_t c = path.size();
-    if(c<2) {
+    if (c < 2) {
         return gfx_result::success;
     }
     m_builder.clear();
     const pointf* pt = path.begin();
     m_builder.move_to(*pt++);
     --c;
-    while(c--) {
+    while (c--) {
         m_builder.line_to(*pt++);
     }
-    svg_path* spath = (svg_path*)m_allocator(sizeof(svg_path));
-    if (spath == nullptr) {
-        return gfx_result::out_of_memory;
-    }
-    gfx_result res = m_builder.to_path(spath, closed, &shape_info.xform);
+    svg_path* spath;
+    gfx_result res = m_builder.to_path(&spath, true, &shape_info.xform);
     if (res != gfx_result::success) {
         return res;
     }
@@ -483,8 +639,7 @@ gfx_result svg_doc_builder::add_poly_impl(const pathf& path, bool closed, svg_sh
     add_shape(shape);
     return gfx_result::success;
 }
-svg_doc_builder::svg_doc_builder(void*(allocator)(size_t), void*(reallocator)(void*, size_t), void(deallocator)(void*)) : m_allocator(allocator),m_reallocator(reallocator),m_deallocator(deallocator),m_builder(allocator,reallocator,deallocator), m_shape(nullptr),m_shape_tail(nullptr) {
-
+svg_doc_builder::svg_doc_builder(const rectf& view_box, uint16_t dpi, float font_size, void*(allocator)(size_t), void*(reallocator)(void*, size_t), void(deallocator)(void*)) : m_view_box(view_box), m_dpi(dpi), m_font_size(font_size), m_allocator(allocator), m_reallocator(reallocator), m_deallocator(deallocator), m_builder(allocator, reallocator, deallocator), m_shape(nullptr), m_shape_tail(nullptr) ,m_gradients(nullptr),m_gradients_tail(nullptr) {
 }
 svg_doc_builder::svg_doc_builder(svg_doc_builder&& rhs) {
     do_move(rhs);
@@ -497,11 +652,11 @@ svg_doc_builder::~svg_doc_builder() {
     do_free();
 }
 gfx_result svg_doc_builder::add_path(svg_path* path, svg_shape_info& shape_info) {
-    if(path==nullptr) {
+    if (path == nullptr) {
         return gfx_result::invalid_argument;
     }
     svg_shape* shape = create_shape(shape_info);
-    if(shape==nullptr) {
+    if (shape == nullptr) {
         return gfx_result::out_of_memory;
     }
     shape->paths = path;
@@ -509,7 +664,7 @@ gfx_result svg_doc_builder::add_path(svg_path* path, svg_shape_info& shape_info)
     return gfx_result::success;
 }
 gfx_result svg_doc_builder::add_polygon(const pathf& path, svg_shape_info& shape_info) {
-    return add_poly_impl(path,true,shape_info);
+    return add_poly_impl(path, true, shape_info);
 }
 gfx_result svg_doc_builder::add_polyline(const pathf& path, svg_shape_info& shape_info) {
     return add_poly_impl(path, false, shape_info);
@@ -524,23 +679,20 @@ gfx_result svg_doc_builder::add_rectangle(const rectf& bounds, svg_shape_info& s
         if (res != gfx_result::success) {
             return res;
         }
-        res = m_builder.line_to({x+w, y});
+        res = m_builder.line_to({x + w, y});
         if (res != gfx_result::success) {
             return res;
         }
-        res = m_builder.line_to({x+w,y+h});
+        res = m_builder.line_to({x + w, y + h});
         if (res != gfx_result::success) {
             return res;
         }
-        res = m_builder.line_to({x,y+h});
+        res = m_builder.line_to({x, y + h});
         if (res != gfx_result::success) {
             return res;
         }
-        svg_path* path = (svg_path*)m_allocator(sizeof(svg_path));
-        if (path == nullptr) {
-            return gfx_result::out_of_memory;
-        }
-        res = m_builder.to_path(path, true, &shape_info.xform);
+        svg_path* path;
+        res = m_builder.to_path(&path, true, &shape_info.xform);
         if (res != gfx_result::success) {
             return res;
         }
@@ -556,7 +708,6 @@ gfx_result svg_doc_builder::add_rectangle(const rectf& bounds, svg_shape_info& s
         add_shape(shape);
     }
     return gfx_result::success;
-    
 }
 gfx_result svg_doc_builder::add_rounded_rectangle(const rectf& bounds, sizef radiuses, svg_shape_info& shape_info) {
     sizef sz = bounds.dimensions();
@@ -572,7 +723,7 @@ gfx_result svg_doc_builder::add_rounded_rectangle(const rectf& bounds, sizef rad
         if (res != gfx_result::success) {
             return res;
         }
-        res = m_builder.cubic_bezier_to({x + w, y + ry},{x + w - rx * (1 - SVG_KAPPA90), y, x + w, y + ry * (1 - SVG_KAPPA90)});
+        res = m_builder.cubic_bezier_to({x + w, y + ry}, {x + w - rx * (1 - SVG_KAPPA90), y, x + w, y + ry * (1 - SVG_KAPPA90)});
         if (res != gfx_result::success) {
             return res;
         }
@@ -580,7 +731,7 @@ gfx_result svg_doc_builder::add_rounded_rectangle(const rectf& bounds, sizef rad
         if (res != gfx_result::success) {
             return res;
         }
-        res = m_builder.cubic_bezier_to({x + w - rx, y + h} ,{x + w, y + h - ry * (1 - SVG_KAPPA90), x + w - rx * (1 - SVG_KAPPA90), y + h});
+        res = m_builder.cubic_bezier_to({x + w - rx, y + h}, {x + w, y + h - ry * (1 - SVG_KAPPA90), x + w - rx * (1 - SVG_KAPPA90), y + h});
         if (res != gfx_result::success) {
             return res;
         }
@@ -588,7 +739,7 @@ gfx_result svg_doc_builder::add_rounded_rectangle(const rectf& bounds, sizef rad
         if (res != gfx_result::success) {
             return res;
         }
-        res = m_builder.cubic_bezier_to({x, y + h - ry} ,{x + rx * (1 - SVG_KAPPA90), y + h, x, y + h - ry * (1 - SVG_KAPPA90)});
+        res = m_builder.cubic_bezier_to({x, y + h - ry}, {x + rx * (1 - SVG_KAPPA90), y + h, x, y + h - ry * (1 - SVG_KAPPA90)});
         if (res != gfx_result::success) {
             return res;
         }
@@ -596,15 +747,15 @@ gfx_result svg_doc_builder::add_rounded_rectangle(const rectf& bounds, sizef rad
         if (res != gfx_result::success) {
             return res;
         }
-        res = m_builder.cubic_bezier_to({x + rx, y} ,{x, y + ry * (1 - SVG_KAPPA90), x + rx * (1 - SVG_KAPPA90), y});
+        res = m_builder.cubic_bezier_to({x + rx, y}, {x, y + ry * (1 - SVG_KAPPA90), x + rx * (1 - SVG_KAPPA90), y});
         if (res != gfx_result::success) {
             return res;
         }
-        svg_path* path = (svg_path*)m_allocator(sizeof(svg_path));
-        if (path == nullptr) {
-            return gfx_result::out_of_memory;
+        svg_path* path;
+        res = m_builder.to_path(&path, true, &shape_info.xform);
+        if (res != gfx_result::success) {
+            return res;
         }
-        res = m_builder.to_path(path, true, &shape_info.xform);
         if (res != gfx_result::success) {
             return res;
         }
@@ -648,17 +799,17 @@ gfx_result svg_doc_builder::add_ellipse(pointf center, sizef radiuses, svg_shape
         if (res != gfx_result::success) {
             return res;
         }
-        svg_path* path = (svg_path*)m_allocator(sizeof(svg_path));
-        if(path==nullptr) {
-            return gfx_result::out_of_memory;
+        svg_path* path;
+        res = m_builder.to_path(&path, true, &shape_info.xform);
+        if (res != gfx_result::success) {
+            return res;
         }
-        res = m_builder.to_path(path, true, &shape_info.xform);
         if (res != gfx_result::success) {
             return res;
         }
         svg_shape* shape = create_shape(shape_info);
-        if(shape==nullptr) {
-            if(path->points!=nullptr) {
+        if (shape == nullptr) {
+            if (path->points != nullptr) {
                 m_deallocator(path->points);
             }
             m_deallocator(path);
@@ -669,24 +820,183 @@ gfx_result svg_doc_builder::add_ellipse(pointf center, sizef radiuses, svg_shape
     }
     return gfx_result::success;
 }
-gfx_result svg_doc_builder::to_doc(sizef dimensions, svg_doc* out_doc) {
-    if(out_doc==nullptr) {
+gfx_result svg_doc_builder::to_doc(svg_doc* out_doc) {
+    if (out_doc == nullptr) {
         return gfx_result::invalid_argument;
     }
     m_builder.clear(false);
     svg_image* img = (svg_image*)m_allocator(sizeof(svg_image));
-    if(img==nullptr) {
+    if (img == nullptr) {
         return gfx_result::out_of_memory;
     }
+    svg_shape* shape = m_shape;
+    while(shape!=nullptr) {
+        if(shape->fill_gradient!=nullptr) {
+            float inv[6], localBounds[4];
+            svg_xform_inverse(inv, shape->xform.data);
+            svg_get_local_bounds(localBounds, shape, inv);
+            shape->fill.gradient = create_gradient(*shape->fill_gradient, localBounds, shape->xform.data, &shape->fill.type);
+        }
+        if (shape->fill.type == svg_paint_type::undefined) {
+            shape->fill.type = svg_paint_type::none;
+        }
+        if (shape->stroke_gradient != nullptr) {
+            float inv[6], localBounds[4];
+            svg_xform_inverse(inv, shape->xform.data);
+            svg_get_local_bounds(localBounds, shape, inv);
+            shape->stroke.gradient = create_gradient(*shape->stroke_gradient, localBounds, shape->xform.data, &shape->stroke.type);
+        }
+        if (shape->stroke.type == svg_paint_type::undefined) {
+            shape->stroke.type = svg_paint_type::none;
+        }
+        shape = shape->next;
+    }
     img->shapes = m_shape;
-    img->dimensions = dimensions;
+    img->dimensions = m_view_box.dimensions();
     out_doc->m_doc_data = img;
     out_doc->m_allocator = m_allocator;
     out_doc->m_reallocator = m_reallocator;
     out_doc->m_deallocator = m_deallocator;
     m_shape = nullptr;
     m_shape_tail = nullptr;
+    do_free_gradient_infos();
     return gfx_result::success;
-    
 }
+void svg_gradient_builder::do_free() {
+    if (m_deallocator != nullptr) {
+        if (m_gradient != nullptr) {
+            if(m_gradient->stops!=nullptr) {
+                m_deallocator(m_gradient->stops);
+            }
+            m_deallocator(m_gradient);
+            m_gradient = nullptr;
+        }
+    }
 }
+void svg_gradient_builder::do_copy(const svg_gradient_builder& rhs) {
+    if (rhs.m_gradient == nullptr) {
+        m_gradient = nullptr;
+        return;
+    }
+    m_gradient = (svg_gradient_info*)m_allocator(sizeof(svg_gradient_info));
+    if(m_gradient==nullptr) {
+        return;
+    }
+    memcpy(m_gradient, rhs.m_gradient, sizeof(svg_gradient_info));
+    size_t sz = (rhs.m_gradient->stop_count) * sizeof(svg_gradient_stop);
+    m_gradient->stops = (svg_gradient_stop*)m_allocator(sz);
+    if(m_gradient->stops=nullptr) {
+        m_deallocator(m_gradient);
+        m_gradient=nullptr;
+        return;
+    }
+    memcpy(m_gradient->stops,rhs.m_gradient->stops,sizeof(svg_gradient_stop)*m_gradient->stop_count);
+}
+void svg_gradient_builder::do_move(svg_gradient_builder& rhs) {
+    m_gradient = rhs.m_gradient;
+    rhs.m_gradient = nullptr;
+}
+svg_gradient_builder::svg_gradient_builder(void*(allocator)(size_t), void*(reallocator)(void*, size_t), void(deallocator)(void*)) : m_allocator(allocator), m_reallocator(reallocator), m_deallocator(deallocator), m_gradient(nullptr) {
+}
+svg_gradient_builder::svg_gradient_builder(const svg_gradient_builder& rhs) {
+    do_copy(rhs);
+}
+svg_gradient_builder& svg_gradient_builder::operator=(const svg_gradient_builder& rhs) {
+    do_free();
+    do_copy(rhs);
+    return *this;
+}
+svg_gradient_builder::svg_gradient_builder(svg_gradient_builder&& rhs) {
+    do_move(rhs);
+}
+svg_gradient_builder& svg_gradient_builder::operator=(svg_gradient_builder&& rhs) {
+    do_free();
+    do_move(rhs);
+    return *this;
+}
+svg_gradient_builder::~svg_gradient_builder() {
+    do_free();
+}
+gfx_result svg_gradient_builder::add_stop(rgba_pixel<32> color, float offset) {
+    if (m_gradient == nullptr) {
+        m_gradient = (svg_gradient_info*)m_allocator(sizeof(svg_gradient_info));
+        if (m_gradient == nullptr) {
+            return gfx_result::out_of_memory;
+        }
+        m_gradient->stop_count = 0;
+        m_gradient->next = nullptr;
+        m_gradient->stops = (svg_gradient_stop*)m_allocator(sizeof(svg_gradient_stop));
+        if(m_gradient->stops == nullptr) {
+            m_deallocator(m_gradient);
+            m_gradient = nullptr;
+            return gfx_result::out_of_memory;
+        }
+    } else {
+        m_gradient->stops = (svg_gradient_stop*)m_reallocator(m_gradient->stops, (m_gradient->stop_count+1) * sizeof(svg_gradient_stop));
+        if (m_gradient == nullptr) {
+            return gfx_result::out_of_memory;
+        }
+    }
+    svg_gradient_stop& stp= m_gradient->stops[m_gradient->stop_count];
+    stp.color = color;
+    stp.offset = offset;
+    ++m_gradient->stop_count;
+    return gfx_result::success;
+}
+void svg_gradient_builder::clear() {
+    do_free();
+}
+gfx_result svg_gradient_builder::to_linear_gradient(svg_gradient_info** out_gradient, svg_gradient_units units ,svg_coordinate x1, svg_coordinate y1, svg_coordinate x2, svg_coordinate y2, svg_spread_type spread, const svg_transform* xform) {
+    if (out_gradient == nullptr) {
+        return gfx_result::invalid_argument;
+    }
+    if (m_gradient == nullptr) {
+        m_gradient = (svg_gradient_info*)m_allocator(sizeof(svg_gradient_info));
+        if (m_gradient == nullptr) {
+            return gfx_result::out_of_memory;
+        }
+        m_gradient->stop_count = 0;
+    }
+    m_gradient->type = svg_gradient_type::linear;
+    m_gradient->linear.x1 = x1;
+    m_gradient->linear.y1 = y1;
+    m_gradient->linear.x2 = x2;
+    m_gradient->linear.y2 = y2;
+    m_gradient->spread = spread;
+    m_gradient->units = units;
+    m_gradient->next = nullptr;
+    if(xform!=nullptr) {
+        memcpy(m_gradient->xform.data,xform->data,sizeof(float)*6);
+    }
+    *out_gradient = m_gradient;
+    m_gradient = nullptr;
+    return gfx_result::success;
+}
+gfx_result svg_gradient_builder::to_radial_gradient(svg_gradient_info** out_gradient, svg_gradient_units units ,svg_coordinate center_x, svg_coordinate center_y, svg_coordinate focus_x, svg_coordinate focus_y, svg_coordinate radius, svg_spread_type spread, const svg_transform* xform) {
+    if (out_gradient == nullptr) {
+        return gfx_result::invalid_argument;
+    }
+    if (m_gradient == nullptr) {
+        m_gradient = (svg_gradient_info*)m_allocator(sizeof(svg_gradient_info));
+        if (m_gradient == nullptr) {
+            return gfx_result::out_of_memory;
+        }
+        m_gradient->stop_count = 0;
+    }
+    m_gradient->type = svg_gradient_type::linear;
+    m_gradient->radial.center_x = center_x;
+    m_gradient->radial.center_y = center_y;
+    m_gradient->radial.focus_x = focus_x;
+    m_gradient->radial.focus_y = focus_y;
+    m_gradient->radial.radius = radius;
+    m_gradient->spread = spread;
+    m_gradient->units = units;
+    m_gradient->next = nullptr;
+    if (xform != nullptr) {
+        memcpy(m_gradient->xform.data, xform->data, sizeof(float) * 6);
+    }
+    *out_gradient = m_gradient;
+    m_gradient = nullptr;
+    return gfx_result::success;
+}
+}  // namespace gfx

@@ -103,6 +103,3 @@ void svg_doc::draw(float scale, const srect16& rect, void(read_callback)(int x, 
         }
     }
 }
-gfx_result svg_doc::add_shape(const rectf& bounds, svg_shape& shape) {
-    return gfx_result::not_supported;
-}

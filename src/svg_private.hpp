@@ -129,4 +129,5 @@ void svg_xform_inverse(float* inv, float* t);
 void svg_xform_premultiply(float* t, const float* s);
 void svg_xform_point(float* dx, float* dy, float x, float y, const float* t);
 void svg_xform_vec(float* dx, float* dy, float x, float y, const float* t);
+void svg_get_local_bounds(float* bounds, svg_shape* shape, float* xform);
 }

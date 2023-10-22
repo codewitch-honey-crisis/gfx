@@ -929,6 +929,7 @@ gfx_result svg_doc_builder::to_doc(svg_doc* out_doc) {
     if (out_doc == nullptr) {
         return gfx_result::invalid_argument;
     }
+    out_doc->do_free();
     m_builder.clear(false);
     svg_image* img = (svg_image*)m_allocator(sizeof(svg_image));
     if (img == nullptr) {

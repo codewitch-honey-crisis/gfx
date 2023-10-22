@@ -671,6 +671,9 @@ void svg_doc_builder::do_free_gradient_infos() {
     svg_gradient_info* grad = m_gradients;
     while (grad != nullptr) {
         svg_gradient_info* next = grad->next;
+        if (grad->stops != nullptr) {
+            m_deallocator(grad->stops);
+        }
         m_deallocator(grad);
         grad = next;
     }
@@ -970,6 +973,7 @@ void svg_gradient_builder::do_free() {
         if (m_gradient != nullptr) {
             if(m_gradient->stops!=nullptr) {
                 m_deallocator(m_gradient->stops);
+                m_gradient->stops = nullptr;
             }
             m_deallocator(m_gradient);
             m_gradient = nullptr;
@@ -987,13 +991,18 @@ void svg_gradient_builder::do_copy(const svg_gradient_builder& rhs) {
     }
     memcpy(m_gradient, rhs.m_gradient, sizeof(svg_gradient_info));
     size_t sz = (rhs.m_gradient->stop_count) * sizeof(svg_gradient_stop);
-    m_gradient->stops = (svg_gradient_stop*)m_allocator(sz);
-    if(m_gradient->stops=nullptr) {
-        m_deallocator(m_gradient);
-        m_gradient=nullptr;
-        return;
+    if (sz > 0) {
+        m_gradient->stops = (svg_gradient_stop*)m_allocator(sz);
+        if (m_gradient->stops == nullptr) {
+            m_deallocator(m_gradient);
+            m_gradient = nullptr;
+            return;
+        }
+        memcpy(m_gradient->stops, rhs.m_gradient->stops, sizeof(svg_gradient_stop) * m_gradient->stop_count);
     }
-    memcpy(m_gradient->stops,rhs.m_gradient->stops,sizeof(svg_gradient_stop)*m_gradient->stop_count);
+    else {
+        m_gradient->stops = nullptr;
+    }
 }
 void svg_gradient_builder::do_move(svg_gradient_builder& rhs) {
     m_gradient = rhs.m_gradient;

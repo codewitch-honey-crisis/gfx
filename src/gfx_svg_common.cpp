@@ -27,8 +27,10 @@ void svg_delete_paths(svg_path* path, void(deallocator)(void*) ) {
 }
 
 void svg_delete_paint(svg_paint* paint, void(deallocator)(void*)) {
-    if (paint->type == svg_paint_type::linear_gradient || paint->type == svg_paint_type::radial_gradient)
+    if (paint->type == svg_paint_type::linear_gradient || paint->type == svg_paint_type::radial_gradient) {
         deallocator(paint->gradient);
+        paint->gradient = nullptr;
+    }
 }
 void svg_delete_shapes(svg_shape* the_shape, void(deallocator)(void*)) {
     svg_shape *snext, *shape=the_shape;

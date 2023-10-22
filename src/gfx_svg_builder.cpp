@@ -437,6 +437,104 @@ float svg_doc_builder::to_pixels(svg_coordinate c, float orig, float length) {
     }
     return c.value;
 }
+void svg_doc_builder::to_bounds(float* bounds) const {
+    svg_shape* shape;
+    shape = m_shape;
+    if (shape == NULL) {
+        bounds[0] = bounds[1] = bounds[2] = bounds[3] = 0.0;
+        return;
+    }
+    bounds[0] = shape->bounds.x1;
+    bounds[1] = shape->bounds.y1;
+    bounds[2] = shape->bounds.x2;
+    bounds[3] = shape->bounds.y2;
+    for (shape = shape->next; shape != NULL; shape = shape->next) {
+        bounds[0] = svg_minf(bounds[0], shape->bounds.x1);
+        bounds[1] = svg_minf(bounds[1], shape->bounds.y1);
+        bounds[2] = svg_maxf(bounds[2], shape->bounds.x2);
+        bounds[3] = svg_maxf(bounds[3], shape->bounds.y2);
+    }
+}
+#define SVG_ALIGN_MIN 0
+#define SVG_ALIGN_MID 1
+#define SVG_ALIGN_MAX 2
+#define SVG_ALIGN_NONE 0
+#define SVG_ALIGN_MEET 1
+#define SVG_ALIGN_SLICE 2
+
+float svg_doc_builder::view_align(float content, float container, int type) {
+    if (type == SVG_ALIGN_MIN)
+        return 0;
+    else if (type == SVG_ALIGN_MAX)
+        return container - content;
+    // mid
+    return (container - content) * 0.5f;
+}
+void svg_doc_builder::scale_gradient(svg_gradient* grad, float tx, float ty, float sx, float sy) {
+    float t[6];
+    svg_xform_set_translation(t, tx, ty);
+    svg_xform_multiply(grad->xform.data, t);
+
+    svg_xform_set_scale(t, sx, sy);
+    svg_xform_multiply(grad->xform.data, t);
+}
+void svg_doc_builder::scale_to_view_box(svg_units units) {
+    svg_shape* shape;
+    svg_path* path;
+    float tx, ty, sx, sy, us, bounds[4], t[6], avgs;
+    int i;
+    float* pt;
+
+    // Guess image size if not set completely.
+    to_bounds(bounds);
+    float view_width = m_dimensions.width;
+    float view_height = m_dimensions.height;
+    tx = m_view_box.x1;
+    ty = m_view_box.y1;
+    sx = m_dimensions.width / m_view_box.width();
+    sy = m_dimensions.height / m_view_box.height();
+    // Unit scaling
+    us = 1.0f / to_pixels({1.0f,units}, 0.0f, 1.0f);
+
+
+    // Transform
+    sx *= us;
+    sy *= us;
+    avgs = (sx + sy) / 2.0f;
+    for (shape = m_shape; shape != NULL; shape = shape->next) {
+        shape->bounds.x1 = (shape->bounds.x1 + tx) * sx;
+        shape->bounds.y1 = (shape->bounds.y1 + ty) * sy;
+        shape->bounds.x2 = (shape->bounds.x2 + tx) * sx;
+        shape->bounds.y2 = (shape->bounds.y2 + ty) * sy;
+        for (path = shape->paths; path != NULL; path = path->next) {
+            path->bounds.x1 = (path->bounds.x1 + tx) * sx;
+            path->bounds.y1 = (path->bounds.y1 + ty) * sy;
+            path->bounds.x2 = (path->bounds.x2 + tx) * sx;
+            path->bounds.y2 = (path->bounds.y2 + ty) * sy;
+            for (i = 0; i < path->point_count; i++) {
+                pt = &path->points[i * 2];
+                pt[0] = (pt[0] + tx) * sx;
+                pt[1] = (pt[1] + ty) * sy;
+            }
+        }
+
+        if (shape->fill.type == svg_paint_type::linear_gradient || shape->fill.type == svg_paint_type::radial_gradient) {
+            scale_gradient(shape->fill.gradient, tx, ty, sx, sy);
+            memcpy(t, shape->fill.gradient->xform.data, sizeof(float) * 6);
+            svg_xform_inverse(shape->fill.gradient->xform.data, t);
+        }
+        if (shape->stroke.type == svg_paint_type::linear_gradient || shape->stroke.type == svg_paint_type::radial_gradient) {
+            scale_gradient(shape->stroke.gradient, tx, ty, sx, sy);
+            memcpy(t, shape->stroke.gradient->xform.data, sizeof(float) * 6);
+            svg_xform_inverse(shape->stroke.gradient->xform.data, t);
+        }
+
+        shape->stroke_width *= avgs;
+        shape->stroke_dash_offset *= avgs;
+        for (i = 0; i < shape->stroke_dash_count; i++)
+            shape->stroke_dash_array[i] *= avgs;
+    }
+}
 
 svg_gradient* svg_doc_builder::create_gradient(const svg_gradient_info& info, const float* local_bounds, float* xform, svg_paint_type* paint_type) {
     const svg_gradient_stop* stops = info.stops;
@@ -587,6 +685,7 @@ void svg_doc_builder::do_free() {
 }
 void svg_doc_builder::do_move(svg_doc_builder& rhs) {
     do_free();
+    m_dimensions = rhs.m_dimensions;
     m_view_box = rhs.m_view_box;
     m_dpi = rhs.m_dpi;
     m_allocator = rhs.m_allocator;
@@ -639,7 +738,10 @@ gfx_result svg_doc_builder::add_poly_impl(const pathf& path, bool closed, svg_sh
     add_shape(shape);
     return gfx_result::success;
 }
-svg_doc_builder::svg_doc_builder(const rectf& view_box, uint16_t dpi, float font_size, void*(allocator)(size_t), void*(reallocator)(void*, size_t), void(deallocator)(void*)) : m_view_box(view_box), m_dpi(dpi), m_font_size(font_size), m_allocator(allocator), m_reallocator(reallocator), m_deallocator(deallocator), m_builder(allocator, reallocator, deallocator), m_shape(nullptr), m_shape_tail(nullptr) ,m_gradients(nullptr),m_gradients_tail(nullptr) {
+svg_doc_builder::svg_doc_builder(sizef dimensions, uint16_t dpi, float font_size, const rectf* view_box, void*(allocator)(size_t), void*(reallocator)(void*, size_t), void(deallocator)(void*)) : m_dimensions(dimensions), m_dpi(dpi), m_font_size(font_size),m_view_box(0,0,dimensions.width-1,dimensions.height-1) , m_allocator(allocator), m_reallocator(reallocator), m_deallocator(deallocator), m_builder(allocator, reallocator, deallocator), m_shape(nullptr), m_shape_tail(nullptr), m_gradients(nullptr), m_gradients_tail(nullptr) {
+    if(view_box!=nullptr) {
+        m_view_box = *view_box;
+    }
 }
 svg_doc_builder::svg_doc_builder(svg_doc_builder&& rhs) {
     do_move(rhs);
@@ -851,8 +953,9 @@ gfx_result svg_doc_builder::to_doc(svg_doc* out_doc) {
         }
         shape = shape->next;
     }
+    scale_to_view_box(svg_units::px);
     img->shapes = m_shape;
-    img->dimensions = m_view_box.dimensions();
+    img->dimensions = m_dimensions;
     out_doc->m_doc_data = img;
     out_doc->m_allocator = m_allocator;
     out_doc->m_reallocator = m_reallocator;

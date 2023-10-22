@@ -270,15 +270,20 @@ class svg_doc final {
     sizef dimensions() const;
 };
 class svg_doc_builder final {
-    rectf m_view_box;
+    sizef m_dimensions;
     uint16_t m_dpi;
     float m_font_size;
+    rectf m_view_box;
     void* (*m_allocator)(size_t);
     void* (*m_reallocator)(void*, size_t);
     void (*m_deallocator)(void*);
     svg_path_builder m_builder;
     svg_shape *m_shape,*m_shape_tail;
     svg_gradient_info *m_gradients,*m_gradients_tail;
+    void to_bounds(float* bounds) const;
+    float view_align(float content,float container,int type);
+    void scale_gradient(svg_gradient* grad, float tx, float ty, float sx, float sy);
+    void scale_to_view_box(svg_units units);
     float to_pixels(svg_coordinate coord, float orig, float length);
     void add_gradient(svg_gradient_info* grad);
     svg_gradient* create_gradient(const svg_gradient_info& info, const float* local_bounds, float* xform, svg_paint_type* paint_type);
@@ -291,7 +296,7 @@ class svg_doc_builder final {
     svg_doc_builder(const svg_doc_builder& rhs)=delete;
     svg_doc_builder& operator=(const svg_doc_builder& rhs) = delete;
    public:
-    svg_doc_builder(const rectf& view_box, uint16_t dpi = 96, float font_size = 25, void*(allocator)(size_t) = ::malloc, void*(reallocator)(void*, size_t) = ::realloc, void(deallocator)(void*) = ::free);
+    svg_doc_builder(sizef dimensions, uint16_t dpi = 96, float font_size = 25, const rectf* view_box = nullptr, void*(allocator)(size_t) = ::malloc, void*(reallocator)(void*, size_t) = ::realloc, void(deallocator)(void*) = ::free);
     svg_doc_builder(svg_doc_builder&& rhs);
     svg_doc_builder& operator=(svg_doc_builder&& rhs);
     ~svg_doc_builder();

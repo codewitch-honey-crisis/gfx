@@ -48,6 +48,7 @@ gfx_result svg_doc::read(stream* svg_stream, svg_doc* out_doc, uint16_t dpi, voi
     if (out_doc == nullptr || svg_stream == nullptr || !svg_stream->caps().read) {
         return gfx_result::invalid_argument;
     }
+    out_doc->do_free();
     svg_image* img;
      
     gfx_result res = svg_parse_to_image(svg_stream, dpi, &img, allocator, reallocator, deallocator);

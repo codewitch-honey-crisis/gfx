@@ -94,6 +94,9 @@ namespace gfx {
         constexpr size_t area() const {
             return width*height;
         }
+        constexpr sizex flip() const {
+            return {height,width};
+        }
     };
     enum struct rect_orientation {
         normalized = 0,
@@ -109,13 +112,13 @@ namespace gfx {
         using type =rectx;
         using value_type = T;
         // the x1 coordinate
-        T x1;
+        value_type x1;
         // the y1 coordinate
-        T y1;
+        value_type y1;
         // the x2 coordinate
-        T x2;
+        value_type x2;
         // the y2 coordinate
-        T y2;
+        value_type y2;
         // constructs a new instance
         inline rectx() {}
         inline rectx(const rectx& rhs)=default;
@@ -567,7 +570,13 @@ namespace gfx {
             }
             return c && polygon;
         }
-
+        void scale_inplace(float multiplier) {
+            for(size_t i = 0; i< m_size; ++i)  {
+                point_type& pt = m_points[i];
+                pt.x *= multiplier;
+                pt.y *= multiplier;
+            }
+        }
     };
     // represents a point with 16-bit signed integer coordinates
     using spoint16 = pointx<int16_t>;

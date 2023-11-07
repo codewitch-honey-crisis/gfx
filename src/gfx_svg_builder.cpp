@@ -531,7 +531,7 @@ void svg_doc_builder::scale_to_view_box(svg_units units) {
 
         shape->stroke_width *= avgs;
         shape->stroke_dash_offset *= avgs;
-        for (i = 0; i < ((size_t)shape->stroke_dash_count); i++)
+        for (i = 0; i < ((int)shape->stroke_dash_count); i++)
             shape->stroke_dash_array[i] *= avgs;
     }
 }

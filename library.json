@@ -1,6 +1,6 @@
 {
     "name": "htcw_gfx",
-    "version": "1.656",
+    "version": "1.657",
     "description": "A device independent graphics library for embedded and IoT devices",
     "keywords": ["tft", "lcd","e-paper","e-ink", "graphics", "spi", "parallel", "i2c", "drawing", "jpg", "ttf","vlw", "font", "svg","2d", "vector"],
     "authors": {

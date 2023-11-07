@@ -25,7 +25,7 @@ void svg_doc::do_free() {
         m_doc_data = nullptr;
     }
 }
-svg_doc::svg_doc(void*(allocator)(size_t), void*(reallocator)(void*, size_t), void(deallocator)(void*)) :m_allocator(allocator),m_reallocator(reallocator),m_deallocator(deallocator), m_doc_data(nullptr) {
+svg_doc::svg_doc(void*(allocator)(size_t), void*(reallocator)(void*, size_t), void(deallocator)(void*)) : m_doc_data(nullptr), m_allocator(allocator), m_reallocator(reallocator), m_deallocator(deallocator) {
 }
 svg_doc::~svg_doc() {
     do_free();

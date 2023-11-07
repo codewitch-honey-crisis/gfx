@@ -50,8 +50,8 @@ static void svg_reset_pool(NSVGrasterizer* r) {
 
 static unsigned char* svg_alloc(NSVGrasterizer* r, int size) {
     unsigned char* buf;
-    if (size > svg_mem_page::mem_page_size) return NULL;
-    if (r->curpage == NULL || r->curpage->size + size > svg_mem_page::mem_page_size) {
+    if (((size_t)size) > svg_mem_page::mem_page_size) return NULL;
+    if (r->curpage == NULL || r->curpage->size + ((size_t)size) > svg_mem_page::mem_page_size) {
         r->curpage = svg_next_page(r, r->curpage);
     }
     buf = &r->curpage->mem[r->curpage->size];
@@ -590,7 +590,7 @@ static void svg_flatten_shape_stroke(NSVGrasterizer* r, svg_shape* shape, float 
 
             // Figure out dash offset.
             allDashLen = 0;
-            for (j = 0; j < shape->stroke_dash_count; j++)
+            for (j = 0; j < ((int)shape->stroke_dash_count); j++)
                 allDashLen += shape->stroke_dash_array[j];
             if (shape->stroke_dash_count & 1)
                 allDashLen *= 2.0f;
@@ -1215,7 +1215,7 @@ static void svg_init_paint(svg_cached_paint* cache, svg_paint* paint, float opac
             cache->colors[i] = ca;
         }
 
-        for (i = 0; i < grad->stop_count - 1; i++) {
+        for (i = 0; i < ((int)grad->stop_count) - 1; i++) {
             ca = svg_apply_opacity(grad->stops[i].color, opacity);
             cb = svg_apply_opacity(grad->stops[i + 1].color, opacity);
             ua = svg_clampf(grad->stops[i].offset, 0, 1);

@@ -2016,7 +2016,7 @@ static gfx_result svg_add_shape(svg_parse_result& p) {
     shape = (svg_shape*)p.allocator(sizeof(svg_shape));
     if (shape == NULL) goto error;
     p.image_size += sizeof(svg_shape);
-    memset(shape, 0, sizeof(svg_shape));
+    //memset(shape, 0, sizeof(svg_shape));
     shape->id[0]=0;
     shape->paths = NULL;
     shape->flags = 0;
@@ -3074,7 +3074,6 @@ gfx_result svg_parse_to_image(stream* svg_stream, uint16_t dpi, svg_image** out_
     parse_res.alignX = 0;
     parse_res.alignY = 0;
     memset(parse_res.aname,0,sizeof(parse_res.aname));
-    memset(parse_res.attr,0,sizeof(parse_res.attr));
     parse_res.attrHead = 0;
     memset(parse_res.avalue,0,sizeof(parse_res.avalue));
     memset(parse_res.class_val,0,sizeof(parse_res.class_val));
@@ -3100,7 +3099,8 @@ gfx_result svg_parse_to_image(stream* svg_stream, uint16_t dpi, svg_image** out_
         return gfx_result::out_of_memory;
     }
     parse_res.image_size += sizeof(svg_image);
-    memset(parse_res.image, 0, sizeof(svg_image));
+    parse_res.image->dimensions = {0,0};
+    parse_res.image->shapes = NULL;
     // Init style
     svg_xform_identity(parse_res.attr[0].xform);
     memset(parse_res.attr[0].id, 0, sizeof(parse_res.attr[0].id));

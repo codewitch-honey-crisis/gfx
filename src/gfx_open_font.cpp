@@ -5024,7 +5024,7 @@ namespace gfx {
                 ypos+=lgap*scale;
             }
         }
-        return {(int16_t)(ceil(x_extent)),(int16_t)(ceil(y_extent+::abs((long long)(dsc*scale))))};
+        return {(int16_t)(ceil(x_extent)),(int16_t)(ceil(y_extent+abs((long long)(dsc*scale))))};
     }
     // opens a font stream. Note that the stream must remain open as long as the font is being used. The stream must be readable and seekable. This class does not close the stream
     // This always chooses the first font out of a font collection.

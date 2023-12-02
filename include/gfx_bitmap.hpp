@@ -152,7 +152,7 @@ namespace gfx {
                 default: {
                     offs *= bit_depth;
                     const size_t offs_bits = offs % 8;
-                    const size_t siz = pixel_type::packed_size+(((int)pixel_type::pad_right_bits)<=offs_bits)+1;
+                    //const size_t siz = pixel_type::packed_size+(((int)pixel_type::pad_right_bits)<=offs_bits)+1;
                     // now set the pixel
                     uint8_t tmp[9];
                     typename pixel_type::int_type v = rhs.value();

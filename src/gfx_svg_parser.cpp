@@ -1,12 +1,13 @@
 #include <gfx_svg.hpp>
-#include "svg_private.hpp"
 #include <ml_reader.hpp>
+
+#include "svg_private.hpp"
 using namespace ml;
 
 #define NSVG_MAX_ATTR 128
 #define NSVG_PI (3.14159265358979323846264338327f)
 #define NSVG_KAPPA90 (0.5522847493f)  // Length proportional to radius of a cubic bezier handle for 90deg arcs.
-#define NSVG_RGB(r, g, b) (gfx::rgba_pixel<32>(r,g,b,255))
+#define NSVG_RGB(r, g, b) (gfx::rgba_pixel<32>(r, g, b, 255))
 #define NSVG_ALIGN_MIN 0
 #define NSVG_ALIGN_MID 1
 #define NSVG_ALIGN_MAX 2
@@ -533,7 +534,7 @@ static gfx::rgba_pixel<32> svg_parse_color_rgb(const char* str) {
         str += 4;  // skip "rgb("
         for (i = 0; i < 3; i++) {
             while (*str && (svg_isspace(*str))) str++;  // skip leading spaces
-            if (*str == '+') str++;                       // skip '+' (don't allow '-')
+            if (*str == '+') str++;                     // skip '+' (don't allow '-')
             if (!*str) break;
             rgbf[i] = svg_atof(str);
 
@@ -1342,7 +1343,7 @@ static void svg_scale_to_viewbox(svg_parse_result& p, const char* units) {
 
         shape->stroke_width *= avgs;
         shape->stroke_dash_offset *= avgs;
-        for (i = 0; i < shape->stroke_dash_count; i++)
+        for (i = 0; i < ((int)shape->stroke_dash_count); i++)
             shape->stroke_dash_array[i] *= avgs;
     }
 }
@@ -1492,7 +1493,7 @@ static gfx_result svg_parse_gradient_stop_elem(svg_parse_result& p) {
     stop = &grad->stops[idx];
     stop->color = curAttr->stopColor;
     float amod = stop->color.template channelr<channel_name::A>();
-    amod*=curAttr->stopOpacity;
+    amod *= curAttr->stopOpacity;
     stop->color.template channelr<channel_name::A>(amod);
     stop->offset = curAttr->stopOffset;
     return gfx_result::success;
@@ -1603,7 +1604,10 @@ static gfx_result svg_add_path(svg_parse_result& p, char closed) {
     path = (svg_path*)p.allocator(sizeof(svg_path));
     p.image_size += sizeof(svg_path);
     if (path == NULL) goto error;
-    memset(path, 0, sizeof(svg_path));
+    path->closed = 0;
+    path->next = NULL;
+    path->point_count = 0;
+    path->points = nullptr;
     pts_sz = p.npts * 2 * sizeof(float);
     path->points = (float*)p.allocator(pts_sz);
     if (path->points == NULL) goto error;
@@ -2013,8 +2017,18 @@ static gfx_result svg_add_shape(svg_parse_result& p) {
     shape = (svg_shape*)p.allocator(sizeof(svg_shape));
     if (shape == NULL) goto error;
     p.image_size += sizeof(svg_shape);
-    memset(shape, 0, sizeof(svg_shape));
-
+    // memset(shape, 0, sizeof(svg_shape));
+    shape->fill.type = svg_paint_type::none;
+    shape->stroke.type = svg_paint_type::none;
+    shape->id[0] = 0;
+    shape->paths = NULL;
+    shape->flags = 0;
+    shape->next = NULL;
+    shape->fill_gradient = NULL;
+    shape->stroke_gradient = NULL;
+    shape->fill_gradient_id[0] = 0;
+    shape->stroke_gradient_id[0] = 0;
+    shape->xform.identity();
     memcpy(shape->id, attr->id, sizeof shape->id);
     // printf("ADD SHAPE ID %s. attrHead is %d\n",shape->id,p.attrHead);
     memcpy(shape->fill_gradient_id, attr->fillGradient, sizeof shape->fill_gradient_id);
@@ -2051,7 +2065,7 @@ static gfx_result svg_add_shape(svg_parse_result& p) {
         shape->fill.type = svg_paint_type::color;
         shape->fill.color = attr->fillColor;
         float amod = shape->fill.color.template channelr<channel_name::A>();
-        amod*=attr->fillOpacity;
+        amod *= attr->fillOpacity;
         shape->fill.color.template channelr<channel_name::A>(amod);
     } else if (attr->hasFill == 2) {
         shape->fill.type = svg_paint_type::undefined;
@@ -3063,14 +3077,37 @@ gfx_result svg_parse_to_image(stream* svg_stream, uint16_t dpi, svg_image** out_
         return gfx_result::out_of_memory;
     }
     svg_parse_result& parse_res = *(svg_parse_result*)p;
-    memset(&parse_res, 0, sizeof(svg_parse_result));
+    parse_res.alignType = 0;
+    parse_res.alignX = 0;
+    parse_res.alignY = 0;
+    memset(parse_res.aname, 0, sizeof(parse_res.aname));
+    parse_res.attrHead = 0;
+    memset(parse_res.avalue, 0, sizeof(parse_res.avalue));
+    memset(parse_res.class_val, 0, sizeof(parse_res.class_val));
+    parse_res.cpts = 0;
+    parse_res.defsFlag = 0;
+    parse_res.dpi = 0;
+    parse_res.gradients = NULL;
+    memset(parse_res.lname, 0, sizeof(parse_res.lname));
+    parse_res.npts = 0;
+    parse_res.pathFlag = 0;
+    parse_res.plist = NULL;
+    parse_res.pts = NULL;
+    parse_res.reader = NULL;
+    parse_res.shapesTail = NULL;
+    memset(parse_res.style_val, 0, sizeof(parse_res.style_val));
+    parse_res.viewHeight = 0;
+    parse_res.viewMinx = 0;
+    parse_res.viewMiny = 0;
+    parse_res.viewWidth = 0;
     parse_res.image_size = 0;
     parse_res.image = (svg_image*)allocator(sizeof(svg_image));
     if (parse_res.image == nullptr) {
         return gfx_result::out_of_memory;
     }
     parse_res.image_size += sizeof(svg_image);
-    memset(parse_res.image, 0, sizeof(svg_image));
+    parse_res.image->dimensions = {0, 0};
+    parse_res.image->shapes = NULL;
     // Init style
     svg_xform_identity(parse_res.attr[0].xform);
     memset(parse_res.attr[0].id, 0, sizeof(parse_res.attr[0].id));
@@ -3115,4 +3152,4 @@ gfx_result svg_parse_to_image(stream* svg_stream, uint16_t dpi, svg_image** out_
 
     return gfx_result::success;
 }
-}
+}  // namespace gfx

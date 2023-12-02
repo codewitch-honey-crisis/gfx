@@ -391,7 +391,7 @@ gfx_result svg_path_builder::to_path(svg_path** out_path, bool closed, const svg
         }
     }
     // Find bounds
-    for (size_t i = 0; i < p->point_count - 1; i += 3) {
+    for (size_t i = 0; i < ((size_t)p->point_count) - 1; i += 3) {
         float* curve = &p->points[i * 2];
         float bounds[4];
         svg_curve_bounds(bounds, curve);
@@ -487,8 +487,8 @@ void svg_doc_builder::scale_to_view_box(svg_units units) {
 
     // Guess image size if not set completely.
     to_bounds(bounds);
-    float view_width = m_dimensions.width;
-    float view_height = m_dimensions.height;
+    //float view_width = m_dimensions.width;
+    //float view_height = m_dimensions.height;
     tx = m_view_box.x1;
     ty = m_view_box.y1;
     sx = m_dimensions.width / m_view_box.width();
@@ -531,7 +531,7 @@ void svg_doc_builder::scale_to_view_box(svg_units units) {
 
         shape->stroke_width *= avgs;
         shape->stroke_dash_offset *= avgs;
-        for (i = 0; i < shape->stroke_dash_count; i++)
+        for (i = 0; i < ((int)shape->stroke_dash_count); i++)
             shape->stroke_dash_array[i] *= avgs;
     }
 }
@@ -541,7 +541,7 @@ svg_gradient* svg_doc_builder::create_gradient(const svg_gradient_info& info, co
     svg_gradient* grad;
     float ox, oy, sw, sh, sl;
     int nstops = info.stop_count;
-    int refIter;
+    //int refIter;
     *paint_type = svg_paint_type::undefined;
     size_t grad_sz = sizeof(svg_gradient) + sizeof(svg_gradient_stop) * (nstops - 1);
     grad = (svg_gradient*)m_allocator(grad_sz);

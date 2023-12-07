@@ -1196,8 +1196,7 @@ static void svg_init_paint(svg_cached_paint* cache, svg_paint* paint, float opac
     if (grad->stop_count == 0) {
         for (i = 0; i < 256; i++)
             cache->colors[i]=rgba_pixel<32>();
-    }
-    if (grad->stop_count == 1) {
+    } else if (grad->stop_count == 1) {
         for (i = 0; i < 256; i++)
             cache->colors[i] = svg_apply_opacity(grad->stops[i].color, opacity);
     } else {

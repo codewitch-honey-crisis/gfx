@@ -74,7 +74,7 @@ gfx_result svg_path_builder::add_point(pointf pt) {
     return gfx_result::success;
 }
 gfx_result svg_path_builder::move_to_impl(pointf pt) {
-    if (m_size > 0) {
+    if (m_size > 1) {
         m_begin[m_size - 2] = pt.x;
         m_begin[m_size - 1] = pt.y;
         return gfx_result::success;
@@ -106,7 +106,7 @@ gfx_result svg_path_builder::line_to_impl(pointf pt) {
     return gfx_result::success;
 }
 gfx_result svg_path_builder::cubic_bezier_to_impl(pointf pt, const rectf& cp) {
-    if (m_size > 0) {
+    if (m_size > 1) {
         gfx_result res = add_point(cp.point1());
         if (res != gfx_result::success) {
             return res;
@@ -704,6 +704,16 @@ void svg_doc_builder::do_move(svg_doc_builder& rhs) {
     rhs.m_gradients_tail = nullptr;
 }
 void svg_doc_builder::add_shape(svg_shape* shape) {
+    rectf bounds = {0,0,0,0};
+    svg_path* path = shape->paths;
+    if(path!=nullptr) {
+        bounds = path->bounds;
+        path = path->next;
+        for (; path != nullptr; path = path->next) {
+            bounds = bounds.merge(path->bounds);
+        }
+    }
+    shape->bounds = bounds;
     if (m_shape == nullptr) {
         m_shape = shape;
         m_shape_tail = shape;

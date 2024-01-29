@@ -13,10 +13,9 @@ jobs:
           repository: "ayan4m1/gfx-request-web"
           token: ${{ secrets.GH_PAT }}
           submodules: true
-          path: "web"
           ref: "main"
       - run: |
-          cd web/docs
+          cd docs
           git fetch
           git rebase origin/master
           cd ..

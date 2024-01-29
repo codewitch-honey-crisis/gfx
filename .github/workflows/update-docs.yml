@@ -15,7 +15,7 @@ jobs:
           submodules: true
           ref: "main"
       - run: |
-          cd docs
+          cd gfx/docs
           git fetch
           git rebase origin/master
           cd ..

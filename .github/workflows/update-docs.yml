@@ -15,10 +15,9 @@ jobs:
           submodules: true
           ref: "main"
       - run: |
-          cd gfx-request-web
-          git submodule update --remote --checkout docs/
+          git submodule update --remote --checkout gfx/
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add docs/
-          git commit -m 'auto-update docs/'
+          git add gfx/
+          git commit -m 'auto-update gfx/'
           git push origin master

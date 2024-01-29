@@ -20,4 +20,4 @@ jobs:
           git config --local user.name "github-actions[bot]"
           git add gfx/
           git commit -m 'auto-update gfx/'
-          git push origin master
+          git push origin main

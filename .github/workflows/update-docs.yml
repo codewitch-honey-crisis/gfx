@@ -13,7 +13,7 @@ jobs:
           repository: "ayan4m1/gfx-request-web"
           token: ${{ secrets.GH_PAT }}
           submodules: true
-          path: "./web"
+          path: "web"
           ref: "main"
       - run: |
           git config --global user.email "github-actions[bot]@users.noreply.github.com"

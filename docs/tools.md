@@ -1,8 +1,8 @@
 #### [← Back to index](index.md)
 
-<a name="9"></a>
+<a name="10"></a>
 
-# 9. Tools
+# 10. Tools
 
 GFX provides a couple of tools for embedding data into your code as a C++ header file. The first one is for arbitrary binary data, like JPGs or raw bitmap data, and the second one is for TTF, OTF and FON fonts.
 
@@ -10,9 +10,9 @@ For the web based version of these tools, [click here](https://honeythecodewitch
 
 The GFX website also provides a catalog of icons to use in your projects. For that page, [click here](https://honeythecodewitch.com/gfx/iconPack)
 
-<a name="9.1"></a>
+<a name="10.1"></a>
 
-## 9.1 Bingen
+## 10.1 Bingen
 
 Bingen generates a header out of binary data. The header contains a flat array with the data stored as program flash.
 
@@ -26,9 +26,9 @@ The header it generates will have the data contained at `header_bin` where heade
 
 In addition, a `const_buffer_stream` will be exposed by the name of `test_dat_stream`. This can be used anywhere a read-only, seekable stream is accepted.
 
-<a name="9.2"></a>
+<a name="10.2"></a>
 
-## 9.2 Fontgen
+## 10.2 Fontgen
 
 Fontgen is similar to bingen, but it makes font instances for you to use instead of arrays and streams. The program works a bit differently for Win 3.1 FON files than it does for TTF and OTF files due to the different nature of each, but the concepts are the same. This turns your font into a header file that can be embedded.
 

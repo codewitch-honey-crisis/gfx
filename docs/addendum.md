@@ -1,14 +1,14 @@
 #### [← Back to index](index.md)
 
-<a name="10"></a>
+<a name="11"></a>
 
-# 10. Addendum
+# 11. Addendum
 
 This document contains information that doesn't fit elsewhere or isn't directly related to the core GFX library, but is nevertheless essential.
 
-<a name="10.1"></a>
+<a name="11.1"></a>
 
-## 10.1 Arduino TFT Bus
+## 11.1 Arduino TFT Bus
 
 The Arduino drivers typically use the TFT I/O bus framework [htcw_tft_io](https://github.com/codewitch-honey-crisis/htcw_tft_io)
 

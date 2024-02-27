@@ -36,6 +36,8 @@ namespace gfx {
         GFX_CHANNEL_NAME(M)
         // for CMYK
         GFX_CHANNEL_NAME(K)
+        // for RGBW
+        GFX_CHANNEL_NAME(W)
         // index (for indexed color)
         GFX_CHANNEL_NAME(index)
         // non-op
@@ -760,6 +762,27 @@ namespace gfx {
         channel_traits<channel_name::K,((BitDepth/5)+(BitDepth%5))>,
         channel_traits<channel_name::A,(BitDepth/5),0,(1<<(BitDepth/5))-1,(1<<(BitDepth/5))-1>
     >;
+    // creates a RGBW pixel by making each channel 
+    // one quarter of the whole. Any remainder bits
+    // are added to the G channel
+    template<size_t BitDepth>
+    using rgbw_pixel = pixel<
+        channel_traits<channel_name::R,(BitDepth/4)>,
+        channel_traits<channel_name::G,(BitDepth/4)+(BitDepth%4)>,
+        channel_traits<channel_name::B,(BitDepth/4)>,
+        channel_traits<channel_name::W,(BitDepth/4)>
+    >;
+    // creates a RGBW/A pixel by making each 
+    // channel 1/5 of the whole. Remaining bits
+    // are added to G
+    template<size_t BitDepth>
+    using rgbwa_pixel = pixel<
+        channel_traits<channel_name::R,(BitDepth/5)>,
+        channel_traits<channel_name::G,(BitDepth/5)+(BitDepth%5)>,
+        channel_traits<channel_name::B,(BitDepth/5)>,
+        channel_traits<channel_name::W,(BitDepth/5)>,
+        channel_traits<channel_name::A,(BitDepth/5),0,(1<<(BitDepth/5))-1,(1<<(BitDepth/5))-1>
+    >;
     template<size_t BitDepth>
     using alpha_pixel = pixel<
             channel_traits<
@@ -820,6 +843,7 @@ namespace gfx {
         typename PixelTypeRhs::int_type native_value = tmp.native_value;
         
         // here's where we gather color model information
+        using is_rgbw = typename PixelTypeLhs::template has_channel_names<channel_name::R,channel_name::G,channel_name::B,channel_name::W>;
         using is_rgb = typename PixelTypeLhs::template has_channel_names<channel_name::R,channel_name::G,channel_name::B>;
         using is_yuv = typename PixelTypeLhs::template has_channel_names<channel_name::Y,channel_name::U,channel_name::V>;
         using is_ycbcr = typename PixelTypeLhs::template has_channel_names<channel_name::Y,channel_name::Cb,channel_name::Cr>;
@@ -836,6 +860,7 @@ namespace gfx {
         const bool ris_bw_candidate = 1==PixelTypeRhs::channels || (2==PixelTypeRhs::channels && rhas_alpha);
         using tris_bw_candidate = typename PixelTypeRhs::template has_channel_names<channel_name::L>;
         const bool ris_bw_candidate2 = tris_bw_candidate::value;
+        using is_rhs_rgbw = typename PixelTypeRhs::template has_channel_names<channel_name::R,channel_name::G,channel_name::B,channel_name::W>;
         using is_rhs_rgb = typename PixelTypeRhs::template has_channel_names<channel_name::R,channel_name::G,channel_name::B>;
         using is_rhs_yuv = typename PixelTypeRhs::template has_channel_names<channel_name::Y,channel_name::U,channel_name::V>;
         using is_rhs_ycbcr = typename PixelTypeRhs::template has_channel_names<channel_name::Y,channel_name::Cb,channel_name::Cr>;
@@ -846,7 +871,7 @@ namespace gfx {
         // TODO: Add code for determining other additional color models here
 
         // check the source color model
-        if(is_rgb::value && PixelTypeLhs::channels<5) {
+        if(!is_rgbw::value && is_rgb::value && PixelTypeLhs::channels<5) {
             // source color model is RGB
             using tindexR = typename PixelTypeLhs::template channel_index_by_name<channel_name::R>;
             using tchR = typename PixelTypeLhs::template channel_by_index_unchecked<tindexR::value>;
@@ -860,7 +885,7 @@ namespace gfx {
             using tchB = typename PixelTypeLhs::template channel_by_index_unchecked<tindexB::value>;
             const int chiB = tindexB::value;
             
-            if(is_rhs_rgb::value && PixelTypeRhs::channels<5) {      
+            if(!is_rhs_rgbw::value && is_rhs_rgb::value && PixelTypeRhs::channels<5) {      
                 // destination color model is RGB
                 using trindexR = typename PixelTypeRhs::template channel_index_by_name<channel_name::R>;
                 using trchR = typename PixelTypeRhs::template channel_by_index_unchecked<trindexR::value>;
@@ -882,6 +907,39 @@ namespace gfx {
                 auto chB = source.template channel_unchecked<chiB>();
                 auto cB = helpers::convert_channel_depth<tchB,trchB>(chB);
                 helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexB::value>(native_value,cB);
+
+                good = true;
+            } else if(is_rhs_rgbw::value && PixelTypeRhs::channels<6)  {
+                // destination color model is RGB
+                using trindexR = typename PixelTypeRhs::template channel_index_by_name<channel_name::R>;
+                using trchR = typename PixelTypeRhs::template channel_by_index_unchecked<trindexR::value>;
+                
+                using trindexG = typename PixelTypeRhs::template channel_index_by_name<channel_name::G>;
+                using trchG = typename PixelTypeRhs::template channel_by_index_unchecked<trindexG::value>;
+            
+                using trindexB = typename PixelTypeRhs::template channel_index_by_name<channel_name::B>;
+                using trchB = typename PixelTypeRhs::template channel_by_index_unchecked<trindexB::value>;
+                
+                using trindexW = typename PixelTypeRhs::template channel_index_by_name<channel_name::W>;
+                using trchW = typename PixelTypeRhs::template channel_by_index_unchecked<trindexW::value>;
+                
+                auto chR = source.template channel_unchecked<chiR>();
+                auto chG = source.template channel_unchecked<chiG>();
+                auto chB = source.template channel_unchecked<chiB>();
+
+                float M = chR>chG?chR:chG;
+                M = M>chB?M:chB;
+                float m = chR<chG?chR:chG;
+                m = m<chB?m:chB;
+                float Wo = M==0?0:((m/M < 0.5) ? ( (m*M) / (M-m) ) : M );
+                float K = M==0?0:(Wo + M) / M;
+                typename trchR::real_type Ro =  ( K * chR ) - Wo;
+                typename trchG::real_type Go = ( K * chG ) - Wo;
+                typename trchB::real_type Bo = ( K * chB ) - Wo;
+                helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexR::value>(native_value,helpers::clamp((typename trchR::real_type)Ro*trchR::scale,(typename trchR::real_type)trchR::min,(typename trchR::real_type)trchR::max));
+                helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexG::value>(native_value,helpers::clamp((typename trchG::real_type)Go*trchG::scale,(typename trchG::real_type)trchG::min,(typename trchG::real_type)trchG::max));
+                helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexB::value>(native_value,helpers::clamp((typename trchB::real_type)Bo*trchB::scale,(typename trchB::real_type)trchB::min,(typename trchB::real_type)trchB::max));
+                helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexW::value>(native_value,helpers::clamp((typename trchW::real_type)Wo*trchW::scale,(typename trchW::real_type)trchW::min,(typename trchW::real_type)trchW::max));
 
                 good = true;
             } else if(is_rhs_yuv::value && PixelTypeRhs::channels<5)  {
@@ -1092,7 +1150,7 @@ namespace gfx {
                 helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexL::value>(native_value,chL);
 
                 good = true;
-            } else if(is_rhs_rgb::value && PixelTypeRhs::channels<5) {
+            } else if(!is_rhs_rgbw::value && is_rhs_rgb::value && PixelTypeRhs::channels<5) {
                 // destination color model is RGB
                 using trindexR = typename PixelTypeRhs::template channel_index_by_name<channel_name::R>;
                 using trchR = typename PixelTypeRhs::template channel_by_index_unchecked<trindexR::value>;
@@ -1163,7 +1221,7 @@ namespace gfx {
                 helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexV::value>(native_value,chV);
 
                 good = true;
-            } else if(is_rhs_rgb::value && PixelTypeRhs::channels<5)  {
+            } else if(!is_rhs_rgbw::value && is_rhs_rgb::value && PixelTypeRhs::channels<5)  {
                 // destination color model is RGB
                 using trindexR = typename PixelTypeRhs::template channel_index_by_name<channel_name::R>;
                 using trchR = typename PixelTypeRhs::template channel_by_index_unchecked<trindexR::value>;
@@ -1215,7 +1273,7 @@ namespace gfx {
             //using tchCr = typename PixelTypeLhs::template channel_by_index_unchecked<tindexCr::value>;
             const int chiCr = tindexCr::value;
 
-            if(is_rhs_rgb::value && PixelTypeRhs::channels<5) {
+            if(!is_rhs_rgbw::value && is_rhs_rgb::value && PixelTypeRhs::channels<5) {
                 const int CVACC = (sizeof(int) > 2) ? 1024 : 128; /* Adaptive accuracy for both 16-/32-bit systems */
                 // destination color model is RGB
                 using trindexR = typename PixelTypeRhs::template channel_index_by_name<channel_name::R>;
@@ -1340,7 +1398,7 @@ namespace gfx {
             using tindexK = typename PixelTypeLhs::template channel_index_by_name<channel_name::K>;
             const int chiK = tindexK::value;
             
-            if(is_rhs_rgb::value && PixelTypeRhs::channels<5) {
+            if(!is_rhs_rgbw::value && is_rhs_rgb::value && PixelTypeRhs::channels<5) {
                 // destination color model is RGB
                 using trindexR = typename PixelTypeRhs::template channel_index_by_name<channel_name::R>;
                 using trchR = typename PixelTypeRhs::template channel_by_index_unchecked<trindexR::value>;
@@ -1367,6 +1425,45 @@ namespace gfx {
                 helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexB::value>(native_value,sb);
                 good = true;                    
             }
+        } else if(is_rgbw::value && PixelTypeLhs::channels<6) {
+             // source color model is RGBW
+            using tindexR = typename PixelTypeLhs::template channel_index_by_name<channel_name::R>;
+            using tchR = typename PixelTypeLhs::template channel_by_index_unchecked<tindexR::value>;
+            const int chiR = tindexR::value;
+                
+            using tindexG = typename PixelTypeLhs::template channel_index_by_name<channel_name::G>;
+            using tchG = typename PixelTypeLhs::template channel_by_index_unchecked<tindexG::value>;
+            const int chiG = tindexG::value;
+
+            using tindexB = typename PixelTypeLhs::template channel_index_by_name<channel_name::B>;
+            using tchB = typename PixelTypeLhs::template channel_by_index_unchecked<tindexB::value>;
+            const int chiB = tindexB::value;
+
+            using tindexW = typename PixelTypeLhs::template channel_index_by_name<channel_name::W>;
+            using tchW = typename PixelTypeLhs::template channel_by_index_unchecked<tindexW::value>;
+            const int chiW = tindexW::value;
+            
+            if(!is_rhs_rgbw::value && is_rhs_rgb::value && PixelTypeRhs::channels<5) {
+                // destination color model is RGB
+                using trindexR = typename PixelTypeRhs::template channel_index_by_name<channel_name::R>;
+                using trchR = typename PixelTypeRhs::template channel_by_index_unchecked<trindexR::value>;
+                
+                using trindexG = typename PixelTypeRhs::template channel_index_by_name<channel_name::G>;
+                using trchG = typename PixelTypeRhs::template channel_by_index_unchecked<trindexG::value>;
+            
+                using trindexB = typename PixelTypeRhs::template channel_index_by_name<channel_name::B>;
+                using trchB = typename PixelTypeRhs::template channel_by_index_unchecked<trindexB::value>;
+                float br=.333333f;
+                const auto chR = source.template channelr_unchecked<chiR>();
+                const auto chG = source.template channelr_unchecked<chiG>();
+                const auto chB = source.template channelr_unchecked<chiB>();
+                const auto chW = source.template channelr_unchecked<chiW>();
+                helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexR::value>(native_value,helpers::clamp((typename trchR::real_type)(chR+(chW*br))*trchR::scale,(typename trchR::real_type)trchR::min,(typename trchR::real_type)trchR::max));
+                helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexG::value>(native_value,helpers::clamp((typename trchG::real_type)(chG+(chW*br))*trchG::scale,(typename trchG::real_type)trchG::min,(typename trchG::real_type)trchG::max));
+                helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexB::value>(native_value,helpers::clamp((typename trchB::real_type)(chB+(chW*br))*trchB::scale,(typename trchB::real_type)trchB::min,(typename trchB::real_type)trchB::max));
+                good = true;                    
+            }
+        
         }
         // TODO: add more source color models
         if(good) {

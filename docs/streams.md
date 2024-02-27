@@ -1,8 +1,8 @@
 #### [← Back to index](index.md)
 
-<a name="7"></a>
+<a name="8"></a>
 
-# 7. Streams
+# 8. Streams
 
 A stream is an abstraction used for reading and writing data to and from some kind of source - usually sequentially. Under the STL this is handled by the iostream classes, but the STL isn't always available or conformant on platforms where GFX will run. GFX therefore uses its own stream classes. Technically, streams are actually part of the [htcw_io](https://github.com/codewitch-honey-crisis/htcw_io) library that GFX relies on, but its types are imported into the GFX namespace since they are such an intrinsic part of using GFX.
 

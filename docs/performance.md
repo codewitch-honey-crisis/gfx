@@ -1,38 +1,38 @@
 #### [← Back to index](index.md)
 
-<a name="8"></a>
+<a name="9"></a>
 
-# 8. Performance
+# 9. Performance
 
 GFX makes a reasonable effort to use your devices efficiently, but it works best when you understand the ramifications of what you are doing with it. In many cases, GFX will choose the most efficient way to complete the operation you gave it, but in some cases you can get better performance out of it by giving it some help. Below we'll cover the various mechanisms GFX uses to push pixels around. They are listed in order of preference, except for the final entry - asynchronous drawing, which requires special consideration and must be invoked explicitly.
 
-<a name="8.1"></a>
+<a name="9.1"></a>
 
-## 8.1 Blting
+## 9.1 Blting
 
 To blt means to do a direct copy of pixel data from one memory buffer to another. This is the fastest way to transfer data synchronously, and the most efficient way to do so overall. When available, GFX prefers blting. In order for blting to be the fastest possible, pixels should be byte aligned, such as `rgb_pixel<16>` but not `rgb_pixel<18>` and/or the entire source should be blted instead of part of it. No flipping, resizing, or pixel conversion can take place during a blt, since it is a raw memory transfer.
 
-<a name="8.2"></a>
+<a name="9.2"></a>
 
-## 8.2 Copying
+## 9.2 Copying
 
 To copy means to transfer a rectangular window of data from one source to the other. Copying should use the most efficient means available to do the transfer based on the arguments. This means taking advantage of draw target features like batching. Copying asynchronously using DMA *can be* but is not necessarily the most efficient way to transfer data when an SPI bus or other DMA capable bus is involved. In order for a DMA transfer to occur no flipping, cropping, resizing or pixel conversion can occur, so the entire draw source must be copied to the destination.
 
-<a name="8.3"></a>
+<a name="9.3"></a>
 
-## 8.3 Batching
+## 9.3 Batching
 
 With most display drivers, it is dramatically more efficient to set an "address window" which is a rectangular region, and then write pixels out to that region left to right, top to bottom until the region is full rather than sending the coordinates for each pixel individually. GFX refers to this as "batching" and on supported draw targets it can dramatically reduce bus traffic and therefore increase performance. Batching isn't necessary for targets who hold a frame buffer locally in RAM, but when the frame buffer exists externally over a bus batching is a very effective way to increase pixel throughput. You don't typically use batching directly. GFX will use it when possible - that is, any time a rectangular region can be written in full - and faster means, such as blting and copying aren't available. It should be noted that copying itself may use batching to fulfill the copy. You can use it explicitly by calling `draw::batch`.
 
-<a name="8.4"></a>
+<a name="9.4"></a>
 
-## 8.4 RLE Transmission
+## 9.4 RLE Transmission
 
 In many cases, when drawing non-rectangular regions - including raster fonts with transparent backgrounds, polygons and sprites - GFX will attempt to run-length encode horizontal runs of pixels of the same color and send them out as a unit to reduce bus traffic. This happens automatically during drawing operations.
 
-<a name="8.5"></a>
+<a name="9.5"></a>
 
-## 8.5 Asynchronous drawing
+## 9.5 Asynchronous drawing
 
 In GFX, asynchronicity is kept as simple to use as possible. While it can be much simpler than doing asynchronous operations in other libraries, it still requires the same sort of considerations in order to get any benefit out of it.
 

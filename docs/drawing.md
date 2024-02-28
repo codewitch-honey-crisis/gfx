@@ -1,8 +1,8 @@
 #### [← Back to index](index.md)
 
-<a name="5"></a>
+<a name="6"></a>
 
-# 5. Drawing
+# 6. Drawing
 
 The `draw` class facilitates all high level drawing operations through a series of static template methods. It is the go to class for doing most of the significant things you can do with GFX, and mastering it is a key component of mastering GFX. The draw class primarily serves to manipulate draw targets on your behalf by doing this such as drawing lines and bitmaps on them.
 
@@ -12,9 +12,9 @@ The `draw` class takes signed coordinates for its destination coordinates and un
 
 When drawing, the colors and draw sources used can be specified using nearly any pixel format, with some restrictions applying to indexed pixels. You can even pass in colors that have an alpha channel to facilitate alpha blending. If you pass a color into a grayscale device, it will be converted to grayscale. Color models are also converted. Indexed colors are matched from their nearest equivelent.
 
-<a name="5.1"></a>
+<a name="6.1"></a>
 
-## 5.1 Basic drawing elements
+## 6.1 Basic drawing elements
 
 Basic drawing elements include points and lines as well as rectangles, elipses, arcs, rounded rectangles and polygons plus filled versions of the same. These are again, all accessed as static methods off the draw class.
 
@@ -172,9 +172,9 @@ for (int i = 0; i < 30; ++i) {
 }
 ```
 
-<a name="5.2"></a>
+<a name="6.2"></a>
 
-## 5.2 Bitmaps and draw sources
+## 6.2 Bitmaps and draw sources
 
 The `draw::bitmap<>()` function takes all or a portion of a draw source and draws it to the destination, optionally flipping it horizontally or vertically, resizing it, clipping it, and perhaps converting the pixel formats or even alpha blending it, all depending on the arguments, the format of the source type and the format of the destination type.
 
@@ -225,9 +225,9 @@ Finally, here's how you draw it to the center of the screen:
 draw::bitmap(lcd,bmp.bounds().center(lcd.bounds()),bmp,bmp.bounds());
 ```
 
-<a name="5.3"></a>
+<a name="6.3"></a>
 
-## 5.3 Text
+## 6.3 Text
 
 Text is drawn using one of the `draw::text<>()` overloads depending on which type of font is being used. This will draw text to a given area, wrapping as necessary, although word breaking is not performed.
 
@@ -378,9 +378,9 @@ draw::text(lcd,
             scale, 
             lcd_color::blue);
 ```
-<a name="5.4"></a>
+<a name="6.4"></a>
 
-## 5.4 Images
+## 6.4 Images
 
 As mentioned in [section 3](images.md), images are not draw sources because they are loaded incrementally and cannot provide random access access to their pixel data. Due to that, there is a `draw::image<>()` method for images that works in lieu of `draw::bitmap<>()`. Rather than take a draw source like `draw::bitmap<>()`, `draw::image<>()` takes a `stream` as its input pixel source. The stream must be in JPG or PNG format.
 ```cpp
@@ -408,9 +408,9 @@ There is also an `_async` version of this method. Unlike drawing a bitmap, this 
 
 See [section 3](images.md) for example code.
 
-<a name="5.5"></a>
+<a name="6.5"></a>
 
-## 5.5 Sprites
+## 6.5 Sprites
 
 Sprites are useful for animating simple non-rectangular figures. In addition to a bitmap representing the actual figure, a sprite also has a monochrome mask indicating which pixels in the bitmap rectangle are actually a visible part of the figure and which parts are not drawn. By creating a mask in the shape of your figure you can animate it as though it was non-rectangular. Besides being able to be drawn, sprites also have a `bool hit_test(point16 location) const` method which can determine if the given location within the sprite is part of the mask or not. Once you create a sprite as in [section 2.5](draw_targets.md#2.5) you can draw it to the screen:
 ```cpp
@@ -428,9 +428,9 @@ static gfx_result sprite(
 ```
 There is also an `_async` version of this method, thought it is mostly synchronous since the shapes are irregular.
 
-<a name="5.6"></a>
+<a name="6.6"></a>
 
-## 5.6 Icons
+## 6.6 Icons
 
 Icons are images that can be drawn in any color. They are composed of a transparency map that indicates how opaque each pixel is. When you draw it, the color you indicate is used as the master color, drawn at a given transparency for each pixel. Typically these are `const_bitmap<alpha_pixel<8>>` in the case of an 8-bit transparency map.
 
@@ -442,9 +442,21 @@ Note that in order to work properly the draw destination must support alpha blen
 
 See the [Tools](tools.md) page for information on getting icons for your project.
 
-<a name="5.7"></a>
+<a name="6.7"></a>
 
-## 5.7 Alpha blending
+## 6.7 SVG
+
+SVGs are similar to images, except they can be scaled when being drawn. The scale parameter is such that .5 is half size, 1 is full size and 2 is 200% of the size.
+
+
+```cpp
+// draw my_doc svg
+draw::svg(lcd,lcd.bounds(),my_doc,scale);
+```
+
+<a name="6.8"></a>
+
+## 6.8 Alpha blending
 
 Alpha blending occurs whenever a pixel with an alpha channel is drawn to a supporting draw target - that is a draw target which can act as both a draw source and a draw destination. To enable alpha blending, simply declare a pixel that carries an alpha channel and then use that to perform your drawing.
 
@@ -468,21 +480,21 @@ draw::filled_rectangle(
         col);
 ```
 
-<a name="5.7.1"></a>
+<a name="6.8.1"></a>
 
-### 5.7.1 Performance considerations
+### 6.8.1 Performance considerations
 
 Alpha blending can take significant bus traffic and computation time and so it should be used with care. Drawing rectangles and individual pixels is fastest, assuming you have a little RAM to spare, but most alpha blending operations must draw pixel by pixel instead of pushing pixels in bulk which signficantly slows things down.
 
-<a name="5.7.2"></a>
+<a name="6.8.2"></a>
 
-### 5.7.2 Draw target considerations
+### 6.8.2 Draw target considerations
 
 A draw target that can alpha blend must be both a draw source and a draw destination or alpha blending will not occur and the alpha channel will be ignored. Some displays such as the SSD1351 over SPI cannot alpha blend at all. In those cases, you must first blend to a bitmap, then draw the blended bitmap to the screen.
 
-<a name="5.8"></a>
+<a name="6.9"></a>
 
-## 5.8 Suspend and resume
+## 6.9 Suspend and resume
 
 Double buffering for supported displays is facilitated through `draw::suspend<>()` and `draw::resume<>()`. Once suspend is called, subsequent drawing operations will not show up on the draw destination until resume is called on that destination. Repeated calls to `suspend<>()` must be balanced with the same number of repeated calls to `resume<>()` so that the calls can be nested. GFX automatically suspends during intrinsic drawing operations so that a line for example will be drawn all at once. However, you can use these calls to extend the suspension across several drawing operations:
 
@@ -518,9 +530,9 @@ for (int y = 0; y < epaper.dimensions().height; y += 16) {
 draw::resume(epaper);
 ```
 
-<a name="5.9"></a>
+<a name="6.10"></a>
 
-## 5.9 Batching
+## 6.10 Batching
 
 Batching can dramatically speed up complicated draw operations by avoiding sending redundant coordinate data to a device, or - memory permitting, by using a temporary memory buffer to hold the batched draws, and sending it to the target all at once.
 
@@ -552,5 +564,5 @@ ba.commit();
 ```
 [→ Positioning](positioning.md)
 
-[← Fonts](fonts.md)
+[← SVG](svg.md)
 

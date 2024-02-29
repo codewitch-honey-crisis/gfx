@@ -924,25 +924,71 @@ namespace gfx {
                 using trindexW = typename PixelTypeRhs::template channel_index_by_name<channel_name::W>;
                 using trchW = typename PixelTypeRhs::template channel_by_index_unchecked<trindexW::value>;
                 
-                auto chR = source.template channel_unchecked<chiR>();
-                auto chG = source.template channel_unchecked<chiG>();
-                auto chB = source.template channel_unchecked<chiB>();
+                const auto cR = source.template channelr_unchecked<chiR>();
+                const auto cG = source.template channelr_unchecked<chiG>();
+                const auto cB = source.template channelr_unchecked<chiB>();
 
-                float M = chR>chG?chR:chG;
-                M = M>chB?M:chB;
-                float m = chR<chG?chR:chG;
-                m = m<chB?m:chB;
-                float Wo = M==0?0:((m/M < 0.5) ? ( (m*M) / (M-m) ) : M );
-                float K = M==0?0:(Wo + M) / M;
-                typename trchR::real_type Ro =  ( K * chR ) - Wo;
-                typename trchG::real_type Go = ( K * chG ) - Wo;
-                typename trchB::real_type Bo = ( K * chB ) - Wo;
-                helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexR::value>(native_value,helpers::clamp((typename trchR::real_type)Ro*trchR::scale,(typename trchR::real_type)trchR::min,(typename trchR::real_type)trchR::max));
-                helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexG::value>(native_value,helpers::clamp((typename trchG::real_type)Go*trchG::scale,(typename trchG::real_type)trchG::min,(typename trchG::real_type)trchG::max));
-                helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexB::value>(native_value,helpers::clamp((typename trchB::real_type)Bo*trchB::scale,(typename trchB::real_type)trchB::min,(typename trchB::real_type)trchB::max));
-                helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexW::value>(native_value,helpers::clamp((typename trchW::real_type)Wo*trchW::scale,(typename trchW::real_type)trchW::min,(typename trchW::real_type)trchW::max));
+                // convert to HSL 
+                auto cmin = cG<cB?cG:cB;
+                cmin = cR<cmin?cR:cmin;
+                auto cmax = cG>cB?cG:cB;
+                cmax = cR>cmax?cR:cmax;
+                
+                double h =0, s=0, l = (cmax + cmin) / 2.0;
 
-                good = true;
+                if(cmax != cmin){
+                    double chroma = cmax - cmin;
+                    s = l > 0.5 ? chroma / (2.0 - cmax - cmin) : chroma / (cmax + cmin);
+                    if(cmax==cR) {
+                        h = (cG - cB) / chroma + (cG < cB ? 6 : 0);
+                    } else if(cmax==cG) {
+                        h = (cB - cG) / chroma + 2.0;
+                    } else { // if(cmax==cB)
+                        h = (cR - cG) / chroma + 4.0; 
+                    }
+                    h /= 6.0;
+                }
+                
+                float H = h*360.0f;
+                H = 3.14159f * H / 180.0f;
+                float S = s;
+                float I = l;
+                float r = 0,g=0,b=0,w=0;
+                if(H < 2.09439f) {
+                    float cos_h = cosf(H);
+                    float cos_1047_h = cosf(1.047196667f - H);
+                    r = S * I / 3.0f * (1.0f + cos_h / cos_1047_h);
+                    g = S * I / 3.0f * (1.0f + (1.0f - cos_h / cos_1047_h));
+                    b = 0.0f;
+                    w = (1.0f - S) * I;
+                }
+                else if(H < 4.188787f) {
+                    H = H - 2.09439f;
+                    float cos_h = cosf(H);
+                    float cos_1047_h = cosf(1.047196667f - H);
+                    g = S * I / 3.0f * (1.0f + cos_h / cos_1047_h);
+                    b = S * I / 3.0f * (1.0f + (1.0f - cos_h / cos_1047_h));
+                    r = 0.0f;
+                    w = (1.0f - S) * I;
+                } else {
+                    H = H - 4.188787f;
+                    float cos_h = cosf(H);
+                    float cos_1047_h = cosf(1.047196667f - H);
+                    b = S  * I / 3.0f * (1.0f + cos_h / cos_1047_h);
+                    r = S * I / 3.0f * (1.0f + (1.0f - cos_h / cos_1047_h));
+                    g = 0.0f;
+                    w = (1.0f - S) * I;
+                }
+                const auto sr = typename trchR::int_type(r*trchR::scale);
+                helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexR::value>(native_value,sr);
+                const auto sg = typename trchG::int_type(g*trchG::scale);
+                helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexG::value>(native_value,sg);
+                const auto sb = typename trchB::int_type(b*trchB::scale);
+                helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexB::value>(native_value,sb);
+                const auto sw = typename trchW::int_type(b*trchW::scale);
+                helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexW::value>(native_value,sw);
+                good = true;                    
+
             } else if(is_rhs_yuv::value && PixelTypeRhs::channels<5)  {
                 // destination is Y'UV color model
                 using trindexY = typename PixelTypeRhs::template channel_index_by_name<channel_name::Y>;

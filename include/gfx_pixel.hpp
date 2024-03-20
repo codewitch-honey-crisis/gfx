@@ -623,7 +623,7 @@ namespace gfx {
             return gfx_result::success;
         }
         // blends two pixels. ratio is between zero and one. larger ratio numbers favor this pixel
-        type blend(const type rhs,double ratio) const {
+        constexpr type blend(const type rhs,double ratio) const {
             type result;
             blend(rhs,ratio,&result);
             return result;

@@ -1532,19 +1532,15 @@ namespace gfx {
         } else if(is_rgbw::value && PixelTypeLhs::channels<6) {
              // source color model is RGBW
             using tindexR = typename PixelTypeLhs::template channel_index_by_name<channel_name::R>;
-            using tchR = typename PixelTypeLhs::template channel_by_index_unchecked<tindexR::value>;
             const int chiR = tindexR::value;
                 
             using tindexG = typename PixelTypeLhs::template channel_index_by_name<channel_name::G>;
-            using tchG = typename PixelTypeLhs::template channel_by_index_unchecked<tindexG::value>;
             const int chiG = tindexG::value;
 
             using tindexB = typename PixelTypeLhs::template channel_index_by_name<channel_name::B>;
-            using tchB = typename PixelTypeLhs::template channel_by_index_unchecked<tindexB::value>;
             const int chiB = tindexB::value;
 
             using tindexW = typename PixelTypeLhs::template channel_index_by_name<channel_name::W>;
-            using tchW = typename PixelTypeLhs::template channel_by_index_unchecked<tindexW::value>;
             const int chiW = tindexW::value;
             
             if(!is_rhs_rgbw::value && is_rhs_rgb::value && PixelTypeRhs::channels<5) {

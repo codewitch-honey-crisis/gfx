@@ -953,14 +953,14 @@ namespace gfx {
                 H = 3.14159f * H / 180.0f;
                 float S = s;
                 float I = l;
-                float r = 0,g=0,b=0,w=0;
+                float r = 0,g=0,b=0;//,w=0;
                 if(H < 2.09439f) {
                     float cos_h = cosf(H);
                     float cos_1047_h = cosf(1.047196667f - H);
                     r = S * I / 3.0f * (1.0f + cos_h / cos_1047_h);
                     g = S * I / 3.0f * (1.0f + (1.0f - cos_h / cos_1047_h));
                     b = 0.0f;
-                    w = (1.0f - S) * I;
+                    //w = (1.0f - S) * I;
                 }
                 else if(H < 4.188787f) {
                     H = H - 2.09439f;
@@ -969,7 +969,7 @@ namespace gfx {
                     g = S * I / 3.0f * (1.0f + cos_h / cos_1047_h);
                     b = S * I / 3.0f * (1.0f + (1.0f - cos_h / cos_1047_h));
                     r = 0.0f;
-                    w = (1.0f - S) * I;
+                    //w = (1.0f - S) * I;
                 } else {
                     H = H - 4.188787f;
                     float cos_h = cosf(H);
@@ -977,7 +977,7 @@ namespace gfx {
                     b = S  * I / 3.0f * (1.0f + cos_h / cos_1047_h);
                     r = S * I / 3.0f * (1.0f + (1.0f - cos_h / cos_1047_h));
                     g = 0.0f;
-                    w = (1.0f - S) * I;
+                    //w = (1.0f - S) * I;
                 }
                 const auto sr = typename trchR::int_type(r*trchR::scale);
                 helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexR::value>(native_value,sr);
@@ -1456,14 +1456,14 @@ namespace gfx {
                 H = 3.14159f * H / 180.0f;
                 float S = chS;
                 float I = chL;
-                float r = 0,g=0,b=0,w=0;
+                float r = 0,g=0,b=0;//,w=0;
                 if(H < 2.09439f) {
                     float cos_h = cosf(H);
                     float cos_1047_h = cosf(1.047196667f - H);
                     r = S * I / 3.0f * (1.0f + cos_h / cos_1047_h);
                     g = S * I / 3.0f * (1.0f + (1.0f - cos_h / cos_1047_h));
                     b = 0.0f;
-                    w = (1.0f - S) * I;
+                    //w = (1.0f - S) * I;
                 }
                 else if(H < 4.188787f) {
                     H = H - 2.09439f;
@@ -1472,7 +1472,7 @@ namespace gfx {
                     g = S * I / 3.0f * (1.0f + cos_h / cos_1047_h);
                     b = S * I / 3.0f * (1.0f + (1.0f - cos_h / cos_1047_h));
                     r = 0.0f;
-                    w = (1.0f - S) * I;
+                    //w = (1.0f - S) * I;
                 } else {
                     H = H - 4.188787f;
                     float cos_h = cosf(H);
@@ -1480,7 +1480,7 @@ namespace gfx {
                     b = S  * I / 3.0f * (1.0f + cos_h / cos_1047_h);
                     r = S * I / 3.0f * (1.0f + (1.0f - cos_h / cos_1047_h));
                     g = 0.0f;
-                    w = (1.0f - S) * I;
+                    //w = (1.0f - S) * I;
                 }
                 const auto sr = typename trchR::int_type(r*trchR::scale);
                 helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexR::value>(native_value,sr);

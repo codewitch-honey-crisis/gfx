@@ -3,7 +3,7 @@
 #include <math.h>
 
 //#include <cmath>
-
+#include "gfx_pixel.hpp"
 #include "gfx_bitmap.hpp"
 #include "gfx_core.hpp"
 #include "gfx_encoding.hpp"
@@ -2131,9 +2131,10 @@ struct draw {
             if (transparent_background == false) {
                 bool opaque = true;
                 if (PixelType::template has_channel_names<channel_name::A>::value) {
-                    constexpr static const size_t i = PixelType::template channel_index_by_name<channel_name::A>::value;
-                    if (forecolor.template channelr_unchecked<i>() != 1.0 ||
-                        backcolor.template channelr_unchecked<i>() != 1.0) {
+                    auto fca = helpers::pixel_get_alpha<PixelType,true>::valuer(forecolor);
+                    auto bca = helpers::pixel_get_alpha<PixelType,true>::valuer(backcolor);
+                    if (bca != 1.0f ||
+                        fca != 1.0f) {
                         opaque = false;
                     }
                 }
@@ -2174,11 +2175,8 @@ struct draw {
                     return r;
                 }
             }
-            constexpr static const size_t a_idx = PixelType::template channel_index_by_name<channel_name::A>::value;
-            auto alpha_factor = 1.0;
-            if (a_idx != -1) {
-                alpha_factor = forecolor.template channelr_unchecked<a_idx>();
-            }
+            auto alpha_factor = helpers::pixel_get_alpha<PixelType,PixelType::template has_channel_names<channel_name::A>::value>::valuer(forecolor);
+            
             typename Destination::pixel_type dpx, fgpx, bgpx, obgpx;
             r = convert_palette_from(destination, forecolor, &fgpx);
             if (r != gfx_result::success) {
@@ -2277,7 +2275,7 @@ struct draw {
     template <typename Destination, typename Source, typename PixelType>
     static inline gfx_result icon_impl(Destination& destination, spoint16 location, const Source& source, PixelType forecolor, PixelType backcolor, bool transparent_background, bool invert, const srect16* clip, bool async) {
         static_assert(Source::pixel_type::template has_channel_names<channel_name::A>::value, "The source must have an alpha channel");
-        gfx_result r;
+        //gfx_result r;
         // suspend if we can
         helpers::suspender<Destination, Destination::caps::suspend, Destination::caps::async> stok(destination, async);
         return draw_icon_helper<Destination, Source, PixelType, Destination::caps::read>::do_draw(destination, location, source, forecolor, backcolor, transparent_background, invert, clip, async);

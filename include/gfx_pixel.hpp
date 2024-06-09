@@ -239,7 +239,18 @@ namespace gfx {
             
             }
         };
-
+        template<typename PixelType, bool HasAlpha> 
+        struct pixel_get_alpha {
+            constexpr static float valuer(PixelType px) {
+                return 1.0f;
+            }
+        };
+        template<typename PixelType> 
+        struct pixel_get_alpha<PixelType,true> {
+            constexpr static auto valuer(PixelType px) {
+                return px.template channelr_unchecked<PixelType::template channel_index_by_name<channel_name::A>::value>();
+            }
+        };
         template<typename PixelType,int Count,typename... ChannelTraits>
         struct pixel_diff_impl;        
         template<typename PixelType,int Count, typename ChannelTrait,typename... ChannelTraits>

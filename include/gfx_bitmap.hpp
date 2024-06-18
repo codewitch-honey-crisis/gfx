@@ -732,7 +732,7 @@ namespace gfx {
             }
         };  
     }
-    template<typename PixelType,typename PaletteType=palette<PixelType,PixelType>> inline static bitmap<PixelType,PaletteType> create_bitmap(size16 size, PaletteType* palette=nullptr, void*(allocator)(size_t)=::malloc) {
+    template<typename PixelType,typename PaletteType=palette<PixelType,PixelType>> inline static bitmap<PixelType,PaletteType> create_bitmap(size16 size, const PaletteType* palette=nullptr, void*(allocator)(size_t)=::malloc) {
         using bmp_type = bitmap<PixelType,PaletteType>;
         size_t sz = bmp_type::sizeof_buffer(size);
         return bmp_type(size,allocator(sz),palette);

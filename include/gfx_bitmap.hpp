@@ -472,13 +472,6 @@ namespace gfx {
         }
         const_bitmap(const type& rhs)=default;
         type& operator=(const type& rhs)=default;
-        const_bitmap(type&& rhs)=default;
-        type& operator=(type&& rhs) {
-            m_dimensions = rhs.m_dimensions;
-            m_palette = rhs.m_palette;
-            m_begin = rhs.m_begin;
-            return *this;
-        }
         inline bool initialized() const {
             return nullptr!=m_begin;
         }

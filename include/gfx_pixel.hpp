@@ -61,7 +61,8 @@ namespace gfx {
         // the default value
         bits::uintx<bits::get_word_size(BitDepth)> Default = Min,
         // the scale denominator
-        bits::uintx<bits::get_word_size(BitDepth)> Scale = Max
+        bits::uintx<bits::get_word_size(BitDepth)> Scale = Max,
+        bool ColorChannel = !(helpers::is_same<channel_name::nop,Name>::value || helpers::is_same<channel_name::A,Name>::value)
     >
     struct channel_traits {
         // this type
@@ -88,6 +89,7 @@ namespace gfx {
         constexpr static const int_type int_mask = ~int_type(0);
         // a mask of the channel value
         constexpr static const int_type mask = bits::mask<BitDepth>::right;//=int_type(int_mask>>((sizeof(int_type)*8)-BitDepth));
+        constexpr static const bool color_channel = ColorChannel;
         // constraints
         static_assert(BitDepth>0,"Bit depth must be greater than 0");
         static_assert(BitDepth<=64,"Bit depth must be less than or equal to 64");
@@ -117,6 +119,7 @@ namespace gfx {
         constexpr static const float scaler = 0.0; 
         constexpr static const int_type int_mask = 0;
         constexpr static const int_type mask = 0;
+        constexpr static const bool color_channel = false;
     };
     
     // represents a channel's metadata
@@ -160,7 +163,8 @@ namespace gfx {
         constexpr static const int_type scale = ChannelTraits::scale;
         // the reciprocal of the scale denominator
         constexpr static const real_type scaler = ChannelTraits::scaler;
-
+        // true if this channel is part of the color model
+        constexpr static const bool color_channel = ChannelTraits::color_channel;
         
     };
     // various utility templates and methods
@@ -172,6 +176,13 @@ namespace gfx {
             static constexpr const size_t value = T::bit_depth + bit_depth<ChannelTraits...>::value;
         };
         template <> struct bit_depth<> { static const size_t value = 0; };
+
+        template <typename... ChannelTraits> struct color_channels_size;
+        template <typename T, typename... ChannelTraits>
+        struct color_channels_size<T, ChannelTraits...> {
+            static constexpr const size_t value = ((int)T::color_channel) + color_channels_size<ChannelTraits...>::value;
+        };
+        template <> struct color_channels_size<> { static const size_t value = 0; };
         
         template<typename PixelType,int Index,int Count,size_t BitsToLeft,typename... ChannelTraits>
         struct channel_by_index_impl;        
@@ -402,6 +413,27 @@ namespace gfx {
         public:
             constexpr static const bool value = true;
         };
+
+        template <typename PixelType,typename... ChannelNames> class is_color_model_inner_impl;
+        template<typename PixelType,typename ChannelName,typename... ChannelNames> 
+        class is_color_model_inner_impl<PixelType,ChannelName,ChannelNames...> {
+            using chidx = typename PixelType::template channel_index_by_name<ChannelName>;
+        public:
+            constexpr static const bool value = (-1!= chidx::value) && 
+                PixelType::template channel_by_index<chidx::value>::color_channel &&
+                is_color_model_inner_impl<PixelType,ChannelNames...>::value;
+        };
+        template<typename PixelType> 
+        class is_color_model_inner_impl<PixelType> {
+        public:
+            constexpr static const bool value = true;
+        };
+        
+        template <typename PixelType,typename... ChannelNames> class is_color_model_impl {
+        public:
+            constexpr static const bool value = sizeof...(ChannelNames)==PixelType::color_channels && is_color_model_inner_impl<PixelType,ChannelNames...>::value;
+        };
+        
         // converts one channel's bit depth to another
         template <typename ChannelLhs,typename ChannelRhs>
         constexpr inline static typename ChannelRhs::int_type convert_channel_depth(typename ChannelLhs::int_type v) {
@@ -459,6 +491,8 @@ namespace gfx {
         using int_type = bits::uintx<bits::get_word_size(helpers::bit_depth<ChannelTraits...>::value)>;
         // the number of channels
         constexpr static const size_t channels = sizeof...(ChannelTraits);
+        // the number of color channels
+        constexpr static const size_t color_channels = helpers::color_channels_size<ChannelTraits...>::value;
         // the total bit depth of the pixel
         constexpr static const size_t bit_depth = helpers::bit_depth<ChannelTraits...>::value;
         // the minimum number of bytes needed to store the pixel
@@ -515,9 +549,10 @@ namespace gfx {
         template<typename Name> using channel_by_name = channel_by_index<helpers::channel_index_by_name_impl<0,Name,ChannelTraits...>::value>;
         // retrieves a channel's metadata by name in cases where the checked version will cause an error
         template<typename Name> using channel_by_name_unchecked = channel_by_index_unchecked<channel_index_by_name<Name>::value>;
-        
         // returns true if the pixel contains channels with each name
         template<typename... ChannelNames> using has_channel_names = typename helpers::has_channel_names_impl<type,ChannelNames...>;
+        // returns true if the pixel has the given color model (discounting non color channels like alpha, and nop)
+        template<typename... ChannelNames> using is_color_model = typename helpers::is_color_model_impl<type,ChannelNames...>;
         // returns true if this channel is a subset of the other
         template<typename PixelRhs> using is_subset_of = typename helpers::is_subset_pixel_impl<PixelRhs,ChannelTraits...>;
         // returns true if this channel is a superset of the other
@@ -854,35 +889,35 @@ namespace gfx {
         typename PixelTypeRhs::int_type native_value = tmp.native_value;
         
         // here's where we gather color model information
-        using is_rgbw = typename PixelTypeLhs::template has_channel_names<channel_name::R,channel_name::G,channel_name::B,channel_name::W>;
-        using is_rgb = typename PixelTypeLhs::template has_channel_names<channel_name::R,channel_name::G,channel_name::B>;
-        using is_yuv = typename PixelTypeLhs::template has_channel_names<channel_name::Y,channel_name::U,channel_name::V>;
-        using is_ycbcr = typename PixelTypeLhs::template has_channel_names<channel_name::Y,channel_name::Cb,channel_name::Cr>;
-        using is_hsv = typename PixelTypeLhs::template has_channel_names<channel_name::H,channel_name::S,channel_name::V>;
-        using is_hsl = typename PixelTypeLhs::template has_channel_names<channel_name::H,channel_name::S,channel_name::L>;
-        using is_cmyk = typename PixelTypeLhs::template has_channel_names<channel_name::C,channel_name::M,channel_name::Y,channel_name::K>;
-        using trhas_alpha = typename PixelTypeRhs::template has_channel_names<channel_name::A>;
-        using thas_alpha = typename PixelTypeLhs::template has_channel_names<channel_name::A>;
+        using is_rgbw = typename PixelTypeLhs::template is_color_model<channel_name::R,channel_name::G,channel_name::B,channel_name::W>;
+        using is_rgb = typename PixelTypeLhs::template is_color_model<channel_name::R,channel_name::G,channel_name::B>;
+        using is_yuv = typename PixelTypeLhs::template is_color_model<channel_name::Y,channel_name::U,channel_name::V>;
+        using is_ycbcr = typename PixelTypeLhs::template is_color_model<channel_name::Y,channel_name::Cb,channel_name::Cr>;
+        using is_hsv = typename PixelTypeLhs::template is_color_model<channel_name::H,channel_name::S,channel_name::V>;
+        using is_hsl = typename PixelTypeLhs::template is_color_model<channel_name::H,channel_name::S,channel_name::L>;
+        using is_cmyk = typename PixelTypeLhs::template is_color_model<channel_name::C,channel_name::M,channel_name::Y,channel_name::K>;
+        using trhas_alpha = typename PixelTypeRhs::template is_color_model<channel_name::A>;
+        using thas_alpha = typename PixelTypeLhs::template is_color_model<channel_name::A>;
         const bool has_alpha = thas_alpha::value;
-        const bool is_bw_candidate = 1==PixelTypeLhs::channels || (2==PixelTypeLhs::channels && has_alpha);
-        using tis_bw_candidate = typename PixelTypeLhs::template has_channel_names<channel_name::L>;
+        const bool is_bw_candidate = 1==PixelTypeLhs::color_channels;
+        using tis_bw_candidate = typename PixelTypeLhs::template is_color_model<channel_name::L>;
         const bool is_bw_candidate2 = tis_bw_candidate::value;
         const bool rhas_alpha = trhas_alpha::value;
-        const bool ris_bw_candidate = 1==PixelTypeRhs::channels || (2==PixelTypeRhs::channels && rhas_alpha);
-        using tris_bw_candidate = typename PixelTypeRhs::template has_channel_names<channel_name::L>;
+        const bool ris_bw_candidate = 1==PixelTypeRhs::color_channels;
+        using tris_bw_candidate = typename PixelTypeRhs::template is_color_model<channel_name::L>;
         const bool ris_bw_candidate2 = tris_bw_candidate::value;
-        using is_rhs_rgbw = typename PixelTypeRhs::template has_channel_names<channel_name::R,channel_name::G,channel_name::B,channel_name::W>;
-        using is_rhs_rgb = typename PixelTypeRhs::template has_channel_names<channel_name::R,channel_name::G,channel_name::B>;
-        using is_rhs_yuv = typename PixelTypeRhs::template has_channel_names<channel_name::Y,channel_name::U,channel_name::V>;
-        using is_rhs_ycbcr = typename PixelTypeRhs::template has_channel_names<channel_name::Y,channel_name::Cb,channel_name::Cr>;
-        using is_rhs_hsv = typename PixelTypeRhs::template has_channel_names<channel_name::H,channel_name::S,channel_name::V>;
-        using is_rhs_hsl = typename PixelTypeRhs::template has_channel_names<channel_name::H,channel_name::S,channel_name::L>;
-        using is_rhs_cmyk = typename PixelTypeRhs::template has_channel_names<channel_name::C,channel_name::M,channel_name::Y,channel_name::K>;
+        using is_rhs_rgbw = typename PixelTypeRhs::template is_color_model<channel_name::R,channel_name::G,channel_name::B,channel_name::W>;
+        using is_rhs_rgb = typename PixelTypeRhs::template is_color_model<channel_name::R,channel_name::G,channel_name::B>;
+        using is_rhs_yuv = typename PixelTypeRhs::template is_color_model<channel_name::Y,channel_name::U,channel_name::V>;
+        using is_rhs_ycbcr = typename PixelTypeRhs::template is_color_model<channel_name::Y,channel_name::Cb,channel_name::Cr>;
+        using is_rhs_hsv = typename PixelTypeRhs::template is_color_model<channel_name::H,channel_name::S,channel_name::V>;
+        using is_rhs_hsl = typename PixelTypeRhs::template is_color_model<channel_name::H,channel_name::S,channel_name::L>;
+        using is_rhs_cmyk = typename PixelTypeRhs::template is_color_model<channel_name::C,channel_name::M,channel_name::Y,channel_name::K>;
         //using is_rhs_ycbcr = typename PixelTypeRhs::template has_channel_names<channel_name::Y,channel_name::Cb,channel_name::Cr>;
         // TODO: Add code for determining other additional color models here
 
         // check the source color model
-        if(!is_rgbw::value && is_rgb::value && PixelTypeLhs::channels<5) {
+        if(!is_rgbw::value && is_rgb::value) {
             // source color model is RGB
             using tindexR = typename PixelTypeLhs::template channel_index_by_name<channel_name::R>;
             using tchR = typename PixelTypeLhs::template channel_by_index_unchecked<tindexR::value>;
@@ -896,7 +931,7 @@ namespace gfx {
             using tchB = typename PixelTypeLhs::template channel_by_index_unchecked<tindexB::value>;
             const int chiB = tindexB::value;
             
-            if(!is_rhs_rgbw::value && is_rhs_rgb::value && PixelTypeRhs::channels<5) {      
+            if(!is_rhs_rgbw::value && is_rhs_rgb::value) {      
                 // destination color model is RGB
                 using trindexR = typename PixelTypeRhs::template channel_index_by_name<channel_name::R>;
                 using trchR = typename PixelTypeRhs::template channel_by_index_unchecked<trindexR::value>;
@@ -920,7 +955,7 @@ namespace gfx {
                 helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexB::value>(native_value,cB);
 
                 good = true;
-            } else if(is_rhs_rgbw::value && PixelTypeRhs::channels<6)  {
+            } else if(is_rhs_rgbw::value)  {
                 // destination color model is RGBW
                 
                 using trindexR = typename PixelTypeRhs::template channel_index_by_name<channel_name::R>;
@@ -1000,7 +1035,7 @@ namespace gfx {
                 helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexW::value>(native_value,sw);
                 good = true;                    
 
-            } else if(is_rhs_yuv::value && PixelTypeRhs::channels<5)  {
+            } else if(is_rhs_yuv::value)  {
                 // destination is Y'UV color model
                 using trindexY = typename PixelTypeRhs::template channel_index_by_name<channel_name::Y>;
                 using trchY = typename PixelTypeRhs::template channel_by_index_unchecked<trindexY::value>;
@@ -1026,7 +1061,7 @@ namespace gfx {
                 helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexV::value>(native_value,cV);
                 
                 good = true;
-            } else if(is_rhs_ycbcr::value && PixelTypeRhs::channels<5) {
+            } else if(is_rhs_ycbcr::value) {
                     // destination is YCbCr color model
                     using trindexY = typename PixelTypeRhs::template channel_index_by_name<channel_name::Y>;
                     using trchY = typename PixelTypeRhs::template channel_by_index_unchecked<trindexY::value>;
@@ -1059,7 +1094,7 @@ namespace gfx {
                     helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexCr::value>(native_value,cCr);
                     
                     good = true;
-            } else if(is_rhs_hsv::value && PixelTypeRhs::channels<5) {
+            } else if(is_rhs_hsv::value) {
                 // destination is HSV color model
                 using trindexH = typename PixelTypeRhs::template channel_index_by_name<channel_name::H>;
                 using trchH = typename PixelTypeRhs::template channel_by_index_unchecked<trindexH::value>;
@@ -1142,7 +1177,7 @@ namespace gfx {
                 const typename trchL::int_type cL =helpers::clamp(typename trchL::int_type(l*trchL::scale+.5),trchL::min,trchL::max);
                 helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexL::value>(native_value,cL);
                 good = true;
-            } else if(is_rhs_cmyk::value && PixelTypeRhs::channels<6) {
+            } else if(is_rhs_cmyk::value) {
                 // destination is CMYK color model
                 using trindexC = typename PixelTypeRhs::template channel_index_by_name<channel_name::C>;
                 using trchC = typename PixelTypeRhs::template channel_by_index_unchecked<trindexC::value>;
@@ -1208,7 +1243,7 @@ namespace gfx {
                 helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexL::value>(native_value,chL);
 
                 good = true;
-            } else if(!is_rhs_rgbw::value && is_rhs_rgb::value && PixelTypeRhs::channels<5) {
+            } else if(!is_rhs_rgbw::value && is_rhs_rgb::value) {
                 // destination color model is RGB
                 using trindexR = typename PixelTypeRhs::template channel_index_by_name<channel_name::R>;
                 using trchR = typename PixelTypeRhs::template channel_by_index_unchecked<trindexR::value>;
@@ -1231,7 +1266,7 @@ namespace gfx {
                 helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexB::value>(native_value,chB);
 
                 good = true;
-            } else if(is_rhs_yuv::value && PixelTypeRhs::channels<5) {
+            } else if(is_rhs_yuv::value) {
                 using trindexY = typename PixelTypeRhs::template channel_index_by_name<channel_name::Y>;
                 using trchY = typename PixelTypeRhs::template channel_by_index_unchecked<trindexY::value>;
                 using trindexU = typename PixelTypeRhs::template channel_index_by_name<channel_name::U>;
@@ -1244,7 +1279,7 @@ namespace gfx {
 
                 good = true;
             }
-        } else if(is_yuv::value && PixelTypeLhs::channels<5) {
+        } else if(is_yuv::value) {
             // source color model is Y'UV
             using tindexY = typename PixelTypeLhs::template channel_index_by_name<channel_name::Y>;
             using tchY = typename PixelTypeLhs::template channel_by_index_unchecked<tindexY::value>;
@@ -1258,7 +1293,7 @@ namespace gfx {
             using tchV = typename PixelTypeLhs::template channel_by_index_unchecked<tindexV::value>;
             const int chiV = tindexV::value;
 
-            if(is_rhs_yuv::value && PixelTypeRhs::channels<5) {
+            if(is_rhs_yuv::value) {
                 // destination color model is YUV
                 using trindexY = typename PixelTypeRhs::template channel_index_by_name<channel_name::Y>;
                 using trchY = typename PixelTypeRhs::template channel_by_index_unchecked<trindexY::value>;
@@ -1279,7 +1314,7 @@ namespace gfx {
                 helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexV::value>(native_value,chV);
 
                 good = true;
-            } else if(!is_rhs_rgbw::value && is_rhs_rgb::value && PixelTypeRhs::channels<5)  {
+            } else if(!is_rhs_rgbw::value && is_rhs_rgb::value)  {
                 // destination color model is RGB
                 using trindexR = typename PixelTypeRhs::template channel_index_by_name<channel_name::R>;
                 using trchR = typename PixelTypeRhs::template channel_by_index_unchecked<trindexR::value>;
@@ -1317,7 +1352,7 @@ namespace gfx {
             
                 good = true;
             }
-        } else if(is_ycbcr::value && PixelTypeLhs::channels<5) {
+        } else if(is_ycbcr::value) {
             // source color model is YCbCr
             using tindexY = typename PixelTypeLhs::template channel_index_by_name<channel_name::Y>;
             //using tchY = typename PixelTypeLhs::template channel_by_index_unchecked<tindexY::value>;
@@ -1361,7 +1396,7 @@ namespace gfx {
                 good = true;                    
             }
 
-        } else if(is_hsv::value && PixelTypeLhs::channels<5) {
+        } else if(is_hsv::value) {
             using tindexH = typename PixelTypeLhs::template channel_index_by_name<channel_name::H>;
             const int chiH = tindexH::value;
             using tindexS = typename PixelTypeLhs::template channel_index_by_name<channel_name::S>;
@@ -1405,7 +1440,7 @@ namespace gfx {
                 helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexB::value>(native_value,sb);
                 good = true;                    
             }
-        } else if(is_hsl::value && PixelTypeLhs::channels<5) {
+        } else if(is_hsl::value) {
             using tindexH = typename PixelTypeLhs::template channel_index_by_name<channel_name::H>;
             const int chiH = tindexH::value;
             using tindexS = typename PixelTypeLhs::template channel_index_by_name<channel_name::S>;
@@ -1445,7 +1480,7 @@ namespace gfx {
                 const auto sb = typename trchB::int_type(b*trchB::scale);
                 helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexB::value>(native_value,sb);
                 good = true;                    
-            } else if(is_rhs_rgbw::value && PixelTypeRhs::channels<6) {
+            } else if(is_rhs_rgbw::value) {
                 // destination color model is RGBW
                 // destination color model is RGB
                 using trindexR = typename PixelTypeRhs::template channel_index_by_name<channel_name::R>;
@@ -1503,7 +1538,7 @@ namespace gfx {
                 helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexW::value>(native_value,sw);
                 good = true;                    
             }
-        } else if(is_cmyk::value && PixelTypeLhs::channels<6) {
+        } else if(is_cmyk::value) {
             using tindexC = typename PixelTypeLhs::template channel_index_by_name<channel_name::C>;
             const int chiC = tindexC::value;
             using tindexM = typename PixelTypeLhs::template channel_index_by_name<channel_name::M>;
@@ -1513,7 +1548,7 @@ namespace gfx {
             using tindexK = typename PixelTypeLhs::template channel_index_by_name<channel_name::K>;
             const int chiK = tindexK::value;
             
-            if(!is_rhs_rgbw::value && is_rhs_rgb::value && PixelTypeRhs::channels<5) {
+            if(!is_rhs_rgbw::value && is_rhs_rgb::value) {
                 // destination color model is RGB
                 using trindexR = typename PixelTypeRhs::template channel_index_by_name<channel_name::R>;
                 using trchR = typename PixelTypeRhs::template channel_by_index_unchecked<trindexR::value>;
@@ -1540,7 +1575,7 @@ namespace gfx {
                 helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexB::value>(native_value,sb);
                 good = true;                    
             }
-        } else if(is_rgbw::value && PixelTypeLhs::channels<6) {
+        } else if(is_rgbw::value) {
              // source color model is RGBW
             using tindexR = typename PixelTypeLhs::template channel_index_by_name<channel_name::R>;
             //using tchR = typename PixelTypeLhs::template channel_by_index_unchecked<tindexR::value>;
@@ -1558,7 +1593,7 @@ namespace gfx {
             //using tchW = typename PixelTypeLhs::template channel_by_index_unchecked<tindexW::value>;
             const int chiW = tindexW::value;
             
-            if(!is_rhs_rgbw::value && is_rhs_rgb::value && PixelTypeRhs::channels<5) {
+            if(!is_rhs_rgbw::value && is_rhs_rgb::value) {
                 // destination color model is RGB
                 using trindexR = typename PixelTypeRhs::template channel_index_by_name<channel_name::R>;
                 using trchR = typename PixelTypeRhs::template channel_by_index_unchecked<trindexR::value>;

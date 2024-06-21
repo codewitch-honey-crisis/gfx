@@ -486,7 +486,11 @@ namespace gfx {
         // this type
         using type = pixel<ChannelTraits...>;
         // the type used for doing intermediary conversions to different formats when no explicit conversion is implemented
+#if HTCW_MAX_WORD == 64
         using rgb_conversion_type = pixel<channel_traits<channel_name::R,16>,channel_traits<channel_name::G,16>,channel_traits<channel_name::B,16>,channel_traits<channel_name::A,16>>;
+#else
+        using rgb_conversion_type = pixel<channel_traits<channel_name::R,8>,channel_traits<channel_name::G,8>,channel_traits<channel_name::B,8>,channel_traits<channel_name::A,8>>;
+#endif
         // the integer type of the pixel
         using int_type = bits::uintx<bits::get_word_size(helpers::bit_depth<ChannelTraits...>::value)>;
         // the number of channels

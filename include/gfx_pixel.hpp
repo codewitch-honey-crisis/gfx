@@ -420,7 +420,7 @@ namespace gfx {
             using chidx = typename PixelType::template channel_index_by_name<ChannelName>;
         public:
             constexpr static const bool value = (-1!= chidx::value) && 
-                PixelType::template channel_by_index<chidx::value>::color_channel &&
+                PixelType::template channel_by_index_unchecked<chidx::value>::color_channel &&
                 is_color_model_inner_impl<PixelType,ChannelNames...>::value;
         };
         template<typename PixelType> 

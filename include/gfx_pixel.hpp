@@ -259,14 +259,27 @@ namespace gfx {
         };
         template<typename PixelType, bool HasAlpha> 
         struct pixel_get_alpha {
-            constexpr static float valuer(PixelType px) {
+            constexpr inline static float valuer(PixelType px) {
                 return 1.0f;
             }
         };
         template<typename PixelType> 
         struct pixel_get_alpha<PixelType,true> {
-            constexpr static auto valuer(PixelType px) {
+            constexpr inline static auto valuer(PixelType px) {
                 return px.template channelr_unchecked<PixelType::template channel_index_by_name<channel_name::A>::value>();
+            }
+        };
+        template<typename PixelType, bool HasAlpha> 
+        struct pixel_set_alpha {
+            using type = float;
+            constexpr inline static void valuer(PixelType& px, type dummy) {
+            }
+        };
+        template<typename PixelType> 
+        struct pixel_set_alpha<PixelType,true> {
+            using type = typename PixelType::template channel_by_index<PixelType::template channel_index_by_name<channel_name::A>::value>::real_type;
+            constexpr inline static void valuer(PixelType& px, type value) {
+                px.template channelr_unchecked<PixelType::template channel_index_by_name<channel_name::A>::value>(value);
             }
         };
         template<typename PixelType,int Count,typename... ChannelTraits>
@@ -692,6 +705,10 @@ namespace gfx {
         // indicates the opacity of the pixel
         constexpr auto opacity() const {
             return helpers::pixel_get_alpha<type,has_alpha>::valuer(*this);
+        }
+        // sets the opacity of the pixel (for those with an alpha channel)
+        constexpr void opacity(typename helpers::pixel_set_alpha<type,has_alpha>::type value) {
+            helpers::pixel_set_alpha<type,has_alpha>::valuer(*this,value);
         }
         static_assert(sizeof...(ChannelTraits)>0,"A pixel must have at least one channel trait");
         static_assert(bit_depth<=HTCW_MAX_WORD,"Bit depth must be less than or equal to the maximum machine word size");

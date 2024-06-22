@@ -177,6 +177,13 @@ namespace gfx {
         };
         template <> struct bit_depth<> { static const size_t value = 0; };
 
+        template <typename... ChannelTraits> struct color_bit_depth;
+        template <typename T, typename... ChannelTraits>
+        struct color_bit_depth<T, ChannelTraits...> {
+            static constexpr const size_t value = (T::color_channel?T::bit_depth:0) + color_bit_depth<ChannelTraits...>::value;
+        };
+        template <> struct color_bit_depth<> { static const size_t value = 0; };
+
         template <typename... ChannelTraits> struct color_channels_size;
         template <typename T, typename... ChannelTraits>
         struct color_channels_size<T, ChannelTraits...> {
@@ -499,6 +506,9 @@ namespace gfx {
         constexpr static const size_t color_channels = helpers::color_channels_size<ChannelTraits...>::value;
         // the total bit depth of the pixel
         constexpr static const size_t bit_depth = helpers::bit_depth<ChannelTraits...>::value;
+        // the bit depth of the color channels in the pixel
+        constexpr static const size_t color_bit_depth = helpers::color_bit_depth<ChannelTraits...>::value;
+        
         // the minimum number of bytes needed to store the pixel
         constexpr static const size_t packed_size = (bit_depth+7) / 8;
         // true if the pixel is a whole number of bytes

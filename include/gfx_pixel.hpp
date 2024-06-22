@@ -54,14 +54,14 @@ namespace gfx {
         bits::uintx<bits::get_word_size(BitDepth)> Min=0, 
         // the maximum value
 #if HTCW_MAX_WORD >= 64
-        bits::uintx<bits::get_word_size(BitDepth)> Max= ((BitDepth==64)?0xFFFFFFFFFFFFFFFF:((1<<BitDepth)-1)), 
+         bits::uintx<bits::get_word_size(BitDepth)> Max=helpers::is_same<Name,channel_name::nop>::value?0:((BitDepth==64)?0xFFFFFFFFFFFFFFFF:((1<<BitDepth)-1)), 
 #else
-        bits::uintx<bits::get_word_size(BitDepth)> Max= ((BitDepth==32)?0xFFFFFFFF:((1<<BitDepth)-1)), 
+        bits::uintx<bits::get_word_size(BitDepth)> Max=helpers::is_same<Name,channel_name::nop>::value?0:((BitDepth==32)?0xFFFFFFFF:((1<<BitDepth)-1)), 
 #endif
         // the default value
-        bits::uintx<bits::get_word_size(BitDepth)> Default = Min,
+        bits::uintx<bits::get_word_size(BitDepth)> Default =  helpers::is_same<Name,channel_name::nop>::value?0:Min,
         // the scale denominator
-        bits::uintx<bits::get_word_size(BitDepth)> Scale = Max,
+        bits::uintx<bits::get_word_size(BitDepth)> Scale =  helpers::is_same<Name,channel_name::nop>::value?1:Max,
         bool ColorChannel = !(helpers::is_same<channel_name::nop,Name>::value || helpers::is_same<channel_name::A,Name>::value)
     >
     struct channel_traits {

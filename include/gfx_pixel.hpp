@@ -508,7 +508,7 @@ namespace gfx {
         constexpr static const size_t bit_depth = helpers::bit_depth<ChannelTraits...>::value;
         // the bit depth of the color channels in the pixel
         constexpr static const size_t color_bit_depth = helpers::color_bit_depth<ChannelTraits...>::value;
-        
+        constexpr static const bool has_alpha = helpers::has_channel_names_impl<type,channel_name::A>::value;
         // the minimum number of bytes needed to store the pixel
         constexpr static const size_t packed_size = (bit_depth+7) / 8;
         // true if the pixel is a whole number of bytes
@@ -688,7 +688,9 @@ namespace gfx {
             blend(rhs,ratio,&result);
             return result;
         }
-        
+        constexpr auto opacity() const {
+            return helpers::pixel_get_alpha<type,has_alpha>::valuer(*this);
+        }
         static_assert(sizeof...(ChannelTraits)>0,"A pixel must have at least one channel trait");
         static_assert(bit_depth<=HTCW_MAX_WORD,"Bit depth must be less than or equal to the maximum machine word size");
     };

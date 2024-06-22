@@ -508,6 +508,7 @@ namespace gfx {
         constexpr static const size_t bit_depth = helpers::bit_depth<ChannelTraits...>::value;
         // the bit depth of the color channels in the pixel
         constexpr static const size_t color_bit_depth = helpers::color_bit_depth<ChannelTraits...>::value;
+        // indicates whether the pixel has an alpha channel
         constexpr static const bool has_alpha = helpers::has_channel_names_impl<type,channel_name::A>::value;
         // the minimum number of bytes needed to store the pixel
         constexpr static const size_t packed_size = (bit_depth+7) / 8;
@@ -688,6 +689,7 @@ namespace gfx {
             blend(rhs,ratio,&result);
             return result;
         }
+        // indicates the opacity of the pixel
         constexpr auto opacity() const {
             return helpers::pixel_get_alpha<type,has_alpha>::valuer(*this);
         }

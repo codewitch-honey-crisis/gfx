@@ -70,6 +70,93 @@ namespace gfx {
         struct is_same<T, T> {
             constexpr static const bool value = true;
         };
+        template<typename...Types> 
+        struct tuple { };
+        template<
+            typename Type,
+            typename... Types
+        >
+        struct tuple<Type, Types...> {
+            using type = Type;
+            Type value;
+            tuple<Types...> next;
+            constexpr inline tuple(
+                const Type& value, 
+                const Types& ... next)
+                : value(value)
+                , next(next...) {
+            }
+        };
+        // tuple index helper base declaration
+        template<size_t Index,typename Type>
+        struct tuple_index_impl {};
+        // tuple index helper terminator specialization
+        // on index zero (specialization #1)
+        template<typename Type, typename... Types>
+        struct tuple_index_impl<0,tuple<Type,Types...>> {
+            // indicates the type of the tuple itself
+            using tuple_type = tuple<Type, Types...>;
+            // indicates the first value type in the tuple
+            using value_type = Type;
+            // retrieve the tuple's value
+            constexpr inline static value_type value(
+                                        tuple_type &t) {
+                return t.value;
+            }
+            // set the tuple's value
+            constexpr inline static void value(
+                    tuple_type &t,const value_type& v) {
+                t.value=v;
+            }
+        };
+        template<
+                size_t Index,
+                typename Type,
+                typename... Types
+            >
+        struct tuple_index_impl<Index, tuple<Type, Types...>> { 
+            using tuple_type = tuple<Type, Types...>;
+            using value_type = typename tuple_index_impl<
+                    Index - 1, 
+                    tuple<Types...>>::value_type;
+            constexpr inline static value_type value(
+                                        tuple_type &t) {
+                return tuple_index_impl<
+                    Index - 1, 
+                    tuple<Types...>>::value(t.next);
+            }
+            constexpr inline static void value(
+                    tuple_type &t,const value_type& v) {
+                tuple_index_impl<
+                    Index - 1, 
+                    tuple<Types...>>::value(t.next,v);
+            }
+        };
+        // static tuple by index getter method template
+        template<
+            size_t Index, 
+            typename TupleType
+        >
+        typename tuple_index_impl<Index, TupleType>::value_type 
+        constexpr tuple_index(TupleType &t) {
+            return tuple_index_impl<Index, TupleType>::value(t);
+        }
+        // static tuple by index setter method template
+        template<
+            size_t Index, 
+            typename TupleType
+        >
+        constexpr void tuple_index(
+                TupleType &t,
+                const typename tuple_index_impl<
+                        Index, 
+                        TupleType>::value_type& v) {
+            return tuple_index_impl<Index, TupleType>::value(t,v);
+        }
+        
+        template<int ...> struct index_sequence {};
+        template<int N, int ...S> struct make_index_sequence : make_index_sequence<N - 1, N - 1, S...> { };
+        template<int ...S> struct make_index_sequence<0, S...>{ typedef index_sequence<S...> type; };
         // adjusts byte order if necessary
         constexpr static inline uint16_t order_guard(uint16_t value) {
             if(bits::endianness()==bits::endian_mode::little_endian) {

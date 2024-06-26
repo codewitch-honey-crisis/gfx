@@ -456,7 +456,7 @@ namespace gfx {
         public:
             constexpr static const bool value = sizeof...(ChannelNames)==PixelType::color_channels && is_color_model_inner_impl<PixelType,ChannelNames...>::value;
         };
-        
+
         // converts one channel's bit depth to another
         template <typename ChannelLhs,typename ChannelRhs>
         constexpr inline static typename ChannelRhs::int_type convert_channel_depth(typename ChannelLhs::int_type v) {
@@ -646,130 +646,42 @@ namespace gfx {
             constexpr const int index = channel_index_by_name<Name>::value;
             return channel<index>();
         }
-        // sets the integer channel value by name
+        // sets the integer channel values by name
         template<typename Name>
         constexpr inline void channel(typename channel_by_index<channel_index_by_name<Name>::value>::int_type value) {
             constexpr const int index = channel_index_by_name<Name>::value;
             channel<index>(value);
         }
+                
         // sets the integer channel values by name
-        template<typename Name1, typename Name2>
-        constexpr inline void channel(typename channel_by_index<channel_index_by_name<Name1>::value>::int_type value1,
-                                        typename channel_by_index<channel_index_by_name<Name2>::value>::int_type value2) {
-            constexpr const int index1 = channel_index_by_name<Name1>::value;
+        template<typename Name1, typename... Names>
+        constexpr inline void channel(typename channel_by_index<type::channel_index_by_name<Name1>::value>::int_type value1,
+                                        typename type::channel_by_index<channel_index_by_name<Names>::value>::int_type... values) {
+            constexpr const int index1 = type::channel_index_by_name<Name1>::value;
             channel<index1>(value1);
-            constexpr const int index2 = channel_index_by_name<Name2>::value;
-            channel<index2>(value2);
+            channel<Names...>(values...);
         }
-        // sets the integer channel values by name
-        template<typename Name1, typename Name2, typename Name3>
-        constexpr inline void channel(typename channel_by_index<channel_index_by_name<Name1>::value>::int_type value1,
-                                        typename channel_by_index<channel_index_by_name<Name2>::value>::int_type value2,
-                                        typename channel_by_index<channel_index_by_name<Name3>::value>::int_type value3) {
-            constexpr const int index1 = channel_index_by_name<Name1>::value;
-            channel<index1>(value1);
-            constexpr const int index2 = channel_index_by_name<Name2>::value;
-            channel<index2>(value2);
-            constexpr const int index3 = channel_index_by_name<Name3>::value;
-            channel<index3>(value3);
-        }
-        // sets the integer channel values by name
-        template<typename Name1, typename Name2, typename Name3, typename Name4>
-        constexpr inline void channel(typename channel_by_index<channel_index_by_name<Name1>::value>::int_type value1,
-                                        typename channel_by_index<channel_index_by_name<Name2>::value>::int_type value2,
-                                        typename channel_by_index<channel_index_by_name<Name3>::value>::int_type value3,
-                                        typename channel_by_index<channel_index_by_name<Name4>::value>::int_type value4) {
-            constexpr const int index1 = channel_index_by_name<Name1>::value;
-            channel<index1>(value1);
-            constexpr const int index2 = channel_index_by_name<Name2>::value;
-            channel<index2>(value2);
-            constexpr const int index3 = channel_index_by_name<Name3>::value;
-            channel<index3>(value3);
-            constexpr const int index4 = channel_index_by_name<Name4>::value;
-            channel<index4>(value4);
-        }
-        // sets the integer channel values by name
-        template<typename Name1, typename Name2, typename Name3, typename Name4, typename Name5>
-        constexpr inline void channel(typename channel_by_index<channel_index_by_name<Name1>::value>::int_type value1,
-                                        typename channel_by_index<channel_index_by_name<Name2>::value>::int_type value2,
-                                        typename channel_by_index<channel_index_by_name<Name3>::value>::int_type value3,
-                                        typename channel_by_index<channel_index_by_name<Name4>::value>::int_type value4,
-                                        typename channel_by_index<channel_index_by_name<Name5>::value>::int_type value5) {
-            constexpr const int index1 = channel_index_by_name<Name1>::value;
-            channel<index1>(value1);
-            constexpr const int index2 = channel_index_by_name<Name2>::value;
-            channel<index2>(value2);
-            constexpr const int index3 = channel_index_by_name<Name3>::value;
-            channel<index3>(value3);
-            constexpr const int index4 = channel_index_by_name<Name4>::value;
-            channel<index4>(value4);
-            constexpr const int index5 = channel_index_by_name<Name5>::value;
-            channel<index5>(value5);
-        }
+       
         // gets the floating point channel value by name
         template<typename Name>
         constexpr inline auto channelr() const {
             constexpr const int index = channel_index_by_name<Name>::value;
             return channelr<index>();
         }
+        
         // sets the floating point channel value by name
         template<typename Name>
         constexpr inline void channelr(typename channel_by_name<Name>::real_type value) {
             constexpr const int index = channel_index_by_name<Name>::value;
             channelr<index>(value);
         }
-        // sets the floating point channel values by name
-        template<typename Name1, typename Name2>
-        constexpr inline void channelr(typename channel_by_name<Name1>::real_type value1, typename channel_by_name<Name2>::real_type value2) {
-            constexpr const int index1 = channel_index_by_name<Name1>::value;
+        // sets the integer channel values by name
+        template<typename Name1, typename... Names>
+        constexpr inline void channelr(typename channel_by_index<type::channel_index_by_name<Name1>::value>::real_type value1,
+                                        typename type::channel_by_index<channel_index_by_name<Names>::value>::real_type... values) {
+            constexpr const int index1 = type::channel_index_by_name<Name1>::value;
             channelr<index1>(value1);
-            constexpr const int index2 = channel_index_by_name<Name2>::value;
-            channelr<index2>(value2);
-        }
-        // sets the floating point channel values by name
-        template<typename Name1, typename Name2, typename Name3>
-        constexpr inline void channelr(typename channel_by_name<Name1>::real_type value1, 
-                                        typename channel_by_name<Name2>::real_type value2, 
-                                        typename channel_by_name<Name3>::real_type value3) {
-            constexpr const int index1 = channel_index_by_name<Name1>::value;
-            channelr<index1>(value1);
-            constexpr const int index2 = channel_index_by_name<Name2>::value;
-            channelr<index2>(value2);
-            constexpr const int index3 = channel_index_by_name<Name3>::value;
-            channelr<index3>(value3);
-        }
-        // sets the floating point channel values by name
-        template<typename Name1, typename Name2, typename Name3, typename Name4>
-        constexpr inline void channelr(typename channel_by_name<Name1>::real_type value1, 
-                                        typename channel_by_name<Name2>::real_type value2, 
-                                        typename channel_by_name<Name3>::real_type value3,
-                                        typename channel_by_name<Name4>::real_type value4) {
-            constexpr const int index1 = channel_index_by_name<Name1>::value;
-            channelr<index1>(value1);
-            constexpr const int index2 = channel_index_by_name<Name2>::value;
-            channelr<index2>(value2);
-            constexpr const int index3 = channel_index_by_name<Name3>::value;
-            channelr<index3>(value3);
-            constexpr const int index4 = channel_index_by_name<Name4>::value;
-            channelr<index4>(value4);
-        }
-        // sets the floating point channel values by name
-        template<typename Name1, typename Name2, typename Name3, typename Name4, typename Name5>
-        constexpr inline void channelr(typename channel_by_name<Name1>::real_type value1, 
-                                        typename channel_by_name<Name2>::real_type value2, 
-                                        typename channel_by_name<Name3>::real_type value3,
-                                        typename channel_by_name<Name4>::real_type value4,
-                                        typename channel_by_name<Name5>::real_type value5) {
-            constexpr const int index1 = channel_index_by_name<Name1>::value;
-            channelr<index1>(value1);
-            constexpr const int index2 = channel_index_by_name<Name2>::value;
-            channelr<index2>(value2);
-            constexpr const int index3 = channel_index_by_name<Name3>::value;
-            channelr<index3>(value3);
-            constexpr const int index4 = channel_index_by_name<Name4>::value;
-            channelr<index4>(value4);
-            constexpr const int index5 = channel_index_by_name<Name5>::value;
-            channelr<index4>(value5);
+            channelr<Names...>(values...);
         }
         // returns the difference between two pixels
         constexpr double difference(type rhs) const {

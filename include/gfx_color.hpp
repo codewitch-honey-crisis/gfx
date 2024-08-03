@@ -3,9 +3,13 @@
 #include "gfx_core.hpp"
 #include "gfx_pixel.hpp"
 namespace gfx {
+    template<typename PixelType>
+    struct color_base {
+        constexpr static const PixelType transparent = PixelType(0,true);
+    };
     // predefined color values
     template<typename PixelType>
-    struct color final {
+    struct color final : public color_base<PixelType> {
         // we use a super precise max-bit RGB pixel for this
         using source_type = rgb_pixel<HTCW_MAX_WORD>;
         constexpr static const PixelType alice_blue = convert<source_type,PixelType>(color<PixelType>::source_type(true, 0.941176470588235, 0.972549019607843, 1));

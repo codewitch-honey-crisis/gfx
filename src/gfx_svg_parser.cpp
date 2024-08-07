@@ -91,7 +91,7 @@ typedef struct NSVGattrib {
     char hasStroke;
     char visible;
 } NSVGattrib;
-using reader_t = raw_ml_reader<2048>;
+using reader_t = ml_reader_ex<2048>;
 struct svg_css_class {
     char selector[512];
     char* value;

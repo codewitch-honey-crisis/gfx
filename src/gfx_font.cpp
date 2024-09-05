@@ -169,13 +169,13 @@ namespace gfx {
         out_font->m_external_leading=order_guard(stream->template read<uint16_t>());
         out_font->m_style = {0,0,0};
         if(0<stream->getch()) {
-            out_font->m_style.italic = 1;
+            out_font->m_style.italic = true;
         }
         if(0<stream->getch()) {
-            out_font->m_style.underline = 1;
+            out_font->m_style.underline = true;
         }
         if(0<stream->getch()) {
-            out_font->m_style.strikeout = 1;
+            out_font->m_style.strikeout = true;
         }
         out_font->m_weight = order_guard(stream->template read<uint16_t>());
         int gc = stream->getch();

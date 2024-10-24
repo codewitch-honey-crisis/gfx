@@ -1,6 +1,9 @@
 name: Publish
+
 on:
   push:
+    tags:
+      - "*"
     branches:
       - "master"
 jobs:
@@ -40,8 +43,13 @@ jobs:
         run: pip install --upgrade platformio
       - name: Build project
         run: pio package pack
-      - name: Publish project
+      - name: Publish project to PlatformIO
         env:
           PLATFORMIO_AUTH_TOKEN: ${{ secrets.PLATFORMIO_AUTH_TOKEN }}
         run: ./.github/scripts/publish.sh
         shell: bash
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: ./*.tar.gz

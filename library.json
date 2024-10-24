@@ -12,7 +12,7 @@
     "platforms": "*",
     "build": {
         "unflags": "-std=gnu++11",
-        "flags": "-std=gnu++14"
+        "flags": "-std=gnu++17"
     },
     "repository": {
         "type": "git",

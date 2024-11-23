@@ -71,10 +71,10 @@ static bool is_legal_utf8(const UTF8* source, int length) {
     if (*source > 0xF4) return false;
     return true;
 }
-static gfx_result utf8_to_utf32(const char* utf8, uint32_t* out_codepoint, size_t* in_out_length) {
+static gfx_result utf8_to_utf32(const char* utf8, int32_t* out_codepoint, size_t* in_out_length) {
     gfx_result result = gfx_result::success;
     const UTF8* source = (UTF8*)utf8;
-    UTF32* target = out_codepoint;
+    UTF32* target = (UTF32*)out_codepoint;
     size_t in_len = *in_out_length;
     *in_out_length = 0;
     while (*in_out_length < in_len) {
@@ -150,6 +150,7 @@ static gfx_result utf8_to_utf32(const char* utf8, uint32_t* out_codepoint, size_
     }
     return result;
 }
+
 gfx_result static latin1_to_utf8(const char* in,  size_t* in_out_in_length, char* utf8_out, size_t* in_out_utf8_out_length) {
     char* outstart = utf8_out;
     char* outend = utf8_out + (*in_out_utf8_out_length);
@@ -177,30 +178,31 @@ gfx_result static latin1_to_utf8(const char* in,  size_t* in_out_in_length, char
     *in_out_utf8_out_length = utf8_out - outstart;
     return gfx_result::success;
 }
-gfx_result to_utf32(const char* in, uint32_t* out_codepoint, size_t* in_out_length, gfx_encoding encoding) {
+
+gfx_result text_encoding::utf8_encoder::to_utf32(const text_handle in, int32_t* out_codepoint, size_t* in_out_length) const {
+    const char* pin = (const char *)in;
     if(*in_out_length==0) {
-        *in_out_length = trailingBytesForUTF8[(size_t)*in]+1;
+        *in_out_length = trailingBytesForUTF8[(size_t)*pin]+1;
     }
-    switch (encoding) {
-        case gfx_encoding::utf8: {
-            return utf8_to_utf32(in, out_codepoint, in_out_length);
-        } break;
-        case gfx_encoding::latin1: {
-            char out_tmp1[4];
-            size_t outlen = sizeof(out_tmp1);
-            gfx_result r= latin1_to_utf8(in, in_out_length,out_tmp1, &outlen);
-            if (r!=gfx_result::success) {
-                *out_codepoint = 0;
-                return r;
-            }
-            r=utf8_to_utf32(out_tmp1, out_codepoint, &outlen);
-            if (r!=gfx_result::success) {
-                *out_codepoint = 0;
-                return r;
-            }
-        } break;
-        default:
-            return gfx_result::invalid_argument;
+    return utf8_to_utf32(pin, out_codepoint, in_out_length);
+}
+
+gfx_result text_encoding::latin1_encoder::to_utf32(const text_handle in, int32_t* out_codepoint, size_t* in_out_length) const {
+    const char* pin = (const char *)in;
+    if(*in_out_length==0) {
+        *in_out_length = trailingBytesForUTF8[(size_t)*pin]+1;
+    }
+    char out_tmp1[4];
+    size_t outlen = sizeof(out_tmp1);
+    gfx_result r= latin1_to_utf8(pin, in_out_length,out_tmp1, &outlen);
+    if (r!=gfx_result::success) {
+        *out_codepoint = 0;
+        return r;
+    }
+    r=utf8_to_utf32(out_tmp1, out_codepoint, &outlen);
+    if (r!=gfx_result::success) {
+        *out_codepoint = 0;
+        return r;
     }
     return gfx_result::success;
 }

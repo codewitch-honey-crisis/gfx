@@ -291,12 +291,17 @@ namespace gfx {
         //static_assert(!tshas_index::value,"PixelType must not be indexed");
         return helpers::palette_mapper<Target,PixelType>::pixel_to_indexed(target,pixel,result,background);
     }
-
-    template<typename MappedPixelType> 
+    namespace helpers {
+        extern const unsigned char* ega_color_table;
+    }
+    template<typename MappedPixelType, bool FullEga=false> 
     struct ega_palette {
         static_assert(!MappedPixelType::template has_channel_names<channel_name::index>::value,"Mapped pixel must not be indexed");
     private:
         constexpr static gfx_result index_to_mapped(int idx,MappedPixelType* result) {
+            if(!FullEga) {
+                idx = helpers::ega_color_table[idx];
+            }
             const uint8_t red   = 85 * (((idx >> 1) & 2) | ((idx >> 5) & 1));
             const uint8_t green = 85 * (( idx       & 2) | ((idx >> 4) & 1));
             const uint8_t blue  = 85 * (((idx << 1) & 2) | ((idx >> 3) & 1));
@@ -304,12 +309,14 @@ namespace gfx {
         }
     public:
         using type = ega_palette;
-        using pixel_type = indexed_pixel<4>;
+        using pixel_type =  indexed_pixel<4+(2*FullEga)>;
         using mapped_pixel_type = MappedPixelType;
         constexpr static const bool writable = false;
-        constexpr static const size_t size = 16;
+        constexpr static const size_t size = 16+(48*FullEga);
+        constexpr static const bool full_ega = FullEga;
+        
         gfx_result map(pixel_type pixel,mapped_pixel_type* mapped_pixel) const {
-            return index_to_mapped(pixel.channel<channel_name::index>(),mapped_pixel);
+            return index_to_mapped(pixel.template channel<channel_name::index>(),mapped_pixel);
         }
         gfx_result nearest(mapped_pixel_type mapped_pixel,pixel_type* pixel) const {
             
@@ -343,10 +350,26 @@ namespace gfx {
                     ii=i;
                 }
             }
-            pixel->channel<channel_name::index>(ii);
+            pixel->template channel<channel_name::index>(ii);
             //printf("nearest was %d\r\n",ii);
             return gfx_result::success;
         }
+        static constexpr const pixel_type black = pixel_type(0);
+        static constexpr const pixel_type blue = pixel_type(1);
+        static constexpr const pixel_type green = pixel_type(2);
+        static constexpr const pixel_type cyan = pixel_type(3);
+        static constexpr const pixel_type red = pixel_type(4);
+        static constexpr const pixel_type magenta = pixel_type(5);
+        static constexpr const pixel_type brown = pixel_type(FullEga?20:6);
+        static constexpr const pixel_type light_gray = pixel_type(7+(48*FullEga));
+        static constexpr const pixel_type dark_gray = pixel_type(8+(48*FullEga));
+        static constexpr const pixel_type light_blue = pixel_type(9+(48*FullEga));
+        static constexpr const pixel_type light_green = pixel_type(10+(48*FullEga));
+        static constexpr const pixel_type light_cyan = pixel_type(11+(48*FullEga));
+        static constexpr const pixel_type light_red = pixel_type(12+(48*FullEga));
+        static constexpr const pixel_type light_magenta = pixel_type(13+(48*FullEga));
+        static constexpr const pixel_type yellow = pixel_type(14+(48*FullEga));
+        static constexpr const pixel_type white = pixel_type(15+(48*FullEga));
     };
     
     namespace helpers {
@@ -768,5 +791,7 @@ namespace gfx {
             }
         };
     }
+    template<typename PixelType>
+    using palette_none=palette<PixelType,PixelType>;
 }
 #endif

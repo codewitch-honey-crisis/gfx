@@ -34,14 +34,21 @@ namespace gfx {
 #ifndef IO_NO_FS
     using file_stream = io::file_stream;
 #endif
-    template<bool Blt,bool Async,bool Batch,bool CopyFrom,bool Suspend,bool Read,bool CopyTo>
+    namespace helpers {
+        // implement std::move to limit dependencies on the STL, which may not be there
+        template< class T > struct gfx_remove_reference      { typedef T type; };
+        template< class T > struct gfx_remove_reference<T&>  { typedef T type; };
+        template< class T > struct gfx_remove_reference<T&&> { typedef T type; };
+        template <typename T>
+        typename gfx_remove_reference<T>::type&& gfx_move(T&& arg) {
+            return static_cast<typename gfx_remove_reference<T>::type&&>(arg);
+        }
+    }
+    template<bool Blt,bool BltSpans,bool CopyFrom,bool CopyTo>
     struct gfx_caps {
         constexpr const static bool blt = Blt;
-        constexpr const static bool async = Async;
-        constexpr const static bool batch = Batch;
+        constexpr const static bool blt_spans = BltSpans;
         constexpr const static bool copy_from = CopyFrom;
-        constexpr const static bool suspend = Suspend;
-        constexpr const static bool read = Read;
         constexpr const static bool copy_to = CopyTo;
     };
     enum struct gfx_result {
@@ -57,9 +64,13 @@ namespace gfx {
         invalid_state,
         unknown_error
     };
-    enum struct gfx_encoding {
-        utf8 = 0,
-        latin1 = 1
+    struct gfx_span {
+        uint8_t* data;
+        size_t length;
+    };
+    struct gfx_cspan {
+        const uint8_t* cdata;
+        size_t length;
     };
     namespace helpers {
         template<typename T, typename U>

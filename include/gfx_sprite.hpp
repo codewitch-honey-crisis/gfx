@@ -19,7 +19,7 @@ namespace gfx {
         using type = sprite;
         using pixel_type = PixelType;
         using palette_type = PaletteType;
-        using caps = gfx_caps<true,false,false,false,false,true,true>;
+        using caps = gfx_caps<true,false, false,true>;
         sprite(size16 size, const void* buf, const void* mask_buf,const palette_type* palette=nullptr) : 
                 m_bitmap(size,buf,palette),m_mask(size,mask_buf) {
         }

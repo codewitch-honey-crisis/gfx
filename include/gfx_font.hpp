@@ -1,208 +1,183 @@
 #ifndef HTCW_GFX_FONT_HPP
 #define HTCW_GFX_FONT_HPP
-#include <stdlib.h>
-#include "gfx_core.hpp"
-#include <htcw_bits.hpp>
-#include <io_stream.hpp>
-#include "gfx_positioning.hpp"
+#include <gfx_core.hpp>
+#include <gfx_positioning.hpp>
+#include <gfx_pixel.hpp>
+#include <gfx_palette.hpp>
+#include <gfx_bitmap.hpp>
+#include <gfx_encoding.hpp>
+#include <htcw_data.hpp>
 namespace gfx {
-    struct font_style {
-        int italic : 1;
-        int underline :1;
-        int strikeout :1;
+    struct font_glyph_info final {
+        size16 dimensions;
+        int16_t advance_width;
+        spoint16 offset;
+        int glyph_index1;
+        int glyph_index2;
     };
-    struct font;
-    // represents a character entry in a font
-    class font_char final {
-        friend struct font;
-        uint16_t m_width;
-        const uint8_t* m_data;
+    enum struct font_size_units {
+        em = 0,
+        px = 1
+    };
+    typedef gfx_result(*font_draw_callback)(spoint16 location,const const_bitmap<alpha_pixel<8>>& glyph_icon, void* state);
+    class font_draw_cache {
+        typedef struct {
+            int accessed;
+            size16 dimensions;
+            uint8_t* data;
+        } cache_entry_t;
+        using map_t = data::simple_fixed_map<int32_t,cache_entry_t,32>;
+        void*(*m_allocator)(size_t);
+        void*(*m_reallocator)(void*,size_t);
+        void(*m_deallocator)(void*);
+        bool m_initialized;
+        int m_accessed;
+        map_t m_cache;
+        size_t m_memory_size;
+        size_t m_max_memory_size;
+        size_t m_max_entries;
+        font_draw_cache(const font_draw_cache& rhs)=delete;
+        font_draw_cache& operator=(const font_draw_cache& rhs)=delete;
+        static int hash_function(const int32_t& key); 
+        void expire_memory(size_t new_data_size);
+        void expire_item();
+        void reduce(int new_size, int new_item_size);
     public:
-        // retrieves the width
-        inline uint16_t width() const {
-            return m_width;
-        }
-        // retrieves the height
-        inline const uint8_t* data() const {
-            return m_data;
-        }
+        font_draw_cache(void*(allocator)(size_t)=::malloc, void*(reallocator)(void*,size_t)=::realloc, void(deallocator)(void*)=::free);
+        font_draw_cache(font_draw_cache&& rhs);
+        virtual ~font_draw_cache();
+        font_draw_cache& operator=(font_draw_cache&& rhs);
+        size_t max_memory_size() const;
+        void max_memory_size(size_t value);
+        size_t memory_size() const;
+        size_t max_entries() const;
+        void max_entries(size_t value);
+        size_t entries() const;
+        gfx_result add(int32_t codepoint, size16 dimensions, const uint8_t* data);
+        gfx_result find(int32_t codepoint, size16* out_dimensions, uint8_t ** out_bitmap);
+        void clear();
+        gfx_result initialize();
+        bool initialized() const;
+        void deinitialize();
     };
-    // represents a font
-    struct font final { 
-        // the result of an operation  
-        enum struct result {
-            // completed successfully
-            success = 0,
-            // io error while reading or seeking
-            io_error = 1,
-            // the stream is not a font format
-            invalid_format = 2,
-            // the stream does not contain the MZ signature
-            no_mz_signature = 3,
-            // the stream does not contain an exe signature
-            no_exe_signature = 4,
-            // the stream cannot be seeked
-            non_seekable_stream=5,
-            // the stream cannot be read
-            non_readable_stream=6,
-            // more data was expected
-            unexpected_end_of_stream=7,
-            // the specified font index does not exist
-            font_index_out_of_range=8,
-            // an invalid argument was passed
-            invalid_argument=9,
-            // not enough memory to complete the operation
-            out_of_memory=10,
-            // vector fonts are not supported
-            vector_font_not_supported=11
-        };
-    private:
-        uint16_t m_height;
-        uint16_t m_average_width;
-        uint16_t m_point_size;
-        uint16_t m_ascent;
-        point16 m_resolution;
-        char m_first_char;
-        char m_last_char;
-        char m_default_char;
-        char m_break_char;
-        font_style m_style;
-        uint16_t m_weight;
-        uint8_t m_charset;
-        uint16_t m_internal_leading;
-        uint16_t m_external_leading;
-        // char data is, for each character from
-        // m_first_char to m_last_char, one
-        // uint16_t width, followed by encoded
-        // font data
-        const uint8_t* m_char_data;
-        // if set, data will be freed on class destruction
-        uint8_t* m_owned_data;
-        
-        static inline uint16_t order_guard(uint16_t value) {
-            return bits::from_le(value);
-        }
-        static inline uint32_t order_guard(uint32_t value) {
-            return bits::from_le(value);
-        }
-        static inline uint8_t order_guard(uint8_t value) {
-            return bits::from_le(value);
-        }
-#if HTCW_MAX_WORD >= 64
-        static inline uint64_t order_guard(uint64_t value) {
-            return bits::from_le(value);
-        }
-#endif
-        static result read_font_init(io::stream* stream, long long int* pos,uint16_t* ctstart,uint16_t* ctsize);
-        static result read_font(io::stream* stream,char first_char, char last_char, uint8_t* buffer,font* out_font,size_t* out_size);
-        static result read_ne(uint32_t neoff,io::stream* stream,size_t index,char first_char,char last_char, uint8_t* buffer, font* out_font,size_t* out_size);
-        static inline result read_pe(uint32_t neoff, io::stream* stream,size_t index,char first_char, char last_char, uint8_t* buffer,font* out_font,size_t* out_size) {
-            return result::io_error;
-        }
-        const uint8_t* char_data_ptr(char ch) const;
-        font(const font& rhs)=delete;
-        font& operator=(const font& rhs)=delete;
+    class font_measure_cache {
+        typedef struct measure_key {
+            uint8_t value[8];
+            inline bool operator==(const measure_key& key) const {
+                return 0==memcmp(key.value,value,8);
+            }
+        } key_t;
+        typedef struct {
+            int accessed;
+            font_glyph_info data;
+        } cache_entry_t;
+        using map_t = data::simple_fixed_map<key_t,cache_entry_t,64>;
+        void*(*m_allocator)(size_t);
+        void*(*m_reallocator)(void*,size_t);
+        void(*m_deallocator)(void*);
+        bool m_initialized;
+        int m_accessed;
+        map_t m_cache;
+        size_t m_memory_size;
+        size_t m_max_memory_size;
+        size_t m_max_entries;
+        font_measure_cache(const font_measure_cache& rhs)=delete;
+        font_measure_cache& operator=(const font_measure_cache& rhs)=delete;
+        static int hash_function(const key_t& key); 
+        static void make_key(int32_t codepoint1, int32_t codepoint2, key_t* out_key);
+        void expire_memory(size_t new_data_size);
+        void expire_item();
+        void reduce(int new_size, int new_item_size);
     public:
-        // constructs an empty font. Not really usable yet
-        font();
-        // constructs a font with the specified data
-        font(
-            uint16_t height,
-            uint16_t average_width,
-            uint16_t point_size,
-            uint16_t ascent,
-            point16 dpi,
-            char first_char,
-            char last_char,
-            char default_char,
-            char break_char,
-            font_style style,
-            uint16_t weight,
-            uint8_t charset,
-            uint16_t internal_leading,
-            uint16_t external_leading,
-            // char data is, for each character from
-            // first_char to last_char, one
-            // uint16_t width, followed by encoded
-            // font data
-            const uint8_t* char_data
-        );
-        // constructs a font with the specified stream
-        font(io::stream* stream,size_t index=0, char first_char = '\0', char last_char='\xFF');
-        // resource steals from another font
-        font(font&& rhs);
-        // resource steals from another font
-        font& operator=(font&& rhs);
-        // destroys any memory created by the font
-        ~font();
-        // indicates the font height
-        inline uint16_t height() const {
-            return m_height;
-        }
-        // indicates the horizontal and vertical resolution in dots per inch
-        inline point16 resolution() const {
-            return m_resolution;
-        }
-        // indicates the internal leading
-        inline uint16_t internal_leading() const {
-            return m_internal_leading;
-        }
-        // indicates the external leading
-        inline uint16_t external_leading() const {
-            return m_external_leading;
-        }
-        // indicates the ascent which is the baseline of the font
-        inline uint16_t ascent() const {
-            return m_ascent;
-        }
-        // indicates the size of the font in points
-        inline uint16_t point_size() const {
-            return m_point_size;
-        }
-        // indicates the font style
-        inline font_style style() const {
-            return m_style;
-        }
-        // indicates the font weight
-        inline uint16_t weight() const {
-            return m_weight;
-        }
-        // indicates the first character represented by the font
-        inline char first_char() const {
-            return m_first_char;
-        }
-        // indicates the final character represented by the font
-        inline char last_char() const {
-            return m_last_char;
-        }
-        // indicates the character used if no other character could be mapped
-        inline char default_char() const {
-            return m_default_char;
-        }
-        // indicates the character used for word breaks (not currently used)
-        inline char break_char() const {
-            return m_break_char;
-        }
-        // indicates the character set code
-        inline uint8_t charset() const {
-            return m_charset;
-        }
-        // indicates the average width of the characters
-        inline uint16_t average_width() const {
-            return m_average_width;
-        }
-        // indicates the width of an individual character
-        uint16_t width(char ch) const;
-        // retrieves information about the specified character
-        const font_char operator[](int ch) const;
-
-        // reads a font from a stream
-        static result read(io::stream* stream, font* out_font,size_t index=0, char first_char = '\0',char last_char='\xFF',uint8_t* buffer=nullptr);
-        // measures the size of the text within the destination rectangle
-        ssize16 measure_text(
-            ssize16 dest_size,
-            const char* text,
-            unsigned int tab_width=4) const;
+        font_measure_cache(void*(allocator)(size_t)=::malloc, void*(reallocator)(void*,size_t)=::realloc, void(deallocator)(void*)=::free);
+        font_measure_cache(font_measure_cache&& rhs);
+        virtual ~font_measure_cache();
+        font_measure_cache& operator=(font_measure_cache&& rhs);
+        size_t max_memory_size() const;
+        void max_memory_size(size_t value);
+        size_t memory_size() const;
+        size_t max_entries() const;
+        void max_entries(size_t value);
+        size_t entries() const;
+        gfx_result add(int32_t codepoint1, int32_t codepoint2, const font_glyph_info& data);
+        gfx_result find(int32_t codepoint1, int32_t codepoint2, font_glyph_info* out_glyph_info);
+        void clear();
+        gfx_result initialize();
+        bool initialized() const;
+        void deinitialize();
     };
+    class font;
+    struct text_info final {
+        text_handle text;
+        size_t text_byte_count;
+        const font* text_font;
+        unsigned int tab_width;
+        const text_encoder* encoding;
+        font_measure_cache* measure_cache;
+        font_draw_cache* draw_cache;
+        inline text_info() : text_font(nullptr) {
+            text = nullptr;
+            text_byte_count = 0;
+            tab_width = 4;
+            encoding = &text_encoding::utf8;
+            measure_cache = nullptr;
+            draw_cache = nullptr;
+        }
+        inline text_info(const text_handle text, size_t text_byte_count, const ::gfx::font& font, int tab_width = 4, const text_encoder& encoding = text_encoding::utf8,font_measure_cache* measure_cache = nullptr, font_draw_cache* draw_cache =nullptr ) {
+            this->text = text;
+            this->text_byte_count = text_byte_count;
+            this->text_font = &font;
+            this->tab_width = tab_width;
+            this->encoding = &encoding;
+            this->measure_cache = measure_cache;
+            this->draw_cache = draw_cache;
+        }
+        inline text_info(const char* text, const ::gfx::font& font, int tab_width = 4, const text_encoder& encoding = text_encoding::utf8,font_measure_cache* measure_cache = nullptr, font_draw_cache* draw_cache =nullptr ) {
+            this->text = (text_handle)text;
+            this->text_byte_count = strlen(text);
+            this->text_byte_count = text_byte_count;
+            this->text_font = &font;
+            this->tab_width = tab_width;
+            this->encoding = &encoding;
+            this->measure_cache = measure_cache;
+            this->draw_cache = draw_cache;
+        }
+        inline void text_sz(const char* text) {
+            this->text = (text_handle)text;
+            if(text!=nullptr) {
+                this->text_byte_count=strlen(text);
+            } else {
+                this->text_byte_count = 0;
+            }
+        }
+    };
+    class font {
+    protected:
+        virtual gfx_result on_measure(int32_t codepoint1,int32_t codepoint2, font_glyph_info* out_glyph_info) const=0;
+        virtual gfx_result on_draw(bitmap<alpha_pixel<8>>& destination,int32_t codepoint, int32_t glyph_index = -1) const=0;
+    public:
+        virtual gfx_result initialize()=0;
+        virtual bool initialized() const=0;
+        virtual void deinitialize()=0;
+        virtual uint16_t line_height() const = 0;
+        virtual uint16_t line_advance() const = 0;
+        virtual uint16_t base_line() const = 0;
+    public:
+        gfx_result measure(uint16_t max_width,const text_handle text, size_t text_data_len, size16* out_area, uint16_t tab_width = 4, const text_encoder& encoding = text_encoding::utf8, font_measure_cache* cache = nullptr) const;
+        gfx_result draw(const srect16& bounds, const text_handle text,size_t text_data_len, font_draw_callback callback, void* callback_state=nullptr,  uint16_t tab_width = 4, const text_encoder& encoding = text_encoding::utf8, font_draw_cache* draw_cache = nullptr, font_measure_cache* measure_cache = nullptr) const;
+        inline gfx_result measure(uint16_t max_width,const char* text, size16* out_area, uint16_t tab_width = 4, const text_encoder& encoding = text_encoding::utf8, font_measure_cache* cache = nullptr) const {
+            return this->measure(max_width,(text_handle)text,strlen(text),out_area,tab_width,encoding,cache);
+        }
+        inline gfx_result measure(uint16_t max_width,const text_info& ti, size16* out_area) const {
+            return this->measure(max_width,ti.text,ti.text_byte_count,out_area, ti.tab_width,*ti.encoding,ti.measure_cache);
+        }
+        inline gfx_result draw(const srect16& bounds, const char* text, font_draw_callback callback, void* callback_state=nullptr,  uint16_t tab_width = 4, const text_encoder& encoding = text_encoding::utf8, font_draw_cache* draw_cache = nullptr, font_measure_cache* measure_cache = nullptr) const {
+            return this->draw(bounds,(text_handle)text,strlen(text),callback,callback_state,tab_width,encoding,draw_cache,measure_cache);
+        }
+        inline gfx_result draw(const srect16& bounds, const text_info& ti, font_draw_callback callback, void* callback_state=nullptr) const {
+            return this->draw(bounds,ti.text,ti.text_byte_count,callback,callback_state,ti.tab_width,*ti.encoding,ti.draw_cache,ti.measure_cache);
+        }
+    };
+    
 }
-#endif
+#endif // HTCW_GFX_FONT_HPP

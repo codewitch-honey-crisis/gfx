@@ -83,11 +83,11 @@ struct NSVGrasterizer {
     void* readCallbackState;
 };
 
-gfx::gfx_result svg_parse_to_image(gfx::stream* stream, uint16_t dpi, svg_image** out_image, void*(allocator)(size_t), void*(reallocator)(void*, size_t), void(deallocator)(void*));
+gfx::gfx_result svg_parse_to_image(gfx::stream* stream, uint16_t dpi, svg_image_info** out_image, void*(allocator)(size_t), void*(reallocator)(void*, size_t), void(deallocator)(void*));
 void svg_delete_paths(svg_path* path, void(deallocator)(void*));
 void svg_delete_paint(svg_paint* paint, void(deallocator)(void*));
 void svg_delete_shapes(svg_shape* shape, void(deallocator)(void*));
-void svg_delete_image(svg_image* image, void(deallocator)(void*));
+void svg_delete_image(svg_image_info* image, void(deallocator)(void*));
 inline float svg_minf(float a, float b) { return a < b ? a : b; }
 inline float svg_maxf(float a, float b) { return a > b ? a : b; }
 int svg_pt_in_bounds(float* pt, float* bounds);
@@ -109,7 +109,7 @@ gfx::gfx_result svg_create_rasterizer(NSVGrasterizer** out_rasterizer, void*(all
 //				   svg_image* image, float tx, float ty, float scale,
 //				   unsigned char* dst, int w, int h, int stride);
 gfx::gfx_result svg_rasterize(NSVGrasterizer* r,
-                   svg_image* image, float tx, float ty, float scale,
+                   svg_image_info* image, float tx, float ty, float scale,
                    unsigned char* dst, NSVGrasterizerReadCallback readCallback, void* readCallbackState, NSVGrasterizerWriteCallback writeCallback, void* writeCallbackState, int w, int h, int stride);
 // Deletes rasterizer context.
 void svg_delete_rasterizer(NSVGrasterizer* r);

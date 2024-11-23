@@ -28,6 +28,12 @@ struct gfx_sqrt_result final {
 } ;
 
 struct math {
+    constexpr static const float pi =      3.14159265358979323846f;
+    constexpr static const float two_pi =  6.28318530717958647693f;
+    constexpr static const float half_pi = 1.57079632679489661923f;
+    constexpr static const float sqrt2 =   1.41421356237309504880f;
+    constexpr static const float kappa =   0.55228474983079339840f;
+
     static int16_t sin(int16_t angle);
     static int16_t cos(int16_t angle);
     static uint32_t bezier3(uint32_t t, uint32_t u0, uint32_t u1, uint32_t u2, uint32_t u3);
@@ -36,6 +42,13 @@ struct math {
     static int64_t pow(int64_t base, int8_t exp);
     static int32_t map(int32_t x, int32_t min_in, int32_t max_in, int32_t min_out, int32_t max_out);
     static uint32_t rand(uint32_t min, uint32_t max);
+    
+    static inline float deg2rad(float x) {
+        return x * (pi/180.0f);
+    }
+    static inline float rad2deg(float x) {
+        return x * (180.0f/pi);
+    }
     template<typename T> constexpr static T min(T a, T b) {
         return a < b ? a : b;
     }
@@ -63,6 +76,7 @@ struct math {
     template<typename T> constexpr static T udiv255(T value) {
         return ((value) * 0x8081U) >> 0x17;
     }
+
     template<typename T> constexpr static bool is_signed() {
         return ((T)-1) < ((T)-0);
     }
@@ -75,6 +89,32 @@ struct math {
     template<typename T> constexpr static T max_of() {
         return is_signed<T>()?smax_of<T>():umax_of<T>();
     }
+    // Approximate sqrt(x*x+y*y) using the `alpha max plus beta min'
+    // algorithm.  We use alpha = 1, beta = 3/8, giving us results with a
+    // largest error less than 7% compared to the exact value.
+    template<typename T> constexpr static T hypot(T x, T y) {
+        T xx = (T)absx(x);
+        T yy = (T)absx(y);
+        return xx>yy? xx+(3*yy>>3):yy+(3*xx>>3);
+    }
+    constexpr static const int32_t pi_angle_ft16_16 = ( 180L << 16 );
+    constexpr static const int32_t twopi_angle_ft16_16 = pi_angle_ft16_16 * 2;
+    constexpr static const int32_t pitwo_angle_ft16_16 = pi_angle_ft16_16 / 2;
+    constexpr static const int32_t pifour_angle_ft16_16 = pi_angle_ft16_16 / 4;
+    // fixed point multiply
+    static int32_t mul_ft16_16( int32_t  a, int32_t  b );
+    static int32_t muldiv_ft16_16(int32_t a, int32_t b, int32_t c);
+    static int32_t div_ft16_16(int32_t a, int32_t b);
+    static int32_t sin_ft16_16(int32_t a);
+    static int32_t cos_ft16_16(int32_t a);
+    static int32_t tan_ft16_16(int32_t a);
+    static int32_t atan2_ft16_16(int32_t x, int32_t y);
+    static int32_t angle_diff_ft16_16(int32_t lhs,int32_t rhs);
+    static void vector_unit_ft16_16(int32_t angle, int32_t* out_x,int32_t* out_y);
+    static void vector_rotate_ft16_16(int32_t angle, int32_t* in_out_x,int32_t* in_out_y);
+    static int32_t vector_length_ft16_16(int32_t x,int32_t y);
+    static void vector_polarize_ft16_16(int32_t x,int32_t y, int32_t* out_length, int32_t* out_angle);
+    static void vector_from_polar_ft16_16(int32_t length,int32_t angle, int32_t* out_x,int32_t* out_y);
 };
 }
 #endif

@@ -21,7 +21,6 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -77,7 +76,7 @@ struct _pngle_t {
 	// PLTE chunk
 	size_t n_palettes;
 	uint8_t *palette;
-	void* draw_state;
+
 	// tRNS chunk
 	size_t n_trans_palettes;
 	uint8_t *trans_palette;
@@ -127,7 +126,6 @@ static uint32_t interlace_off_x[8] = { 0,  0, 4, 0, 2, 0, 1, 0 };
 static uint32_t interlace_off_y[8] = { 0,  0, 0, 4, 0, 2, 0, 1 };
 static uint32_t interlace_div_x[8] = { 1,  8, 8, 4, 4, 2, 2, 1 };
 static uint32_t interlace_div_y[8] = { 1,  8, 8, 8, 4, 4, 2, 2 };
-
 
 static inline uint8_t  read_uint8(const uint8_t *p)
 {
@@ -287,7 +285,10 @@ static int pngle_draw_pixels(pngle_t *pngle, size_t scanline_ringbuf_xidx)
 
 	int n_pixels = pngle->hdr.depth == 16 ? 1 : (8 / pngle->hdr.depth);
 
-	for (; n_pixels-- > 0 && pngle->drawing_x < pngle->hdr.width; pngle->drawing_x = U32_CLAMP_ADD(pngle->drawing_x, interlace_div_x[pngle->interlace_pass], pngle->hdr.width)) {
+	for (; n_pixels-- > 0 && pngle->drawing_x < pngle->hdr.width; pngle->drawing_x = 
+
+    U32_CLAMP_ADD(pngle->drawing_x, interlace_div_x[pngle->interlace_pass], pngle->hdr.width)
+    ) {
 		for (uint_fast8_t c = 0; c < pngle->channels; c++) {
 			v[c] = get_value(pngle, &scanline_ringbuf_xidx, &bitcount, pngle->hdr.depth);
 		}
@@ -344,7 +345,6 @@ static int pngle_draw_pixels(pngle_t *pngle, size_t scanline_ringbuf_xidx)
 				, MIN(interlace_div_x[pngle->interlace_pass] - interlace_off_x[pngle->interlace_pass], pngle->hdr.width  - pngle->drawing_x)
 				, MIN(interlace_div_y[pngle->interlace_pass] - interlace_off_y[pngle->interlace_pass], pngle->hdr.height - pngle->drawing_y)
 				, rgba
-				, pngle->draw_state
 			);
 		}
 	}
@@ -369,17 +369,16 @@ static int set_interlace_pass(pngle_t *pngle, uint_fast8_t pass)
 	pngle->interlace_pass = pass;
 
 	uint_fast8_t bytes_per_pixel = (pngle->channels * pngle->hdr.depth + 7) / 8; // 1 if depth <= 8
-	size_t scanline_pixels = (pngle->hdr.width - interlace_off_x[pngle->interlace_pass] + interlace_div_x[pngle->interlace_pass] - 1) / interlace_div_x[pngle->interlace_pass];
-	size_t scanline_stride = (scanline_pixels * pngle->channels * pngle->hdr.depth + 7) / 8;
+    size_t scanline_pixels = (pngle->hdr.width - interlace_off_x[pngle->interlace_pass] + interlace_div_x[pngle->interlace_pass] - 1) / interlace_div_x[pngle->interlace_pass];
+    size_t scanline_stride = (scanline_pixels * pngle->channels * pngle->hdr.depth + 7) / 8;
 
 	pngle->scanline_ringbuf_size = scanline_stride + bytes_per_pixel * 2; // 2 rooms for c/x and a
 
 	if (pngle->scanline_ringbuf) free(pngle->scanline_ringbuf);
 	if ((pngle->scanline_ringbuf = PNGLE_CALLOC(pngle->scanline_ringbuf_size, 1, "scanline ringbuf")) == NULL) return PNGLE_ERROR("Insufficient memory");
-
 	pngle->drawing_x = interlace_off_x[pngle->interlace_pass];
 	pngle->drawing_y = interlace_off_y[pngle->interlace_pass];
-	pngle->filter_type = -1;
+    pngle->filter_type = -1;
 
 	pngle->scanline_ringbuf_cidx = 0;
 	pngle->scanline_remain_bytes_to_render = -1;
@@ -423,7 +422,7 @@ static int pngle_on_data(pngle_t *pngle, const uint8_t *p, int len)
 		if (pngle->drawing_x >= pngle->hdr.width) {
 			// New row
 			pngle->drawing_x = interlace_off_x[pngle->interlace_pass];
-			pngle->drawing_y = U32_CLAMP_ADD(pngle->drawing_y, interlace_div_y[pngle->interlace_pass], pngle->hdr.height);
+            pngle->drawing_y = U32_CLAMP_ADD(pngle->drawing_y, interlace_div_y[pngle->interlace_pass], pngle->hdr.height);			
 			pngle->filter_type = -1; // Indicate new line
 		}
 
@@ -849,11 +848,10 @@ void pngle_set_init_callback(pngle_t *pngle, pngle_init_callback_t callback)
 	pngle->init_callback = callback;
 }
 
-void pngle_set_draw_callback(pngle_t *pngle, pngle_draw_callback_t callback, void* state)
+void pngle_set_draw_callback(pngle_t *pngle, pngle_draw_callback_t callback)
 {
 	if (!pngle) return ;
 	pngle->draw_callback = callback;
-	pngle->draw_state = state;
 }
 
 void pngle_set_done_callback(pngle_t *pngle, pngle_done_callback_t callback)

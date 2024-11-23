@@ -1,461 +1,844 @@
-#include <stdint.h>
-#include <inttypes.h>
 #include <gfx_font.hpp>
-namespace gfx {
-    font::font() : m_owned_data(nullptr) {
-
+using namespace gfx;
+int font_draw_cache::hash_function(const int32_t& key) {
+    return (int)(key+5);
+}
+void font_draw_cache::expire_memory(size_t new_data_size) {
+    while(m_cache.size() && (m_memory_size+new_data_size)>m_max_memory_size) {
+        int min = -1;
+        size_t sz;
+        uint8_t* data;
+        map_t::key_type k;
+        for(size_t i = 0;i<m_cache.size();++i) {
+            map_t::value_type& v = *m_cache.at(i);
+            if(min==-1 || v.value.accessed<min) {
+                min = v.value.accessed;
+                k=v.key;
+                sz = v.value.dimensions.width*v.value.dimensions.height + sizeof(cache_entry_t)+sizeof(int32_t);
+                data = v.value.data;
+            }  
+        }
+        if(min==-1) {
+            break;
+        }
+        m_memory_size-=sz;
+        free(data);
+        m_cache.remove(k);   
     }
-    font::font(
-        uint16_t height,
-        uint16_t average_width,
-        uint16_t point_size,
-        uint16_t ascent,
-        point16 dpi,
-        char first_char,
-        char last_char,
-        char default_char,
-        char break_char,
-        font_style style,
-        uint16_t weight,
-        uint8_t charset,
-        uint16_t internal_leading,
-        uint16_t external_leading,
-        // char data is, for each character from
-        // first_char to last_char, one
-        // uint16_t width, followed by encoded
-        // font data
-        const uint8_t* char_data
-    ) :
-        m_height(height),
-        m_average_width(average_width),
-        m_point_size(point_size),
-        m_ascent(ascent),
-        m_resolution(dpi),
-        m_first_char(first_char),
-        m_last_char(last_char),
-        m_default_char(default_char),
-        m_break_char(break_char),
-        m_style(style),
-        m_weight(weight),
-        m_charset(charset),
-        m_internal_leading(internal_leading),
-        m_external_leading(external_leading),
-        m_char_data(char_data),
-        m_owned_data(nullptr)
-    {
-        
-    }
-    font::font(io::stream* stream,size_t index, char first_char, char last_char) {
-        read(stream,this,index,first_char,last_char,nullptr);
-    }
-    font::font(font&& rhs) :
-        m_height(rhs.m_height),
-        m_average_width(rhs.m_average_width),
-        m_point_size(rhs.m_point_size),
-        m_ascent(rhs.m_ascent),
-        m_resolution(rhs.m_resolution),
-        m_first_char(rhs.m_first_char),
-        m_last_char(rhs.m_last_char),
-        m_default_char(rhs.m_default_char),
-        m_break_char(rhs.m_break_char),
-        m_style(rhs.m_style),
-        m_weight(rhs.m_weight),
-        m_charset(rhs.m_charset),
-        m_internal_leading(rhs.m_internal_leading),
-        m_external_leading(rhs.m_external_leading),
-        m_char_data(rhs.m_char_data),
-        m_owned_data(rhs.m_owned_data)
-    {
-        rhs.m_owned_data=nullptr;
-    }
-    font& font::operator=(font&& rhs) {
-        if(nullptr!=m_owned_data)
-            free(m_owned_data);
-        m_height=rhs.m_height;
-        m_average_width=rhs.m_average_width;
-        m_point_size=rhs.m_point_size;
-        m_ascent=rhs.m_ascent;
-        m_resolution=rhs.m_resolution;
-        m_first_char=rhs.m_first_char;
-        m_last_char=rhs.m_last_char;
-        m_default_char=rhs.m_default_char;
-        m_break_char=rhs.m_break_char;
-        m_style=rhs.m_style;
-        m_weight=rhs.m_weight;
-        m_charset=rhs.m_charset;
-        m_internal_leading=rhs.m_internal_leading;
-        m_external_leading=rhs.m_external_leading;
-        m_char_data=rhs.m_char_data;
-        m_owned_data=rhs.m_owned_data;
-        rhs.m_owned_data=nullptr;
-        return *this;
-    }
-    // destroys any memory created by the font
-    font::~font() {
-        if(nullptr!=m_owned_data)
-            free(m_owned_data);
-    }
-    font::result font::read_font_init(io::stream* stream, long long int* pos,uint16_t* ctstart,uint16_t* ctsize) {
-        *pos = stream->seek(0,io::seek_origin::current);
-        uint16_t version = order_guard(stream->template read<uint16_t>());
-        if(0x200==version) {
-            *ctstart = 0x76;
-            *ctsize = 4;
-        } else {
-            *ctstart = 0x94;
-            *ctsize = 6;
-        }    
-        return result::success;
-    }
-    font::result font::read_font(io::stream* stream,char first_char, char last_char, uint8_t* buffer,font* out_font,size_t* out_size) {
-        long long int pos;
-        uint16_t ctstart;
-        uint16_t ctsize;
-        if(nullptr==out_font) {
-            if(nullptr==out_size) {
-                // nothing to do
-                return font::result::success;
-            }
-            read_font_init(stream,&pos,&ctstart,&ctsize);
-            stream->seek(pos+0x58);
-            uint16_t pxheight = order_guard(stream->template read<uint16_t>());
-            stream->seek(pos+0x5F);
-            uint8_t fc = (uint8_t)stream->getch();
-            uint8_t lc = (uint8_t)stream->getch();
-            uint8_t dc = (uint8_t)stream->getch()+fc;
-            uint8_t bc = (uint8_t)stream->getch()+fc;
-            if((uint8_t)first_char<fc)
-                first_char = fc;
-            if(dc<(uint8_t)first_char) {
-                first_char = dc;
-            }
-            if(bc<(uint8_t)first_char) {
-                first_char = bc;
-            }
-            
-            if((uint8_t)last_char>lc)
-                last_char = lc;
-            if(dc>(uint8_t)last_char) {
-                last_char = dc;
-            }
-            if(bc>(uint8_t)last_char) {
-                last_char = bc;
-            }
-            size_t size = 0;
-            for(size_t i = (uint8_t)first_char;i<=(uint8_t)last_char;++i) {
-                size_t entry =ctstart+ctsize*(i-fc);
-                stream->seek(pos+entry);
-                uint16_t w = order_guard(stream->template read<uint16_t>());
-                size+=2; // 2 bytes for width
-                size_t wb = (w+7)/8;
-                // size of char table
-                size += (wb*pxheight);
-            }
-            *out_size=size;
-            return font::result::success;
-        }
-        out_font->m_char_data = buffer;
-        read_font_init(stream,&pos,&ctstart,&ctsize);
-        stream->seek(pos+66);
-        uint16_t ftype = order_guard(stream->template read<uint16_t>());
-        if(ftype&1) {
-            return result::vector_font_not_supported;
-        }
-        out_font->m_point_size = order_guard(stream->template read<uint16_t>());
-        out_font->m_resolution.y =  order_guard(stream->template read<uint16_t>());
-        out_font->m_resolution.x =  order_guard(stream->template read<uint16_t>());
-        out_font->m_ascent =  order_guard(stream->template read<uint16_t>());
-        out_font->m_internal_leading=order_guard(stream->template read<uint16_t>());
-        out_font->m_external_leading=order_guard(stream->template read<uint16_t>());
-        out_font->m_style = {0,0,0};
-        if(0<stream->getch()) {
-            out_font->m_style.italic = true;
-        }
-        if(0<stream->getch()) {
-            out_font->m_style.underline = true;
-        }
-        if(0<stream->getch()) {
-            out_font->m_style.strikeout = true;
-        }
-        out_font->m_weight = order_guard(stream->template read<uint16_t>());
-        int gc = stream->getch();
-        if(0>gc)
-            return result::unexpected_end_of_stream;
-        out_font->m_charset = (uint8_t)gc;
-        out_font->m_average_width=order_guard(stream->template read<uint16_t>());
-        out_font->m_height = order_guard(stream->template read<uint16_t>());
-        // skip pitch and family
-        stream->seek(1,io::seek_origin::current);
-        if(0==out_font->m_average_width)
-            out_font->m_average_width=order_guard(stream->template read<uint16_t>());
-        else
-            stream->seek(2,io::seek_origin::current);    
-        // skip max_width
-        stream->seek(2,io::seek_origin::current);
-        gc = stream->getch();
-        if(0>gc)
-            return result::unexpected_end_of_stream;
-        out_font->m_first_char = (char)gc;
-        gc = stream->getch();
-        if(0>gc)
-            return result::unexpected_end_of_stream;
-        out_font->m_last_char = (char)gc;
-        gc = stream->getch();
-        if(0>gc)
-            return result::unexpected_end_of_stream;
-        out_font->m_default_char = (char)gc+out_font->m_first_char;
-        gc = stream->getch();
-        if(0>gc)
-            return result::unexpected_end_of_stream;
-        out_font->m_break_char = (char)gc+out_font->m_first_char;
-        size_t size = 0;
-        
-        if((uint8_t)first_char<(uint8_t)out_font->m_first_char)
-            first_char = out_font->m_first_char;
-        if((uint8_t)out_font->m_default_char<(uint8_t)first_char) {
-            first_char = out_font->m_default_char;
-        }
-        if((uint8_t)out_font->m_break_char<(uint8_t)first_char) {
-            first_char = out_font->m_break_char;
-        }
-        
-        if((uint8_t)last_char>(uint8_t)out_font->m_last_char)
-            last_char = out_font->m_last_char;
-        if((uint8_t)out_font->m_default_char>(uint8_t)last_char) {
-            last_char = out_font->m_default_char;
-        }
-        if((uint8_t)out_font->m_break_char>(uint8_t)last_char) {
-            last_char = out_font->m_break_char;
-        }
-        for(size_t i = (uint8_t)first_char;i<=(uint8_t)last_char;++i) {
-            size_t entry =ctstart+ctsize*(i-out_font->m_first_char);
-            stream->seek(pos+entry);
-            uint16_t w = order_guard(stream->template read<uint16_t>());
-            size+=2; // 2 bytes for width
-            size_t wb = (w+7)/8;
-            // size of char table
-            size += (wb*out_font->m_height);
-            uint32_t off;
-            if(ctsize==4) {
-                off = order_guard(stream->template read<uint16_t>());
-            } else {
-                off = order_guard(stream->template read<uint32_t>());
-            }
-            stream->seek(off+pos);
-            *((uint16_t*)buffer)=w;
-            buffer+=sizeof(uint16_t);
-            for(size_t j=0;j<out_font->m_height;++j) {
-                bits::uint_max accum = 0;
-                for(size_t k=0;k<wb;++k) {
-                    uint32_t bytepos = off+k*out_font->m_height+j;
-                    accum<<=8;
-                    stream->seek(pos+bytepos);
-                    uint8_t b;
-                    if(1!=stream->read(&b,1))
-                        return result::unexpected_end_of_stream;
-                    accum|=b;
-                }
-                accum>>=(8*wb-w);
-                // TODO: Ensure this is correct on big endian machines
-                accum = order_guard(accum);
-                memcpy(buffer,((uint8_t*)&accum),wb);
-                buffer+=wb;
-            }
-        }
-        out_font->m_first_char = first_char;
-        out_font->m_last_char = last_char;
-        if(out_size!=nullptr)
-            *out_size=size;
-        
-        return result::success;
-    }
-    font::result font::read_ne(uint32_t neoff,io::stream* stream,size_t index,char first_char,char last_char, uint8_t* buffer, font* out_font,size_t* out_size) {
-        if(0x24+neoff!=stream->seek(neoff+0x24)) {
-            return result::unexpected_end_of_stream;
-        }
-        uint16_t rtable=order_guard(stream->template read<uint16_t>());
-        uint32_t rtablea=rtable+neoff;
-        if(rtablea!=stream->seek(rtablea)) {
-            return result::unexpected_end_of_stream;
-        }
-        uint16_t shift=order_guard(stream->template read<uint16_t>());
-        size_t ii = 0;
-        while(true) {
-            uint16_t rtype=order_guard(stream->template read<uint16_t>());
-            if(0==rtype)
-                break; // end of resource table
-            uint16_t count=order_guard(stream->template read<uint16_t>());
-            // skip 4 bytes (reserved)
-            stream->seek(4,io::seek_origin::current);
-            for(int i=0;i<count;++i) {
-                uint32_t start=order_guard(stream->template read<uint16_t>())<<shift;
-                // skip the size, we don't need it.
-                stream->seek(2,io::seek_origin::current);
-                if(0x8008==rtype) { // is font entry
-                    if(ii==index) {
-                        stream->seek(start);
-                        return read_font(stream,first_char,last_char,buffer,out_font,out_size);
-                    }
-                    ++ii;
-                }
-                stream->seek(8,io::seek_origin::current);
-            }
-        }
-        return result::font_index_out_of_range;
-    }
-    const uint8_t* font::char_data_ptr(char ch) const {
-        if(nullptr==m_char_data)
-            return nullptr;
-        if((uint8_t)ch<(uint8_t)m_first_char || (uint8_t)ch>(uint8_t)m_last_char)
-        {
-            ch=m_default_char;
-        }
-        const uint8_t* data = m_char_data;
-        for(size_t i = (uint8_t)m_first_char;i<(uint8_t)ch;++i) {
-            uint16_t w = pgm_read_byte((uint16_t*)data);
-            data+=sizeof(w);
-            size_t wb = (w+7)/8;
-            data+=(wb*m_height);
-        }
-        return data;
-    }
-    uint16_t font::width(char ch) const {
-        const uint8_t* p = char_data_ptr(ch);
-        if(nullptr!=p) {
-            return pgm_read_byte((uint16_t*)p);
-        }
-        return 0;
-    }
-    // retrieves information about the specified character
-    const font_char font::operator[](int ch) const {
-        const uint8_t* p= char_data_ptr((char)ch);
-        font_char result;
-        result.m_width = pgm_read_byte((uint16_t*)p);
-        p+=sizeof(uint16_t);
-        result.m_data = p;
-        return result;
-    }
-    font::result font::read(io::stream* stream, font* out_font,size_t index, char first_char,char last_char,uint8_t* buffer) {
-        uint8_t mz[2];
-        io::stream_caps scaps=stream->caps();
-        if(nullptr==out_font)
-            return result::invalid_argument;
-        if(!scaps.seek) 
-            return result::non_seekable_stream;
-        if(!scaps.read) 
-            return result::non_readable_stream;
-        
-        if(0!=stream->seek(0)) {
-            return result::io_error;
-        }
-        if(2!=stream->read(mz,2) || 'M'!=mz[0] || 'Z'!=mz[1]) {
-            return result::no_mz_signature;
-        }
-        if(0x3C!=stream->seek(0x3C)) {
-            return result::no_exe_signature;
-        }
-        uint32_t neoff;
-        if(4!=stream->read((uint8_t*)&neoff,4)) {
-            return result::no_exe_signature;
-        }
-        if(neoff!=stream->seek(neoff)) {
-            return result::no_exe_signature;
-        }
-        uint8_t sig[2];
-        if(2!=stream->read(sig,2)) {
-            return result::no_exe_signature;
-        }
-        if('N'==sig[0] && 'E'==sig[1]) {
-            bool own = false;
-            if(nullptr==buffer) {
-                // bookmark our position and then get the size
-                size_t size;
-                auto pos = stream->seek(0,io::seek_origin::current);
-                result r = read_ne(neoff,stream,index,first_char,last_char,nullptr, nullptr,&size);
-                if(result::success!=r) {
-                    return r;
-                }
-                if(pos!=stream->seek(pos)) 
-                    return result::io_error;
-                // now alloc the buffer
-                buffer = (uint8_t*)malloc(size);
-                if(nullptr==buffer)
-                    return result::out_of_memory;
-                own = true;
-            }
-            result rr = read_ne(neoff,stream,index,first_char,last_char,buffer, out_font,nullptr);
-            if(result::success==rr) {
-                if(own) {
-                    out_font->m_owned_data = buffer;
-                } else
-                    out_font->m_owned_data=nullptr;
-            }
-            return rr;
-        } else if('P'==sig[0] && 'E'==sig[1]) {
-            if(2!=stream->read(sig,2)) {
-                return result::no_exe_signature;
-            }
-            if(0==sig[0] && 0==sig[1]) {
-                return read_pe(neoff,stream,index,first_char,last_char,buffer,out_font,nullptr);
-            }
-        }
-        return result::no_exe_signature;
-    }
-    ssize16 font::measure_text(
-        ssize16 dest_size,
-        const char* text,
-        unsigned int tab_width) const {
-        if(nullptr==text || 0==*text) {
-            return {0,0};
-        }
-        int mw = 0;
-        int w = 0;
-        int h = 0;
-        int cw;
-        const char*sz=text;
-        while(*sz) {
-            if(h==0) {
-                h=height();
-            }
-            font_char fc = (*this)[*sz];
-            switch(*sz) {
-                case '\n':
-                    if(w>mw) {
-                        mw = w;
-                    }
-                    h+=height();
-                    w=0;
-                    break;
-                case '\r':
-                    if(w>mw) {
-                        mw = w;
-                    }
-                    w=0;
-                    break;
-                case '\t':
-                    cw = average_width()*tab_width;
-                    w=((w/cw)+1)*cw;
-                    if(w>dest_size.width) {
-                        h+=height();
-                        if(w>mw) {
-                            mw = w;
-                        }   
-                        w=0;
-                    }
-                    break;
-                default:
-                    w+=fc.width();
-                    if(w>dest_size.width) {
-                        h+=height();
-                        w=fc.width();
-                    }
-                    if(w>mw) {
-                        mw = w;
-                    }   
-                    break;
-            }
-            ++sz;
-        }
-        return gfx::ssize16(mw,h);
+    if(!m_cache.size()) {
+        m_accessed=-1;
     }
 }
+void font_draw_cache::expire_item() {
+    if(m_cache.size()) {
+        int min = -1;
+        size_t sz=0;
+        uint8_t* data=nullptr;
+        map_t::key_type k;
+        for(size_t i = 0;i<m_cache.size();++i) {
+            map_t::value_type& v = *m_cache.at(i);
+            if(min==-1 || v.value.accessed<min) {
+                min = v.value.accessed;
+                k=v.key;
+                sz = v.value.dimensions.width*v.value.dimensions.height + sizeof(cache_entry_t)+sizeof(int32_t);
+                data = v.value.data;
+                break;
+            }  
+        }
+        m_memory_size-=sz;
+        if(data!=nullptr) free(data);
+        m_cache.remove(k);
+        if(!m_cache.size()) {
+            m_accessed=-1;
+        }
+    }
+}
+void font_draw_cache::reduce(int new_size, int new_items) {
+    if(new_size>-1) {
+        while(m_cache.size() && m_memory_size>(size_t)new_size) {
+            int min = -1;
+            size_t sz;
+            map_t::key_type k;
+            uint8_t* data;
+            for(size_t i = 0;i<m_cache.size();++i) {
+                map_t::value_type& v = *m_cache.at(i);
+                data = v.value.data;
+                if(min==-1 || v.value.accessed<min) {
+                    min = v.value.accessed;
+                    k=v.key;
+                    sz = v.value.dimensions.width*v.value.dimensions.height + sizeof(cache_entry_t)+sizeof(int32_t);
+                    break;
+                }
+            }
+            if(min==-1) {
+                break;
+            }
+            m_memory_size-=sz;
+            free(data);
+            m_cache.remove(k);   
+        }
+    }
+    if(new_items>-1) {
+        while(m_cache.size() >(size_t)new_items) {
+            int min = -1;
+            size_t sz;
+            map_t::key_type k;
+            uint8_t* data;
+            for(size_t i = 0;i<m_cache.size();++i) {
+                map_t::value_type& v = *m_cache.at(i);
+                data = v.value.data;
+                if(min==-1 || v.value.accessed<min) {
+                    min = v.value.accessed;
+                    k=v.key;
+                    sz = v.value.dimensions.width*v.value.dimensions.height + sizeof(cache_entry_t)+sizeof(int32_t);
+                    break;
+                }
+            }
+            if(min==-1) {
+                break;
+            }
+            m_memory_size-=sz;
+            free(data);
+            m_cache.remove(k);   
+        }
+    }
+    if(!m_cache.size()) {
+        m_accessed=-1;
+    }
+}
+font_draw_cache::font_draw_cache(void*(allocator)(size_t), void*(reallocator)(void*,size_t), void(deallocator)(void*)) : 
+                                m_allocator(allocator),
+                                m_reallocator(reallocator),
+                                m_deallocator(deallocator),
+                                m_initialized(false),
+                                m_accessed(-1),
+                                m_cache(hash_function,allocator,reallocator,deallocator),
+                                m_memory_size(0), 
+                                m_max_memory_size(0),
+                                m_max_entries(0) {}
+font_draw_cache::font_draw_cache(font_draw_cache&& rhs) : m_allocator(rhs.m_allocator),
+                                m_reallocator(rhs.m_reallocator),
+                                m_deallocator(rhs.m_deallocator),
+                                m_initialized(rhs.m_initialized),
+                                m_accessed(rhs.m_accessed),
+                                m_cache(rhs.m_cache),
+                                m_memory_size(rhs.m_memory_size), 
+                                m_max_memory_size(rhs.m_max_memory_size),
+                                m_max_entries(rhs.m_max_entries) {
+}
+font_draw_cache::~font_draw_cache() {
+    deinitialize();
+}
+font_draw_cache& font_draw_cache::operator=(font_draw_cache&& rhs) {
+    deinitialize();
+    m_allocator=rhs.m_allocator;
+    m_reallocator=rhs.m_reallocator;
+    m_deallocator=rhs.m_deallocator;
+    m_initialized=rhs.m_initialized;
+    m_accessed=rhs.m_accessed;
+    m_cache=helpers::gfx_move(rhs.m_cache);
+    m_memory_size=rhs.m_memory_size;
+    m_max_memory_size=rhs.m_max_memory_size;
+    m_max_entries = rhs.m_max_entries;
+    return *this;
+}
+size_t font_draw_cache::max_memory_size() const {
+    return m_max_memory_size;
+}
+void font_draw_cache::max_memory_size(size_t value) {
+    if(value<1) {
+        return;
+    }
+    if(m_memory_size>value) {
+        reduce(value,-1);
+    }
+    m_max_memory_size = value;
+}
+size_t font_draw_cache::memory_size() const {
+    return m_memory_size;
+}
+size_t font_draw_cache::max_entries() const {
+    return m_max_entries;
+}
+void font_draw_cache::max_entries(size_t value) {
+    if(m_cache.size()>value) {
+        reduce(-1,value);
+    }
+    m_max_entries = value;
+}
+size_t font_draw_cache::entries() const {
+    return m_cache.size();
+}
+
+gfx_result font_draw_cache::find(int32_t codepoint, size16* out_dimensions,uint8_t** out_bitmap) {
+    cache_entry_t* entry = m_cache.find(codepoint);
+    if(entry==nullptr) {
+        return gfx_result::canceled;
+    }
+    entry->accessed = m_accessed+1;
+    *out_bitmap=entry->data;
+    *out_dimensions=entry->dimensions;
+    return gfx_result::success;
+}
+void font_draw_cache::clear() {
+    for(int i = 0;i<m_cache.size();++i) {
+        uint8_t* p = m_cache.at(i)->value.data;
+        if(p!=nullptr) {
+            m_deallocator(p);
+        }
+    }
+    m_cache.clear();
+    m_accessed=-1;
+    m_memory_size=0;
+}
+gfx::gfx_result font_draw_cache::initialize() {
+    m_accessed=-1;
+    m_memory_size=0;
+    m_initialized=true;
+    return gfx_result::success;
+}
+bool font_draw_cache::initialized() const {
+    return m_initialized;
+}
+void font_draw_cache::deinitialize() {
+    clear();
+    m_initialized= false;
+}
+gfx_result font_draw_cache::add(int32_t codepoint, size16 dimensions, const uint8_t* data) {
+    size_t sz = dimensions.width*dimensions.height;
+    if(sz==0) {
+        return gfx_result::invalid_argument;
+    }
+    sz+=sizeof(cache_entry_t);
+    sz+=sizeof(int32_t);
+    if(m_max_memory_size>0 && sz>m_max_memory_size) {
+        return gfx_result::out_of_memory;
+    }
+    //printf("m_cache.size(): %d, m_size: %d, m_max_size: %d, new_size: %d\n",(int)m_cache.size(),(int)m_size,(int)m_max_size,(int)sz);
+    if(m_max_memory_size>0) {
+        while(m_cache.size() && m_memory_size+sz>m_max_memory_size) {
+            //puts("expire");
+            expire_memory(sz);
+            //puts("expire complete");
+        }
+    }
+    if(m_max_entries>0) {
+        while((m_cache.size()+1)>m_max_entries) {
+            expire_item();
+        }
+    }
+    if(m_max_memory_size>0 && m_memory_size+sz>m_max_memory_size) {
+        return gfx_result::out_of_memory;
+    }
+    cache_entry_t entry;
+    entry.data = (uint8_t*)m_allocator(sz);
+    if(entry.data==nullptr) {
+        return gfx_result::out_of_memory;
+    }
+    memcpy(entry.data,data,sz);
+    entry.dimensions = dimensions;
+    ++m_accessed;
+    entry.accessed = m_accessed;
+    if(!m_cache.insert({codepoint,entry})) {
+        m_deallocator(entry.data);
+        return gfx_result::out_of_memory;
+    }
+    m_memory_size+=sz;
+    return gfx_result::success;
+}
+
+int font_measure_cache::hash_function(const key_t& key) {
+    int result = 0;
+    const uint8_t* k = key.value;
+    for(int i = 0;i<8;++i) {
+        result|=~*(k++);
+    }
+    return result+5;
+}
+void font_measure_cache::make_key(int32_t codepoint1, int32_t codepoint2, key_t* key) {
+    memcpy(key->value,&codepoint1,sizeof(int32_t));
+    memcpy(key->value+sizeof(int32_t),&codepoint2,sizeof(int32_t));
+}
+
+void font_measure_cache::expire_memory(size_t new_data_size) {
+    size_t sz=sizeof(cache_entry_t)+sizeof(key_t);
+    while(m_cache.size() && (m_memory_size+new_data_size)>m_max_memory_size) {
+        int min = -1;
+        map_t::key_type k;
+        for(size_t i = 0;i<m_cache.size();++i) {
+            map_t::value_type& v = *m_cache.at(i);
+            if(min==-1 || v.value.accessed<min) {
+                min = v.value.accessed;
+                k=v.key;
+            } 
+        }
+        if(min==-1) {
+            break;
+        }
+        m_memory_size-=sz;
+        m_cache.remove(k);   
+        if(!m_cache.size()) {
+            m_accessed=-1;
+        }
+    }
+}
+void font_measure_cache::expire_item() {
+    if(m_cache.size()) {
+        int min = -1;
+        size_t sz=0;
+        map_t::key_type k;
+        for(size_t i = 0;i<m_cache.size();++i) {
+            map_t::value_type& v = *m_cache.at(i);
+            if(min==-1 || v.value.accessed<min) {
+                min = v.value.accessed;
+                k=v.key;
+                sz = sizeof(cache_entry_t)+sizeof(key_t);
+                break;
+            }  
+        }
+        m_memory_size-=sz;
+        m_cache.remove(k);
+        if(!m_cache.size()) {
+            m_accessed=-1;
+        }
+    }
+}
+void font_measure_cache::reduce(int new_size, int new_items) {
+    if(new_size>-1) {
+        while(m_cache.size() && m_memory_size>(size_t)new_size) {
+            int min = -1;
+            size_t sz;
+            map_t::key_type k;
+            for(size_t i = 0;i<m_cache.size();++i) {
+                map_t::value_type& v = *m_cache.at(i);
+                if(min==-1 || v.value.accessed<min) {
+                    min = v.value.accessed;
+                    k=v.key;
+                    sz = sizeof(cache_entry_t)+sizeof(key_t);;
+                    break;
+                }
+            }
+            if(min==-1) {
+                break;
+            }
+            m_memory_size-=sz;
+            m_cache.remove(k);   
+        }
+    }
+    if(new_items>-1) {
+        while(m_cache.size() >(size_t)new_items) {
+            int min = -1;
+            size_t sz;
+            map_t::key_type k;
+            for(size_t i = 0;i<m_cache.size();++i) {
+                map_t::value_type& v = *m_cache.at(i);
+                if(min==-1 || v.value.accessed<min) {
+                    min = v.value.accessed;
+                    k=v.key;
+                    sz = sizeof(cache_entry_t)+sizeof(key_t);;
+                    break;
+                }
+            }
+            if(min==-1) {
+                break;
+            }
+            m_memory_size-=sz;
+            m_cache.remove(k);   
+        }
+    }
+    if(!m_cache.size()) {
+        m_accessed=-1;
+    }
+}
+font_measure_cache::font_measure_cache(void*(allocator)(size_t), void*(reallocator)(void*,size_t), void(deallocator)(void*)) : 
+                                m_allocator(allocator),
+                                m_reallocator(reallocator),
+                                m_deallocator(deallocator),
+                                m_initialized(false),
+                                m_accessed(-1),
+                                m_cache(hash_function,allocator,reallocator,deallocator),
+                                m_memory_size(0), 
+                                m_max_memory_size(0),
+                                m_max_entries(0) {}
+font_measure_cache::font_measure_cache(font_measure_cache&& rhs) : m_allocator(rhs.m_allocator),
+                                m_reallocator(rhs.m_reallocator),
+                                m_deallocator(rhs.m_deallocator),
+                                m_initialized(rhs.m_initialized),
+                                m_accessed(rhs.m_accessed),
+                                m_cache(rhs.m_cache),
+                                m_memory_size(rhs.m_memory_size), 
+                                m_max_memory_size(rhs.m_max_memory_size),
+                                m_max_entries(rhs.m_max_entries) {
+}
+font_measure_cache::~font_measure_cache() {
+    deinitialize();
+}
+font_measure_cache& font_measure_cache::operator=(font_measure_cache&& rhs) {
+    deinitialize();
+    m_allocator=rhs.m_allocator;
+    m_reallocator=rhs.m_reallocator;
+    m_deallocator=rhs.m_deallocator;
+    m_initialized=rhs.m_initialized;
+    m_accessed=rhs.m_accessed;
+    m_cache=helpers::gfx_move(rhs.m_cache);
+    m_memory_size=rhs.m_memory_size;
+    m_max_memory_size=rhs.m_max_memory_size;
+    m_max_entries = rhs.m_max_entries;
+    return *this;
+}
+size_t font_measure_cache::max_memory_size() const {
+    return m_max_memory_size;
+}
+void font_measure_cache::max_memory_size(size_t value) {
+    if(value<1) {
+        return;
+    }
+    if(m_max_memory_size==0 || m_memory_size>value) {
+        reduce(value,-1);
+    }
+    m_max_memory_size = value;
+}
+size_t font_measure_cache::memory_size() const {
+    return m_memory_size;
+}
+
+size_t font_measure_cache::max_entries() const {
+    return m_max_entries;
+}
+void font_measure_cache::max_entries(size_t value) {
+    if(value<1) {
+        return;
+    }
+    if(m_max_entries==0 ||m_cache.size()>value) {
+        reduce(-1,value);
+    }
+    m_max_entries = value;
+}
+size_t font_measure_cache::entries() const {
+    return m_cache.size();
+}
+
+gfx_result font_measure_cache::find(int32_t codepoint1, int32_t codepoint2, font_glyph_info* out_glyph_info) {
+    key_t k;
+    make_key(codepoint1,codepoint2,&k);
+    cache_entry_t* entry = m_cache.find(k);
+    if(entry==nullptr) {
+        return gfx_result::canceled;
+    }
+    entry->accessed = m_accessed + 1;
+    *out_glyph_info = entry->data;
+    return gfx_result::success;
+}
+void font_measure_cache::clear() {
+    m_cache.clear();
+    m_accessed=-1;
+    m_memory_size=0;
+}
+gfx::gfx_result font_measure_cache::initialize() {
+    m_accessed=-1;
+    m_memory_size=0;
+    m_initialized=true;
+    return gfx_result::success;
+}
+bool font_measure_cache::initialized() const {
+    return m_initialized;
+}
+void font_measure_cache::deinitialize() {
+    clear();
+    m_initialized= false;
+}
+gfx_result font_measure_cache::add(int32_t codepoint1, int32_t codepoint2, const font_glyph_info& glyph_info) {
+    size_t sz = sizeof(cache_entry_t)+sizeof(key_t);;
+    if(m_max_memory_size>0 && sz>m_max_memory_size) {
+        return gfx_result::out_of_memory;
+    }
+    if(m_max_memory_size>0) {
+        while( m_cache.size() && m_memory_size+sz>m_max_memory_size) {
+            //printf("m_memory_size: %d, m_max_memory_size: %d, sz: %d\n",(int)m_memory_size,(int)m_max_memory_size,(int)sz);
+            expire_memory(sz);
+        }
+        if(m_memory_size+sz>m_max_memory_size) {
+            return gfx_result::out_of_memory;
+        }
+    }
+    if(m_max_entries>0) {
+        while((m_cache.size()+1)>m_max_entries) {
+            expire_item();
+        }
+    }
+    if(m_max_memory_size>0 && m_memory_size+sz>m_max_memory_size) {
+        return gfx_result::out_of_memory;
+    }
+    cache_entry_t entry;
+    entry.data = glyph_info;
+    ++m_accessed;
+    entry.accessed = m_accessed;
+    key_t k;
+    make_key(codepoint1,codepoint2,&k);
+    if(!m_cache.insert({k,entry})) {
+        return gfx_result::out_of_memory;
+    }
+    //printf("ADDED, size: %d\n",(int)m_cache.size());
+    m_memory_size += sz;
+    return gfx_result::success;
+}
+gfx_result font::measure(uint16_t max_width,const text_handle text, size_t text_length, size16* out_area, uint16_t tab_width, const text_encoder& encoding, font_measure_cache* cache) const {
+    if(text==nullptr || out_area==nullptr) {
+        return gfx_result::invalid_argument;
+    }
+    if(cache!=nullptr&&!cache->initialized()) {
+        cache = nullptr;
+    }
+    const uint8_t* sz = (const uint8_t*)text;
+    size_t len=text_length;
+    out_area->width = 0;
+    out_area->height = 0;
+    if(len==0) {
+        return gfx_result::success;
+    }
+    uint16_t em_width = 0;
+    uint16_t x_ext = 0, y_ext = 0;
+    uint16_t x = 0,y=0;
+    int32_t cp=0, cp_next=0;
+    size_t advlen = len;
+    size_t advlen_next = 0;
+    const uint16_t lineadv = this->line_advance();
+    gfx_result res = encoding.to_utf32((text_handle)sz,&cp,&advlen);
+    if(res!=gfx_result::success) {
+        return res;
+    }
+    sz+=advlen;
+    len-=advlen;
+    if(len) {
+        advlen_next = len;
+        res = encoding.to_utf32((text_handle)sz,&cp_next,&advlen_next);
+        if(res!=gfx_result::success) {
+            return res;
+        }
+        sz+=advlen_next;
+        len-=advlen_next;
+        y_ext = lineadv;
+    }
+    font_glyph_info em_gi;
+    uint16_t xo, cw;
+    bool cached;
+    int tail;
+    while(1) {
+        font_glyph_info gi;
+        switch(cp) {
+            case '\t':
+                if(em_width==0) {
+                    cached = false;
+                    if(cache!=nullptr) {
+                        if(gfx_result::success==cache->find('M',0,&em_gi)) {
+                            cached = true;
+                        }
+                    }
+                    if(!cached) {
+                        res=on_measure('M',0,&em_gi);
+                        if(res!=gfx_result::success) {
+                            return res;
+                        }
+                        if(cache!=nullptr) {
+                            cache->add('M',0,em_gi);
+                        }
+                    }
+                               
+                    em_width=em_gi.advance_width;
+                }
+                cw = em_width*tab_width;
+                x=((x/cw)+1)*cw;
+                if(x>=max_width) {
+                    x=0;
+                    y+=lineadv;
+                    if(y+lineadv>y_ext) {
+                        y_ext = y+lineadv;
+                    }
+                }
+                if(x>x_ext) {
+                    x_ext = x;
+                }
+                break;
+            case '\r':
+                x=0;
+                xo=0;
+                break;
+            case '\n':
+                y+=lineadv;
+                if(y+lineadv>y_ext) {
+                    y_ext = y+lineadv;
+                }
+                xo=0;
+                x=0;
+                break;
+            default:
+                cached = false;
+                if(cache!=nullptr) {
+                    if(gfx_result::success==cache->find(cp,(int)(cp_next>=0x20)?cp_next:0,&gi)) {
+                        cached = true;
+                    }
+                }
+                if(!cached) {
+                    res = this->on_measure((int)cp,(int)(cp_next>=0x20)?cp_next:0,&gi);
+                    if(res!=gfx_result::success) {
+                        return res;
+                    }
+                    if(cache!=nullptr) {
+                        cache->add((int)cp,(int)cp_next,gi);
+                    }
+                }
+                xo=x+gi.dimensions.width+gi.offset.x;
+                tail = (gi.dimensions.height+gi.offset.y)>lineadv?(gi.dimensions.height+gi.offset.y):lineadv;
+                if(xo>max_width) {
+                    x=0;
+                    xo = gi.dimensions.width+gi.offset.x;
+                    y+=lineadv;
+                    if(y+tail>y_ext) {
+                        y_ext = y+tail;
+                    }
+                }  else {
+                    x+=gi.advance_width;
+                }
+                if(y+tail>y_ext) {
+                    y_ext = y+tail;
+                }
+                if(xo>x_ext) {
+                    x_ext = xo;
+                }
+                
+                break;
+        }
+        cp = cp_next;
+        if(!cp) {
+            break;
+        }
+        // advance
+        if(len) {
+            advlen_next = len;
+            res = encoding.to_utf32((text_handle)sz,&cp_next,&advlen_next);
+            if(res!=gfx_result::success) {
+                return res;
+            }
+            sz+=advlen_next;
+            len-=advlen_next;
+        } else {
+            cp_next = 0;
+        }
+    }
+    out_area->width = x_ext;
+    if(out_area->width>max_width) {
+        out_area->width=max_width;
+    }
+    out_area->height = y_ext;
+    return gfx_result::success;
+}
+
+gfx_result font::draw(const gfx::srect16& bounds, const text_handle text, size_t text_length, font_draw_callback callback, void* callback_state, uint16_t tab_width, const text_encoder& encoding, font_draw_cache* draw_cache, font_measure_cache* measure_cache) const {
+    using bmp_t = gfx::bitmap<alpha_pixel<8>>;
+    using const_bmp_t = gfx::const_bitmap<alpha_pixel<8>>;
+    if(text==nullptr || callback==nullptr) {
+        return gfx_result::invalid_argument;
+    }
+    if(draw_cache!=nullptr&& !draw_cache->initialized()) {
+        // don't bother using it if it's disabled.
+        draw_cache = nullptr;
+    }
+    if(measure_cache!=nullptr&& !measure_cache->initialized()) {
+        // don't bother using it if it's disabled.
+        measure_cache = nullptr;
+    }
+
+    uint8_t* buffer = nullptr;
+    size_t buffer_size = 0;
+    const uint8_t* sz = (const uint8_t*)text;
+    size_t len = text_length;
+    if(len==0) {
+        return gfx_result::success;
+    }
+    uint16_t em_width = 0;
+    uint16_t x_ext = 0, y_ext = 0;
+    uint16_t x = 0,y=0;
+    int32_t cp=0, cp_next=0;
+    size_t advlen = len;
+    size_t advlen_next = 0;
+    const uint16_t lineh = this->line_advance();
+    //printf("line adv: %d\n",(int)lineh);
+    gfx_result res = encoding.to_utf32((text_handle)sz,&cp,&advlen);
+    if(res!=gfx_result::success) {
+        return res;
+    }
+    sz +=advlen;
+    len-=advlen;
+    if(len) {
+        advlen_next = len;
+        res = encoding.to_utf32((text_handle)sz,&cp_next,&advlen_next);
+        if(res!=gfx_result::success) {
+            return res;
+        }
+        sz+=advlen_next;
+        len-=advlen_next;
+    }
+    font_glyph_info em_gi;
+    uint16_t xo, cw;
+    bool cached;
+    while(1) {
+        font_glyph_info gi;
+        switch(cp) {
+            case '\t':
+                if(em_width==0) {
+                    cached = false;
+                    if(measure_cache!=nullptr) {
+                        if(gfx_result::success==measure_cache->find('M',0,&em_gi)) {
+                            cached = true;
+                        }
+                    }
+                    if(!cached) {
+                        res=on_measure('M',0,&em_gi);
+                        if(res!=gfx_result::success) {
+                            if(buffer) {
+                                free(buffer);
+                            }
+                            return res;
+                        }
+                        if(measure_cache!=nullptr) {
+                            measure_cache->add('M',0,em_gi);
+                        }
+                    }
+                    em_width = em_gi.advance_width;
+                }
+                
+                cw = em_width*tab_width;
+                x=((x/cw)+1)*cw;
+                if(x>=bounds.width()) {
+                    x=0;
+                    y+=lineh;
+                }
+                if(x>x_ext) {
+                    x_ext = x;
+                }
+                break;
+            case '\r':
+                x=0;
+                break;
+            case '\n':
+                y+=lineh;
+                x=0;
+                break;
+            default:
+                cached = false;
+                if(measure_cache!=nullptr) {
+                    if(gfx_result::success==measure_cache->find(cp,(cp_next>=0x20)?cp_next:0,&gi)) {
+                        cached = true;
+                    }
+                }
+                if(!cached) {
+                    res = this->on_measure((int)cp,(int)(cp_next>=0x20)?cp_next:0,&gi);
+                    if(res!=gfx_result::success) {
+                        if(buffer) {
+                            free(buffer);
+                        }
+                        return res;
+                    }
+                    if(measure_cache!=nullptr) {
+                        measure_cache->add(cp,(int)(cp_next>=0x20)?cp_next:0,gi);
+                    }
+                }
+                
+                if(cp>=0x20) { 
+                    cached = false;
+                    if(draw_cache!=nullptr) {
+                        size16 d;
+                        uint8_t * b;
+                        if(gfx_result::success==draw_cache->find(cp,&d,&b)) {
+                            const_bmp_t cbmp(d,b);
+                            //printf("gi.offset.y: %d\n",gi.offset.y);
+                            spoint16 loc = spoint16(x,y).offset(bounds.point1()).offset(gi.offset);
+                            callback(loc,cbmp,callback_state);
+                            cached = true;
+                            //printf("(%d,%d)\n",x,y);
+                            //printf("cache hit for %c (%d)\n",(int)cp,(int)cp);
+                        }
+                    }
+                    if(!cached) {
+                        // do draw
+                        size_t bsize = gi.dimensions.width*gi.dimensions.height;
+                        if(buffer_size==0) {
+                            buffer = (uint8_t*)malloc(bsize);
+                            if(buffer==nullptr) {
+                                return gfx_result::out_of_memory;
+                            }
+                            buffer_size = bsize;
+                        } else {
+                            if(buffer_size<bsize) {
+                                buffer = (uint8_t*)realloc(buffer,bsize);
+                                if(buffer==nullptr) {
+                                    return gfx_result::out_of_memory;
+                                }
+                                buffer_size = bsize;
+                            }
+                        }
+                        bmp_t bmp(gi.dimensions,buffer);
+                        res = on_draw(bmp,cp,gi.glyph_index1);
+                        if(res!=gfx_result::success) {
+                            if(buffer) {
+                                free(buffer);
+                            }
+                            return res;
+                        }
+                        if(draw_cache!=nullptr) {
+                            draw_cache->add(cp,gi.dimensions,bmp.begin());
+                            // don't care about errors here
+                        }
+                        spoint16 loc = spoint16(x,y).offset(bounds.point1()).offset(gi.offset);
+                        //printf("loc: (%d,%d)\n",(int)loc.x,(int)loc.y);
+                        const_bmp_t cbmp(gi.dimensions,buffer);
+                        callback(loc,cbmp,callback_state);
+                    }
+                }
+                if(y+lineh>y_ext) {
+                    y_ext = y+lineh;
+                }
+                xo=x+gi.dimensions.width+gi.offset.x;
+                if(xo>bounds.width()) {
+                    x=0;
+                    xo = gi.dimensions.width+gi.offset.x;
+                    y+=lineh;
+                } else {
+                    x+=gi.advance_width;
+                }
+                if(xo>x_ext) {
+                    x_ext = xo;
+                }
+                break;
+        }
+        cp = cp_next;
+        if(!cp || y>bounds.y2) {
+            break;
+        }
+        // advance
+        if(len) {
+            advlen_next = len;
+            res = encoding.to_utf32((text_handle)sz,&cp_next,&advlen_next);
+            if(res!=gfx_result::success) {
+                if(buffer) {
+                    free(buffer);
+                }
+                return res;
+            }
+            sz+=advlen_next;
+            len-=advlen_next;
+        } else {
+            cp_next = 0;
+        }
+    }
+    if(buffer) {
+        free(buffer);
+    }
+    return gfx_result::success;
+}
+
+const text_encoding::utf8_encoder text_encoding::s_utf8;
+const text_encoding::latin1_encoder text_encoding::s_latin1;
+
+const text_encoder& text_encoding::utf8=text_encoding::s_utf8;
+const text_encoder& text_encoding::latin1=text_encoding::s_latin1;

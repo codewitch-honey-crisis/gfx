@@ -1,6 +1,7 @@
 #ifndef HTCW_GFX_PIXEL_HPP
 #define HTCW_GFX_PIXEL_HPP
 #include "gfx_core.hpp"
+#include "gfx_math.hpp"
 #include <math.h>
 #define GFX_CHANNEL_NAME(x) struct x { static inline constexpr const char* value() { return #x; } };
 namespace gfx {
@@ -149,6 +150,8 @@ namespace gfx {
         constexpr static inline const char* name() { return ChannelTraits::name(); }
         // the bit depth of the channel
         constexpr static const size_t bit_depth = ChannelTraits::bit_depth;
+        // indicates the pixel byte alignment or 0 if not byte aligned
+        constexpr static const size_t byte_alignment = (size_t)(0==(bit_depth%8))*(bit_depth/8);
         // the mask of the channel's value
         constexpr static const int_type value_mask = ChannelTraits::mask;
         // the mask of the channel's value within the entire pixel's value
@@ -280,7 +283,7 @@ namespace gfx {
         };
         template<typename PixelType> 
         struct pixel_set_alpha<PixelType,true> {
-            using type = typename PixelType::template channel_by_index<PixelType::template channel_index_by_name<channel_name::A>::value>::real_type;
+            using type = float;
             constexpr inline static void valuer(PixelType& px, type value) {
                 px.template channelr_unchecked<PixelType::template channel_index_by_name<channel_name::A>::value>(value);
             }
@@ -333,6 +336,60 @@ namespace gfx {
             
         };
 
+        template<typename PixelType,int Count,typename... ChannelTraits>
+        struct pixel_premultiply_impl;        
+        template<typename PixelType,int Count, typename ChannelTrait,typename... ChannelTraits>
+        struct pixel_premultiply_impl<PixelType,Count,ChannelTrait,ChannelTraits...> {
+            using ch = typename PixelType::template channel_by_index<Count>;
+            using next = pixel_premultiply_impl<PixelType,Count+1, ChannelTraits...>;
+            constexpr static inline void premultiply_val(PixelType lhs,size_t amount,PixelType* out_pixel) {
+                constexpr const size_t index = Count;
+                if(ChannelTrait::bit_depth==0) return;
+                if(!ChannelTrait::color_channel)  {
+                    const auto v = lhs.template channel<index>();
+                    out_pixel->template channel<index>(v);
+                } else {    
+                    unsigned long long l = lhs.template channel<index>();
+                    l=((l*amount)/ChannelTrait::scale);
+                    out_pixel->template channel<index>(l);
+                }
+                next::premultiply_val(lhs,amount,out_pixel);
+            }
+        };
+        template<typename PixelType,int Count>
+        struct pixel_premultiply_impl<PixelType,Count> {
+            constexpr static inline void premultiply_val(PixelType lhs,size_t amount,PixelType* out_pixel) {
+            }
+            
+        };
+
+        template<typename PixelType,int Count,typename... ChannelTraits>
+        struct pixel_unpremultiply_impl;        
+        template<typename PixelType,int Count, typename ChannelTrait,typename... ChannelTraits>
+        struct pixel_unpremultiply_impl<PixelType,Count,ChannelTrait,ChannelTraits...> {
+            using ch = typename PixelType::template channel_by_index<Count>;
+            using next = pixel_unpremultiply_impl<PixelType,Count+1, ChannelTraits...>;
+            constexpr static inline void unpremultiply_val(PixelType lhs,size_t amount,PixelType* out_pixel) {
+                constexpr const size_t index = Count;
+                if(ChannelTrait::bit_depth==0) return;
+                if(!ChannelTrait::color_channel)  {
+                    const auto v = lhs.template channel<index>();
+                    out_pixel->template channel<index>(v);
+                } else {    
+                    unsigned long long l = lhs.template channel<index>();
+                    l=(l*ChannelTrait::scale)/amount;
+                    out_pixel->template channel<index>(l);
+                }
+                next::unpremultiply_val(lhs,amount,out_pixel);
+            }
+        };
+        template<typename PixelType,int Count>
+        struct pixel_unpremultiply_impl<PixelType,Count> {
+            constexpr static inline void unpremultiply_val(PixelType lhs,size_t amount,PixelType* out_pixel) {
+            }
+            
+        };
+        
         template<int Count,typename Name, typename ...ChannelTraits>
         struct channel_index_by_name_impl;
         template<int Count,typename Name>
@@ -518,14 +575,16 @@ namespace gfx {
         constexpr static const size_t color_channels = helpers::color_channels_size<ChannelTraits...>::value;
         // the total bit depth of the pixel
         constexpr static const size_t bit_depth = helpers::bit_depth<ChannelTraits...>::value;
+        // indicates the pixel byte alignment or 0 if not byte aligned
+        constexpr static const size_t byte_alignment = (size_t)(0==(bit_depth%8))*(bit_depth/8);
         // the bit depth of the color channels in the pixel
         constexpr static const size_t color_bit_depth = helpers::color_bit_depth<ChannelTraits...>::value;
         // indicates whether the pixel has an alpha channel
-        constexpr static const bool has_alpha = helpers::has_channel_names_impl<type,channel_name::A>::value;
+        constexpr static const bool has_alpha = helpers::channel_index_by_name_impl<sizeof...(ChannelTraits),channel_name::A,ChannelTraits...>::value>=0;
         // the minimum number of bytes needed to store the pixel
         constexpr static const size_t packed_size = (bit_depth+7) / 8;
         // true if the pixel is a whole number of bytes
-        constexpr static const bool byte_aligned = 0==bit_depth/8.0 - (size_t)(bit_depth/8);
+        constexpr static const bool byte_aligned = 0!=byte_alignment;
         // the total size in bits, including padding
         constexpr static const size_t total_size_bits = sizeof(int_type)*8;
         // the packed size, in bits
@@ -552,19 +611,22 @@ namespace gfx {
         constexpr inline pixel(bool dummy,typename ChannelTraits::real_type... values) : native_value(0) {
             helpers::pixel_init_impl<type,0,ChannelTraits...>::initf(*this,values...);
         }
-        // gets the pixel value in big endian form
-        constexpr inline int_type value() const {
-            return helpers::order_guard(native_value);
+        // gets the pixel value in reverse endian form
+        constexpr inline int_type swapped() const {
+            return bits::swap(native_value);
         }
         // sets the pixel value in big endian form
-        constexpr inline void value(int_type value) {
-            native_value=helpers::order_guard(value);
+        constexpr inline void swapped(int_type value) {
+            native_value=bits::swap(value);
         }
         constexpr inline bool operator==(pixel rhs) {
             return rhs.native_value==native_value;
         }
         constexpr inline bool operator!=(pixel rhs) {
             return rhs.native_value!=native_value;
+        }
+        constexpr inline operator int_type() {
+            return native_value;
         }
         // retrieves a channel's metadata by index
         template<int Index> using channel_by_index = typename helpers::channel_by_index_impl<type,Index,channels,0,ChannelTraits...>::type;
@@ -811,13 +873,31 @@ namespace gfx {
             blend(rhs,ratio,&result);
             return result;
         }
+        // premultiply pixels. amount is between zero and the channel scale.
+        constexpr pixel& premultiply(size_t amount) {
+            static_assert(!has_channel_names<channel_name::index>::value,"pixel must not be indexed");
+            helpers::pixel_premultiply_impl<type,0,ChannelTraits...>::premultiply_val(*this,amount,this);
+            return *this;
+        }
+        // unpremultiply pixels. amount is between zero and the channel scale.
+        constexpr pixel& unpremultiply(size_t amount) {
+            static_assert(!has_channel_names<channel_name::index>::value,"pixel must not be indexed");
+            helpers::pixel_unpremultiply_impl<type,0,ChannelTraits...>::unpremultiply_val(*this,amount,this);
+            return *this;
+        }
         // indicates the opacity of the pixel
         constexpr auto opacity() const {
             return helpers::pixel_get_alpha<type,has_alpha>::valuer(*this);
         }
         // sets the opacity of the pixel (for those with an alpha channel)
-        constexpr void opacity(typename helpers::pixel_set_alpha<type,has_alpha>::type value) {
+        constexpr pixel& opacity_inplace(typename helpers::pixel_set_alpha<type,has_alpha>::type value) {
             helpers::pixel_set_alpha<type,has_alpha>::valuer(*this,value);
+            return *this;
+        }
+        // sets the opacity of the pixel (for those with an alpha channel)
+        constexpr pixel opacity(typename helpers::pixel_set_alpha<type,has_alpha>::type value) const {
+            pixel px=*this;
+            return px.opacity_inplace(value);
         }
         static_assert(sizeof...(ChannelTraits)>0,"A pixel must have at least one channel trait");
         static_assert(bit_depth<=HTCW_MAX_WORD,"Bit depth must be less than or equal to the maximum machine word size");
@@ -841,6 +921,17 @@ namespace gfx {
         channel_traits<channel_name::G,((BitDepth/4)+(BitDepth%4))>,
         channel_traits<channel_name::B,(BitDepth/4)>,
         channel_traits<channel_name::A,(BitDepth/4),0,(1<<(BitDepth/4))-1,(1<<(BitDepth/4))-1>
+    >;
+
+    // creates an ARGB pixel by making each channel 
+    // one quarter of the whole. Any remainder bits
+    // are added to the green channel
+    template<size_t BitDepth>
+    using argb_pixel = pixel<
+        channel_traits<channel_name::A,(BitDepth/4),0,(1<<(BitDepth/4))-1,(1<<(BitDepth/4))-1>,
+        channel_traits<channel_name::R,(BitDepth/4)>,
+        channel_traits<channel_name::G,((BitDepth/4)+(BitDepth%4))>,
+        channel_traits<channel_name::B,(BitDepth/4)>
     >;
     // creates a grayscale or monochome pixel
     template<size_t BitDepth>
@@ -1040,8 +1131,8 @@ namespace gfx {
         using is_hsv = typename PixelTypeLhs::template is_color_model<channel_name::H,channel_name::S,channel_name::V>;
         using is_hsl = typename PixelTypeLhs::template is_color_model<channel_name::H,channel_name::S,channel_name::L>;
         using is_cmyk = typename PixelTypeLhs::template is_color_model<channel_name::C,channel_name::M,channel_name::Y,channel_name::K>;
-        using trhas_alpha = typename PixelTypeRhs::template is_color_model<channel_name::A>;
-        using thas_alpha = typename PixelTypeLhs::template is_color_model<channel_name::A>;
+        using trhas_alpha = typename PixelTypeRhs::template has_channel_names<channel_name::A>;
+        using thas_alpha = typename PixelTypeLhs::template has_channel_names<channel_name::A>;
         const bool has_alpha = thas_alpha::value;
         const bool is_bw_candidate = 1==PixelTypeLhs::color_channels;
         using tis_bw_candidate = typename PixelTypeLhs::template is_color_model<channel_name::L>;
@@ -1295,26 +1386,40 @@ namespace gfx {
                 const double cG = source.template channelr_unchecked<chiG>();
                 const double cB = source.template channelr_unchecked<chiB>();
 
-                double cmin = cG<cB?cG:cB;
-                cmin = cR<cmin?cR:cmin;
-                double cmax = cG>cB?cG:cB;
-                cmax = cR>cmax?cR:cmax;
-                
-                double h =0, s=0, l = (cmax + cmin) / 2.0;
-
-                if(cmax != cmin){
-                    double chroma = cmax - cmin;
-                    s = l > 0.5 ? chroma / (2.0 - cmax - cmin) : chroma / (cmax + cmin);
-                    if(cmax==cR) {
-                        h = (cG - cB) / chroma + (cG < cB ? 6 : 0);
-                    } else if(cmax==cG) {
-                        h = (cB - cG) / chroma + 2.0;
-                    } else { // if(cmax==cB)
-                        h = (cR - cG) / chroma + 4.0; 
+                const double max = math::max(cR, cG, cB);
+                const double min = math::min(cR, cG, cB);
+                const double c   = max - min;
+                double hue=0;
+                if(c!=0) {
+                    if(max==cR) {
+                        double segment = (cG - cB) / (c==0?1:c);
+                        double shift   = 0.0 / 60.0;       // R° / (360° / hex sides)
+                        if (segment < 0) {          // hue > 180, full rotation
+                            shift = 360.0 / 60.0;         // R° / (360° / hex sides)
+                        }
+                        hue = segment + shift;
+     
+                    } else if(max==cG) {
+                        double segment = (cB - cR) / (c==0?1:c);
+                        double shift   = 120.0 / 60.0;     // G° / (360° / hex sides)
+                        hue = segment + shift;
+              
+                    } else { // max==cB
+                        double segment = (cR - cG) / (c==0?1:c);
+                        double shift   = 240.0 / 60.0;     // B° / (360° / hex sides)
+                        hue = segment + shift;
+    
                     }
-                    h /= 6.0;
                 }
-                const typename trchH::int_type cH =helpers::clamp(typename trchH::int_type(h*trchH::scale+.5),trchH::min,trchH::max);
+                hue/=6.0; // hue is in [0,6], scale it up
+                
+                double s=0, l = (max + min) / 2.0;
+
+                if(max != min){
+                    double chroma = max - min;
+                    s = l > 0.5 ? chroma / (2.0 - max - min) : chroma / (max + min);
+                }
+                const typename trchH::int_type cH =helpers::clamp(typename trchH::int_type(hue*trchH::scale+.5),trchH::min,trchH::max);
                 helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexH::value>(native_value,cH);
                 const typename trchS::int_type cS =helpers::clamp(typename trchS::int_type(s*trchS::scale+.5),trchS::min,trchS::max);
                 helpers::set_channel_direct_unchecked<PixelTypeRhs,trindexS::value>(native_value,cS);

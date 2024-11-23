@@ -17,11 +17,17 @@ namespace gfx {
         // constructs a new instance with the specified coordinates
         constexpr inline pointx(T x, T y) : x(x), y(y) {
         }
-        constexpr inline explicit operator pointx<bits::signedx<value_type>>() const {
+        constexpr inline explicit operator pointx<bits::signedx_no_real<value_type>>() const {
             return pointx<bits::signedx<value_type>>(bits::signedx<value_type>(x),bits::signedx<value_type>(y));
         }
         constexpr inline explicit operator pointx<bits::unsignedx<value_type>>() const {
             return pointx<bits::unsignedx<value_type>>(bits::unsignedx<value_type>(x),bits::unsignedx<value_type>(y));
+        }
+        constexpr inline explicit operator pointx<float>() const {
+            return pointx<float>(float(x),float(y));
+        }
+        constexpr inline explicit operator pointx<double>() const {
+            return pointx<double>(double(x),double(y));
         }
         constexpr inline bool operator==(const type& rhs) const {
             return x == rhs.x && y == rhs.y;
@@ -34,17 +40,19 @@ namespace gfx {
             return type(this->x+x,this->y+y);
         }
         // offsets in-place the point by the specified amounts.
-        constexpr inline void offset_inplace(bits::signedx<value_type> x, bits::signedx<value_type> y) {
+        constexpr inline type& offset_inplace(bits::signedx<value_type> x, bits::signedx<value_type> y) {
             this->x+=x;
             this->y+=y;
+            return *this;
         }
         // offsets the point by the specified amounts.
         constexpr inline pointx offset(pointx<bits::signedx<value_type>> adjust) const {
             return offset(adjust.x,adjust.y);
         }
         // offsets in-place the point by the specified amounts.
-        constexpr inline void offset_inplace(pointx<bits::signedx<value_type>> adjust) {
+        constexpr inline type& offset_inplace(pointx<bits::signedx<value_type>> adjust) {
             offset_inplace(adjust.x,adjust.y);
+            return *this;
         }
 
         constexpr static const inline pointx min() { return { bits::num_metrics<value_type>::min,bits::num_metrics<value_type>::min }; }
@@ -72,12 +80,20 @@ namespace gfx {
             return sizex(width+this->width,height+this->height);
         }
         constexpr inline rectx<T> bounds() const;
-        constexpr explicit operator sizex<bits::signedx<value_type>>() const {
+        constexpr explicit operator sizex<bits::signedx_no_real<value_type>>() const {
             return sizex<bits::signedx<value_type>>(bits::signedx<value_type>(width),bits::signedx<value_type>(height));
         }
         constexpr explicit operator sizex<bits::unsignedx<value_type>>() const {
             return sizex<bits::unsignedx<value_type>>(bits::unsignedx<value_type>(width),bits::unsignedx<value_type>(height));
         }
+        
+        constexpr inline explicit operator sizex<float>() const {
+            return sizex<float>(float(width),float(height));
+        }
+        constexpr inline explicit operator sizex<double>() const {
+            return sizex<double>(double(width),double(height));
+        }
+        
         constexpr inline bool operator==(const sizex& rhs) const { 
             return width==rhs.width && height==rhs.height;   
         }
@@ -97,6 +113,7 @@ namespace gfx {
         constexpr sizex flip() const {
             return {height,width};
         }
+        constexpr static const inline sizex zero() { return { bits::num_metrics<value_type>::zero,bits::num_metrics<value_type>::zero }; }
     };
     enum struct rect_orientation {
         normalized = 0,
@@ -237,32 +254,33 @@ namespace gfx {
             return inflate(adjust.width,adjust.height);
         }
         // increases or decreases the x and y bounds by the specified amounts. The rectangle is anchored on the center, and the effective width and height increases or decreases by twice the value of x or y.
-        constexpr void inflate_inplace(typename bits::signedx<T> x,typename bits::signedx<T> y) {
+        constexpr type& inflate_inplace(typename bits::signedx<T> x,typename bits::signedx<T> y) {
             switch((int)orientation()) {
                 case (int)rect_orientation::flipped_horizontal:
                     x1-=x;
                     y1=-y;
                     x2+=x;
                     y2+=y;
-                    return;
+                    return *this;
                 case (int)rect_orientation::flipped_vertical:
                     x1-=x;
                     y1+=y;
                     x2+=x;
                     y2-=y;
-                    return;
+                    return *this;
                 case (int)((int)rect_orientation::flipped_vertical|(int)rect_orientation::flipped_horizontal):
                     x1+=x;
                     y1+=y;
                     x2-=x;
                     y2-=y;
-                    return;
+                    return *this;
                 
             }
             x1-=x;
             y1-=y;
             x2+=x;
             y2+=y;
+            return *this;
         }
         constexpr inline void inflate_inplace(sizex<bits::signedx<T>> adjust) {
             inflate_inplace(adjust.width,adjust.height);
@@ -276,19 +294,20 @@ namespace gfx {
             return rectx(x1+x,y1+y,x2+x,y2+y);
         }
         // offsets in-place the rectangle by the specified amounts.
-        constexpr inline void offset_inplace(typename bits::signedx<T> x,typename bits::signedx<T> y) {
+        constexpr inline type& offset_inplace(typename bits::signedx<T> x,typename bits::signedx<T> y) {
             x1+=x;
             y1+=y;
             x2+=x;
             y2+=y;
+            return *this;
         }
         // offsets the rectangle by the specified amounts.
         constexpr inline rectx offset(pointx<bits::signedx<value_type>> adjust) const {
             return offset(adjust.x,adjust.y);
         }
         // offsets in-place the rectangle by the specified amounts.
-        constexpr inline void offset_inplace(pointx<bits::signedx<value_type>> adjust) {
-            offset_inplace(adjust.x,adjust.y);
+        constexpr inline rectx& offset_inplace(pointx<bits::signedx<value_type>> adjust) {
+            return offset_inplace(adjust.x,adjust.y);
         }
         constexpr inline rectx center_horizontal(const rectx& bounds) const {
             return offset((bounds.width()-width())/2,0).offset(bounds.left(),bounds.top());
@@ -299,17 +318,17 @@ namespace gfx {
         constexpr inline rectx center(const rectx& bounds) const {
             return offset((bounds.width()-width())/2,(bounds.height()-height())/2).offset(bounds.left(),bounds.top());
         }
-        constexpr inline void center_horizontal_inplace(const rectx& bounds) {
+        constexpr inline rectx& center_horizontal_inplace(const rectx& bounds) {
             offset_inplace((bounds.width()-width())/2,0);
-            offset_inplace(bounds.left(),bounds.top());
+            return offset_inplace(bounds.left(),bounds.top());
         }
-        constexpr inline void center_vertical_inplace(const rectx& bounds) {
+        constexpr inline rectx& center_vertical_inplace(const rectx& bounds) {
             offset_inplace(0,(bounds.height()-height())/2);
-            offset_inplace(bounds.left(),bounds.top());
+            return offset_inplace(bounds.left(),bounds.top());
         }
-        constexpr inline void center_inplace(const rectx& bounds) {
+        constexpr inline rectx& center_inplace(const rectx& bounds) {
             offset_inplace((bounds.width()-width())/2,(bounds.height()-height())/2);
-            offset_inplace(bounds.left(),bounds.top());
+            return offset_inplace(bounds.left(),bounds.top());
         }
         // normalizes a rectangle, such that x1<=x2 and y1<=y2
         constexpr inline rectx normalize() const {
@@ -447,9 +466,15 @@ namespace gfx {
         constexpr size_t area() const {
             return width()*height();
         }
-        explicit operator rectx<bits::signedx<value_type>>() const {
+        explicit operator rectx<bits::signedx_no_real<value_type>>() const {
             using t = bits::signedx<value_type>;
             return rectx<bits::signedx<value_type>>(t(x1),t(y1),t(x2),t(y2));
+        }
+        constexpr inline explicit operator rectx<float>() const {
+            return rectx<float>(float(x1),float(y1),float(x2),float(y2));
+        }
+        constexpr inline explicit operator rectx<double>() const {
+            return rectx<double>(double(x1),double(y1),double(x2),double(y2));
         }
         explicit operator rectx<bits::unsignedx<value_type>>() const {
             using t = bits::unsignedx<value_type>;
@@ -537,14 +562,15 @@ namespace gfx {
             return bounds().dimensions();
         }
         // performs an inplace offset on a path
-        void offset_inplace(bits::signedx<value_type> x,bits::signedx<value_type> y) {
+        pathx& offset_inplace(bits::signedx<value_type> x,bits::signedx<value_type> y) {
             for(size_t i = 0;i<m_size;++i) {
                 m_points[i]=m_points[i].offset(x,y);
             }
+            return *this;
         }
         // performs an inplace offset on a path
-        inline void offset_inplace(pointx<bits::signedx<value_type>> adjust) {
-            offset_inplace(adjust.x,adjust.y);
+        inline pathx& offset_inplace(pointx<bits::signedx<value_type>> adjust) {
+            return offset_inplace(adjust.x,adjust.y);
         }
         // indicates whether a point intersects this path or polygon
         bool intersects(point_type location,bool polygon = false) const {
@@ -570,12 +596,16 @@ namespace gfx {
             }
             return c && polygon;
         }
-        void scale_inplace(float multiplier) {
+        pathx& scale_inplace(float scale_x,float scale_y) {
             for(size_t i = 0; i< m_size; ++i)  {
                 point_type& pt = m_points[i];
-                pt.x *= multiplier;
-                pt.y *= multiplier;
+                pt.x *= scale_x;
+                pt.y *= scale_y;
             }
+            return *this;
+        }
+        pathx& scale_inplace(float scale) {
+            return scale_inplace(scale,scale);
         }
     };
     // represents a point with 16-bit signed integer coordinates

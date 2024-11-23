@@ -1,6 +1,10 @@
 #include <gfx_palette.hpp>
 namespace gfx {
     namespace helpers {
+        const unsigned char ega_color_table_array[16] PROGMEM = {
+            0,1,2,3,4,5,20,7,56,57,58,59,60,61,62,63
+        };
+        const unsigned char* ega_color_table = ega_color_table_array;
         const unsigned char dither_threshold_map_array[8*8] PROGMEM = {
                     0,48,12,60, 3,51,15,63,
                     32,16,44,28,35,19,47,31,

@@ -390,6 +390,9 @@ plutovg_paint_t* plutovg_paint_create_color(const plutovg_color_t* color)
 static plutovg_gradient_paint_t* plutovg_gradient_create(plutovg_gradient_type_t type, plutovg_spread_method_t spread, const plutovg_gradient_stop_t* stops, int nstops, const ::gfx::matrix* matrix)
 {
     plutovg_gradient_paint_t* gradient = (plutovg_gradient_paint_t*)plutovg_paint_create(PLUTOVG_PAINT_TYPE_GRADIENT, sizeof(plutovg_gradient_paint_t) + nstops * sizeof(plutovg_gradient_stop_t));
+    if(gradient==nullptr) {
+        return nullptr;
+    }
     gradient->type = type;
     gradient->spread = spread;
     gradient->matrix = matrix ? *matrix : ::gfx::matrix::create_identity();

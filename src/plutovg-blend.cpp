@@ -7,7 +7,7 @@
 
 #include "plutovg-private.h"
 #include "plutovg-utils.h"
-#define COLOR_TABLE_SIZE 256
+#define COLOR_TABLE_SIZE 64
 typedef struct {
     ::gfx::matrix matrix;
     plutovg_spread_method_t spread;
@@ -1606,15 +1606,15 @@ static void plutovg_blend_gradient(plutovg_canvas_t* canvas,
 
         curr_color = next_color;
     }
-
     last = start + nstops - 1;
     plutovg_color_init_argb32(&cc, last->color.native_value);
     last_color = premultiply_color_with_opacity(&cc, opacity);
     for (; pos < COLOR_TABLE_SIZE; ++pos) {
         data.colortable[pos] = last_color;
     }
-
+    
     if (gradient->type == PLUTOVG_GRADIENT_TYPE_LINEAR) {
+     
         data.values.linear.x1 = gradient->values[0];
         data.values.linear.y1 = gradient->values[1];
         data.values.linear.x2 = gradient->values[2];

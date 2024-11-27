@@ -571,8 +571,10 @@ static void blend_solid(plutovg_canvas_t* canvas, plutovg_operator_t op,
                     // into buffer
                     const ::gfx::gfx_cspan cs =
                         direct->cspan(::gfx::point16(params.x, params.y));
+                    int ll = params.length>cs.length?cs.length:params.length;
                     if (cs.cdata != nullptr) {
-                        on_read(buffer, cs.cdata, params.length);
+
+                        on_read(buffer, cs.cdata, ll);
                         // Blend the data from target into the buffer
                         params.direct = (uint8_t*)
                             buffer;  // direct->span(::gfx::point16(params.x,params.y)).data;
@@ -580,8 +582,9 @@ static void blend_solid(plutovg_canvas_t* canvas, plutovg_operator_t op,
                         // Write the modified buffer back to the target
                         ::gfx::gfx_span s =
                             direct->span(::gfx::point16(params.x, params.y));
+                        ll=ll>s.length?s.length:ll;
                         if (s.data != nullptr) {
-                            on_write(s.data, buffer, params.length);
+                            on_write(s.data, buffer, ll);
                         }
                     }
 
@@ -719,18 +722,20 @@ static void blend_linear_gradient(plutovg_canvas_t* canvas,
                     params.direct = (uint8_t*)buffer;
                     const ::gfx::gfx_cspan cs =
                         direct->cspan(::gfx::point16(params.x, params.y));
+                    int ll = params.length>cs.length?cs.length:params.length;
                     if (cs.cdata != nullptr) {
                         // Read the current surface pixels as ARGB Premultiplied
                         // into buffer
-                        on_read(buffer, cs.cdata, params.length);
+                        on_read(buffer, cs.cdata, ll);
                         // Blend the data from target into the buffer
 
                         func(params);
                         ::gfx::gfx_span s =
                             direct->span(::gfx::point16(params.x, params.y));
                         if (s.data != nullptr) {
+                            ll=ll>s.length?s.length:ll;
                             // Write the modified buffer back to the target
-                            on_write(s.data, buffer, params.length);
+                            on_write(s.data, buffer, ll);
                         }
                     }
 
@@ -863,16 +868,18 @@ static void blend_radial_gradient(plutovg_canvas_t* canvas,
                     params.direct = (uint8_t*)buffer;
                     const ::gfx::gfx_cspan cs =
                         direct->cspan(::gfx::point16(params.x, params.y));
+                    int ll = params.length>cs.length?cs.length:params.length;
                     if (cs.cdata != nullptr) {
                         // Read the current surface pixels as ARGB Premultiplied
                         // into buffer
-                        on_read(buffer, cs.cdata, params.length);
+                        on_read(buffer, cs.cdata, ll);
                         func(params);
                         ::gfx::gfx_span s =
                             direct->span(::gfx::point16(params.x, params.y));
                         if (s.data != nullptr) {
+                            ll=ll>s.length?s.length:ll;
                             // Write the modified buffer back to the target
-                            on_write(s.data, buffer, params.length);
+                            on_write(s.data, buffer, ll);
                         }
                     }
                     x += l;
@@ -1016,15 +1023,17 @@ static void blend_transformed_argb(plutovg_canvas_t* canvas,
                 case MODE_DIRECT: {
                     const ::gfx::gfx_cspan cs =
                         direct->cspan(::gfx::point16(params.x, params.y));
+                    int ll = params.length>cs.length?cs.length:params.length;
                     // Read the current surface pixels as ARGB Premultiplied
                     // into buffer
                     if (cs.cdata != nullptr) {
-                        on_read(buffer, cs.cdata, params.length);
+                        on_read(buffer, cs.cdata, ll);
                         params.direct = (uint8_t*)buffer;
                         func(params);
                         ::gfx::gfx_span s =
                             direct->span(::gfx::point16(params.x, params.y));
                         if (s.data != nullptr) {
+                            ll=ll>s.length?s.length:ll;
                             // Write the modified buffer back to the target
                             on_write(s.data, buffer, params.length);
                         }
@@ -1177,17 +1186,19 @@ static void blend_untransformed_argb(plutovg_canvas_t* canvas,
                     case MODE_DIRECT: {
                         const ::gfx::gfx_cspan cs =
                             direct->cspan(::gfx::point16(params.x, params.y));
+                        int ll = params.length>cs.length?cs.length:params.length;
                         if (cs.cdata != nullptr) {
                             // Read the current surface pixels as ARGB
                             // Premultiplied into buffer
-                            on_read(buffer, cs.cdata, params.length);
+                            on_read(buffer, cs.cdata, ll);
                             params.direct = (uint8_t*)buffer;
                             func(params);
                             ::gfx::gfx_span s = direct->span(
                                 ::gfx::point16(params.x, params.y));
                             if (s.data != nullptr) {
+                                ll=ll>s.length?s.length:ll;
                                 // Write the modified buffer back to the target
-                                on_write(s.data, buffer, params.length);
+                                on_write(s.data, buffer, ll);
                             }
                         }
                     } break;
@@ -1338,10 +1349,11 @@ static void blend_untransformed_tiled_argb(
                 case MODE_DIRECT: {
                     const ::gfx::gfx_cspan cs =
                         direct->cspan(::gfx::point16(params.x, params.y));
+                    int ll = params.length>cs.length?cs.length:params.length;
                     if (cs.cdata != nullptr) {
                         // Read the current surface pixels as ARGB Premultiplied
                         // into buffer
-                        on_read(buffer, cs.cdata, params.length);
+                        on_read(buffer, cs.cdata, ll);
                         // Blend the data from target into the buffer
                         params.direct = (uint8_t*)buffer;
                         func(params);
@@ -1349,8 +1361,9 @@ static void blend_untransformed_tiled_argb(
                             direct->span(::gfx::point16(params.x, params.y));
                         if (s.data != nullptr) {
                             params.direct = s.data;
+                            ll=ll>s.length?s.length:ll;
                             // Write the modified buffer back to the target
-                            on_write(params.direct, buffer, params.length);
+                            on_write(params.direct, buffer, ll);
                         }
                     }
                 } break;
@@ -1518,18 +1531,19 @@ static void blend_transformed_tiled_argb(
                 case MODE_DIRECT: {
                     const ::gfx::gfx_cspan cs =
                         direct->cspan(::gfx::point16(params.x, params.y));
-
+                    int ll = params.length>cs.length?cs.length:params.length;
                     if (cs.cdata != nullptr) {
                         // Read the current surface pixels as ARGB Premultiplied
                         // into buffer
-                        on_read(buffer, cs.cdata, params.length);
+                        on_read(buffer, cs.cdata, ll);
                         params.direct = (uint8_t*)buffer;
                         func(params);
                         ::gfx::gfx_span s =
                             direct->span(::gfx::point16(params.x, params.y));
                         if (s.data != nullptr) {
+                            ll=ll>s.length?s.length:ll;
                             // Write the modified buffer back to the target
-                            on_write(s.data, buffer, params.length);
+                            on_write(s.data, buffer, ll);
                         }
                     }
                 } break;
@@ -1614,7 +1628,6 @@ static void plutovg_blend_gradient(plutovg_canvas_t* canvas,
     }
     
     if (gradient->type == PLUTOVG_GRADIENT_TYPE_LINEAR) {
-     
         data.values.linear.x1 = gradient->values[0];
         data.values.linear.y1 = gradient->values[1];
         data.values.linear.x2 = gradient->values[2];

@@ -8,25 +8,25 @@ set(CMAKE_SHARED_LIBRARY_PREFIX "")
 include(FetchContent)
 FetchContent_Declare(htcw_bits
     GIT_REPOSITORY https://github.com/codewitch-honey-crisis/htcw_bits.git
-    GIT_TAG 1.0.15
+    GIT_TAG 1.0.16
     GIT_SHALLOW ON
-    FIND_PACKAGE_ARGS 1.0.15
+    FIND_PACKAGE_ARGS 1.0.16
 )
 
 FetchContent_Declare(htcw_data
     GIT_REPOSITORY https://github.com/codewitch-honey-crisis/htcw_data.git
-    GIT_TAG 1.4.2
+    GIT_TAG 1.4.3
     GIT_SHALLOW ON
-    FIND_PACKAGE_ARGS 1.4.2
+    FIND_PACKAGE_ARGS 1.4.3
 )
 
 FetchContent_MakeAvailable(htcw_data)
 
 FetchContent_Declare(htcw_ml
     GIT_REPOSITORY https://github.com/codewitch-honey-crisis/htcw_ml.git
-    GIT_TAG 0.2.3
+    GIT_TAG 0.2.4
     GIT_SHALLOW ON
-    FIND_PACKAGE_ARGS 0.2.3
+    FIND_PACKAGE_ARGS 0.2.4
 )
 
 FetchContent_MakeAvailable(htcw_ml)

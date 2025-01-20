@@ -2,6 +2,7 @@
 #define HTCW_GFX_DRAW_ICON_HPP
 #include "gfx_draw_common.hpp"
 #include "gfx_draw_filled_rectangle.hpp"
+#include "gfx_draw_point.hpp"
 #include "gfx_draw_bitmap.hpp"
 namespace gfx {
 namespace helpers {
@@ -48,7 +49,6 @@ class xdraw_icon {
             rect16 dstr = (rect16)bounds;
             gfx_result r;
             if(opaque) {
-             
                 gfx_result r;
 
                 typename Destination::pixel_type dpx, fgpx, bgpx;
@@ -130,9 +130,10 @@ class xdraw_icon {
                             if (invert) {
                                 a = 1.0 - a;
                             }
-                            if(a==0.0) {
+                            float af = alpha_factor * a;
+                            if(af==0.0) {
                                 dpx=bgpx;
-                            } else if(a<1.0f) { 
+                            } else if(af<1.0f) { 
                                 r = full_bmp.point(dpt, &bgpx);
                                 if (r != gfx_result::success) {
                                     return r;
@@ -140,13 +141,16 @@ class xdraw_icon {
                                 if (a != oa || obgpx.native_value != bgpx.native_value) {
                                     dpx = fgpx.blend(bgpx, a * alpha_factor);
                                 }
-                                full_bmp.point(dpt, dpx);
+
+                                //r=xdraw_point::point(full_bmp,(spoint16)dpt,dpx);
+                                r=full_bmp.point(dpt,dpx);
                                 if (r != gfx_result::success) {
                                     return r;
                                 }
                             } else {
                                 dpx=fgpx;
-                                full_bmp.point(dpt, fgpx);
+                                //r=xdraw_point::point(full_bmp,(spoint16)dpt,dpx);
+                                r=full_bmp.point(dpt,dpx);
                                 if (r != gfx_result::success) {
                                     return r;
                                 }
@@ -156,7 +160,6 @@ class xdraw_icon {
                             obgpx = bgpx;
                         }
                     }
-                    
                     r = xdraw_bitmap::bitmap(destination, dstr, full_bmp, full_bmp.bounds());
                     free(full_bmp.begin());
                     return r;
@@ -184,8 +187,8 @@ class xdraw_icon {
                     if (a != oa || obgpx.native_value != bgpx.native_value) {
                         dpx = fgpx.blend(bgpx, a * alpha_factor);
                     }
-                    destination.point(dpt, dpx);
-
+                    //r=xdraw_point::point(destination,(spoint16)dpt,dpx);
+                    r=destination.point(dpt,dpx);
                     if (r != gfx_result::success) {
                         return r;
                     }

@@ -110,7 +110,7 @@ class xdraw_icon {
                 return r;
             }
             int w = srcr.x2 - srcr.x1 + 1, h = srcr.y2 - srcr.y1 + 1;
-            if (!Destination::caps::blt) {
+            if (!Destination::caps::blt && !Destination::caps::blt_spans) {
                 auto full_bmp = create_bitmap_from(destination, dstr.dimensions());
                 if (full_bmp.begin() != nullptr) {
                     r = copy_to_fast<decltype(full_bmp), Destination, Destination::caps::copy_to>::do_copy(full_bmp, destination, dstr, {0, 0});
@@ -139,7 +139,7 @@ class xdraw_icon {
                                     return r;
                                 }
                                 if (a != oa || obgpx.native_value != bgpx.native_value) {
-                                    dpx = fgpx.blend(bgpx, a * alpha_factor);
+                                    dpx = fgpx.blend(bgpx, af);
                                 }
 
                                 //r=xdraw_point::point(full_bmp,(spoint16)dpt,dpx);

@@ -78,7 +78,7 @@ gfx_result win_font::initialize() {
             }
             uint16_t shift=bits::from_le(m_stream->read<uint16_t>());
             size_t ii = 0;
-            while(true) {
+            while(m_font_offset<0) {
                 uint16_t rtype=bits::from_le(m_stream->read<uint16_t>());
                 if(0==rtype)
                     break; // end of resource table
@@ -117,6 +117,7 @@ gfx_result win_font::initialize() {
     }
     m_stream->seek(m_font_offset);
     uint16_t version = bits::from_le(m_stream->read<uint16_t>());
+    m_stream->seek(m_font_offset+0x42);
     uint16_t ftype = bits::from_le(m_stream->read<uint16_t>());
 	if(ftype & 1) {
 		// Font is a vector font
@@ -195,7 +196,6 @@ gfx_result win_font::on_measure(int32_t codepoint1,int32_t codepoint2, font_glyp
     return gfx_result::success;
 }
 gfx_result win_font::on_draw(bitmap<alpha_pixel<8>>& destination,int32_t codepoint, int32_t glyph_index) const {
-    //return gfx_result::success;
     if(codepoint<0||codepoint>255) {
         return gfx_result::invalid_argument;
     }
@@ -204,17 +204,21 @@ gfx_result win_font::on_draw(bitmap<alpha_pixel<8>>& destination,int32_t codepoi
         return res;
     }
     uint16_t width = bits::from_le(m_stream->read<uint16_t>());
-    size_t width_bytes = bitmap<gsc_pixel<1>>::sizeof_buffer(size16(width,1));
+    size_t width_bytes = (width+7)/8;
+    
     long long offs = (m_char_table_len==4)?bits::from_le(m_stream->read<uint16_t>()):bits::from_le(m_stream->read<uint32_t>());
     for(size_t j=0;j<m_line_height;++j) {
         uint32_t accum = 0;
-        uint32_t m = ((uint32_t)1) << (width - 1);
-        uint8_t* paccum = (uint8_t*)&accum;
         for (size_t i = 0; i < width_bytes; ++i) {
             unsigned long long bytepos = offs+i*m_line_height+j;
+            
             m_stream->seek(bytepos+m_font_offset);
-            (*paccum++) = m_stream->read<uint8_t>();
+            accum<<=8;
+            accum|=m_stream->read<uint8_t>();;
         }
+        int shift = (width_bytes*8)-width;
+        accum>>=shift;
+        uint32_t m = ((uint32_t)1) << (width - 1);
         for(int i = 0;i<width;++i)    {
             if(accum & m) {
                 destination.point(point16(i,j),alpha_pixel<8>(255));

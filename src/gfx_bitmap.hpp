@@ -282,10 +282,10 @@ namespace gfx {
                         typename pixel_type::int_type r = 0;
                         if(pixel_type::byte_aligned) {
                             memcpy(&r,begin()+offs/8,pixel_type::packed_size);
-                            r&=pixel_type::mask;    
 #ifndef HTCW_GFX_NO_SWAP
                             r=bits::swap(r);
 #endif
+                            r&=pixel_type::mask;    
                             result.native_value = r;
                             *out_pixel=result;
                             break;
@@ -904,8 +904,12 @@ namespace gfx {
 #endif
                     vector_pixel rhs;
                     convert(lhs,&rhs);
+#ifndef HTCW_GFX_NO_SWAP
                     // Convert each RGBA Plain pixel to ARGB 
                     buffer[j] = rhs.native_value;
+#else
+                    buffer[j] = rhs.swapped();
+#endif
                     ++j;
                 }
             }
@@ -991,16 +995,15 @@ namespace gfx {
                     vector_pixel lhs(buffer[j],true);
                     typename Destination::pixel_type rhs;
                     convert(lhs,&rhs);
-                    auto rr = rhs.channel<channel_name::R>();
-                    auto gg = rhs.channel<channel_name::G>();
-                    auto bb = rhs.channel<channel_name::B>();
+                    // auto rr = rhs.channel<channel_name::R>();
+                    // auto gg = rhs.channel<channel_name::G>();
+                    // auto bb = rhs.channel<channel_name::B>();
 #ifndef HTCW_GFX_NO_SWAP
                     typename Destination::pixel_type::int_type rhsv=rhs.swapped();
 #else
                     typename Destination::pixel_type::int_type rhsv=rhs.native_value;
 #endif
                     memcpy(&target[i],&rhsv,ba);
-                    target[i] = rhsv;
                     ++j;
                 }
             }

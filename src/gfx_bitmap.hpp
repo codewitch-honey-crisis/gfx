@@ -175,25 +175,41 @@ namespace gfx {
                 switch(bit_depth) {
                     case 8: {
                         uint8_t* p = ((uint8_t*)begin())+offs;
-                        *p=rhs.swapped();
+                        *p=rhs.native_value;
                         break;
                     }
                     case 16: {
                         uint16_t *p = ((uint16_t*)begin())+offs;
+#ifndef HTCW_GFX_NO_SWAP
                         *p=rhs.swapped();    
+#else
+                        *p=rhs.native_value;    
+#endif
                         break;
                     } case 32: {
                         uint32_t *p = ((uint32_t*)begin())+offs;
+#ifndef HTCW_GFX_NO_SWAP
                         *p=rhs.swapped();    
+#else
+                        *p=rhs.native_value;    
+#endif
                         break;
                     }
                     default: {
+#ifndef HTCW_GFX_NO_SWAP
+                        typename pixel_type::int_type v = rhs.swapped();
+#else
+                        typename pixel_type::int_type v = rhs.native_value;
+#endif
                         offs *= bit_depth;
+                        if(pixel_type::byte_aligned) {
+                            memcpy(begin()+offs/8,&v,sizeof(typename pixel_type::int_type));                              
+                            break;
+                        }
                         const size_t offs_bits = offs % 8;
                         //const size_t siz = pixel_type::packed_size+(((int)pixel_type::pad_right_bits)<=offs_bits)+1;
                         // now set the pixel
                         uint8_t tmp[9];
-                        typename pixel_type::int_type v = rhs.swapped();
                         memcpy(tmp,&v,sizeof(typename pixel_type::int_type));    
                         // below doesn't work with strict aliasing:
                         //*((typename pixel_type::int_type*)tmp)=rhs.swapped();
@@ -239,20 +255,41 @@ namespace gfx {
                 switch(bit_depth) {
                     case 8: {
                         const typename pixel_type::int_type *p = ((typename pixel_type::int_type*)begin())+offs;
-                        out_pixel->swapped(*p);
+                        out_pixel->native_value=*p;
                         break;
                     }
                     case 16: {
                         const typename pixel_type::int_type *p = ((typename pixel_type::int_type*)begin())+offs;
+#ifndef HTCW_GFX_NO_SWAP
                         out_pixel->swapped(*p);
+#else
+                        out_pixel->native_value=*p;
+#endif
+
                         break;
                     } case 32: {
                         const typename pixel_type::int_type *p = ((typename pixel_type::int_type*)begin())+offs;
+#ifndef HTCW_GFX_NO_SWAP
                         out_pixel->swapped(*p);
+#else
+                        out_pixel->native_value=*p;
+#endif
                         break;
                     }
                     default: {
                         offs *= bit_depth;
+                        pixel_type result;
+                        typename pixel_type::int_type r = 0;
+                        if(pixel_type::byte_aligned) {
+                            memcpy(&r,begin()+offs/8,pixel_type::packed_size);
+                            r&=pixel_type::mask;    
+#ifndef HTCW_GFX_NO_SWAP
+                            r=bits::swap(r);
+#endif
+                            result.native_value = r;
+                            *out_pixel=result;
+                            break;
+                        }
                         const size_t offs_bits = offs % 8;
                         const size_t siz = pixel_type::packed_size+(((int)pixel_type::pad_right_bits)<=offs_bits)+1;
                         uint8_t tmp[9];
@@ -260,10 +297,11 @@ namespace gfx {
                         memcpy(tmp,begin()+offs/8,siz);
                         if(0<offs_bits)
                             bits::shift_left(tmp,0,siz*8,offs_bits);
-                        pixel_type result;
-                        typename pixel_type::int_type r = 0;
+                        
                         memcpy(&r,tmp,pixel_type::packed_size);
-                        r=helpers::order_guard(r);
+#ifndef HTCW_GFX_NO_SWAP
+                        r=bits::swap(r);
+#endif
                         r&=pixel_type::mask;
                         result.native_value=r;
                         *out_pixel=result;
@@ -353,7 +391,11 @@ namespace gfx {
                 if(nullptr==begin()) {
                     return gfx_result::out_of_memory;
                 }
+#ifndef HTCW_GFX_NO_SWAP
                 typename pixel_type::int_type be_val = pixel.swapped();
+#else
+                typename pixel_type::int_type be_val = pixel.native_value;
+#endif
                 rect16 dstr = dst.crop(bounds());
                 size_t dy = 0, dye=dstr.height();
                 if(pixel_type::byte_alignment!=0) {
@@ -477,7 +519,9 @@ namespace gfx {
                 pixel_type result;
                 typename pixel_type::int_type r = 0;
                 memcpy(&r,tmp,pixel_type::packed_size);
-                r=helpers::order_guard(r);
+#ifndef HTCW_GFX_NO_SWAP
+                r=bits::swap(r);
+#endif
                 r&=pixel_type::mask;
                 result.native_value=r;
                 *out_pixel=result;
@@ -853,7 +897,11 @@ namespace gfx {
                 for (int i = 0; i < length*ba; i+=ba) {
                     typename Source::pixel_type::int_type v;
                     memcpy(&v,&target[i],ba);
+#ifndef HTCW_GFX_NO_SWAP
                     typename Source::pixel_type lhs(bits::swap(v),true);
+#else
+                    typename Source::pixel_type lhs(v,true);
+#endif
                     vector_pixel rhs;
                     convert(lhs,&rhs);
                     // Convert each RGBA Plain pixel to ARGB 
@@ -888,7 +936,12 @@ namespace gfx {
                     vector_pixel lhs(buffer[i],true);
                     typename Destination::pixel_type rhs;
                     convert(lhs,&rhs);
+#ifndef HTCW_GFX_NO_SWAP
                     target[i] = rhs.swapped();
+#else
+                    target[i] = rhs.native_value;
+#endif
+
                 }
             }
             break;
@@ -899,7 +952,11 @@ namespace gfx {
                     vector_pixel lhs(buffer[i],true);
                     typename Destination::pixel_type rhs;
                     convert(lhs,&rhs);
+#ifndef HTCW_GFX_NO_SWAP
                     target[i] = rhs.swapped();
+#else
+                    target[i] = rhs.native_value;
+#endif
                 }
             }
             break;
@@ -909,7 +966,11 @@ namespace gfx {
                     vector_pixel lhs(buffer[i],true);
                     typename Destination::pixel_type rhs;
                     convert(lhs,&rhs);
+#ifndef HTCW_GFX_NO_SWAP
                     target[i] = rhs.swapped();
+#else
+                    target[i] = rhs.native_value;
+#endif
                 }
             }
             break;
@@ -930,7 +991,14 @@ namespace gfx {
                     vector_pixel lhs(buffer[j],true);
                     typename Destination::pixel_type rhs;
                     convert(lhs,&rhs);
+                    auto rr = rhs.channel<channel_name::R>();
+                    auto gg = rhs.channel<channel_name::G>();
+                    auto bb = rhs.channel<channel_name::B>();
+#ifndef HTCW_GFX_NO_SWAP
                     typename Destination::pixel_type::int_type rhsv=rhs.swapped();
+#else
+                    typename Destination::pixel_type::int_type rhsv=rhs.native_value;
+#endif
                     memcpy(&target[i],&rhsv,ba);
                     target[i] = rhsv;
                     ++j;

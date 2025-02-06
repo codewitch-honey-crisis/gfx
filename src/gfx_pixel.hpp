@@ -143,7 +143,11 @@ namespace gfx {
         // the number of bits to the left of this channel
         constexpr static const size_t bits_to_left = ChannelTraits::bit_depth!=0?BitsToLeft:0;
         // the total bits to the right of this channel including padding
+#ifndef HTCW_GFX_NO_SWAP
         constexpr static const size_t total_bits_to_right =  ChannelTraits::bit_depth!=0?sizeof(pixel_int_type)*8-BitsToLeft-ChannelTraits::bit_depth:0;
+#else
+        constexpr static const size_t total_bits_to_right =  ChannelTraits::bit_depth!=0?pixel_type::packed_size*8-BitsToLeft-ChannelTraits::bit_depth:0;
+#endif
         // the bits to the right of this channel excluding padding
         constexpr static const size_t bits_to_right =ChannelTraits::bit_depth!=0?total_bits_to_right-PixelType::pad_right_bits:0;
         // the name of the channel
@@ -590,7 +594,12 @@ namespace gfx {
         // the packed size, in bits
         constexpr static const size_t packed_size_bits = packed_size*8;
         // the count of bits to the right that are unused
+#ifndef HTCW_GFX_NO_SWAP        
         constexpr static const size_t pad_right_bits = total_size_bits-bit_depth;
+#else
+        static_assert(byte_aligned || bit_depth==1,"Currently, HTCW_GFX_NO_SWAP requires byte aligned or monochrome pixels");
+        constexpr static const size_t pad_right_bits = 0;
+#endif
         // the mask of the pixel's value
         constexpr static const int_type mask = int_type(int_type(~int_type(0))<<(pad_right_bits));
         

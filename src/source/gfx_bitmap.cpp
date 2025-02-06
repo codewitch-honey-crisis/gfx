@@ -7,10 +7,17 @@ constexpr static const uint16_t xrgb16_g_left = 5;
 constexpr static const uint16_t xrgb16_b_left = 11;
 
 uint32_t xrgba32_to_argb32p(uint32_t pixel) {
+#ifndef HTCW_GFX_NO_SWAP
     uint32_t a = (pixel >> 24) & 0xFF;
     uint32_t b = (pixel >> 16) & 0xFF;
     uint32_t g = (pixel >> 8) & 0xFF;
     uint32_t r = (pixel >> 0) & 0xFF;
+#else
+    uint32_t r = (pixel >> 24) & 0xFF;
+    uint32_t g = (pixel >> 16) & 0xFF;
+    uint32_t b = (pixel >> 8) & 0xFF;
+    uint32_t a = (pixel >> 0) & 0xFF;
+#endif
     if (a != 255) {
         // Premultiply RGB channels by the alpha value
         r = (r * a) / 255;
@@ -22,10 +29,17 @@ uint32_t xrgba32_to_argb32p(uint32_t pixel) {
     return (a << 24) | (r << 16) | (g << 8) | b;
 }
 uint32_t xrgba32_to_argb32(uint32_t pixel) {
+#ifndef HTCW_GFX_NO_SWAP
     uint32_t a = (pixel >> 24) & 0xFF;
     uint32_t b = (pixel >> 16) & 0xFF;
     uint32_t g = (pixel >> 8) & 0xFF;
     uint32_t r = (pixel >> 0) & 0xFF;
+#else
+    uint32_t r = (pixel >> 24) & 0xFF;
+    uint32_t g = (pixel >> 16) & 0xFF;
+    uint32_t b = (pixel >> 8) & 0xFF;
+    uint32_t a = (pixel >> 0) & 0xFF;
+#endif
     // if (a != 255) {
     //     // Premultiply RGB channels by the alpha value
     //     r = (r * a) / 255;
@@ -49,10 +63,16 @@ uint32_t xargb32p_to_rgba32(uint32_t pixel) {
     //     b = (b * 255) / a;
     // }
     // Return the RGBA Plain pixel value
+#ifndef HTCW_GFX_NO_SWAP
     return (a << 24) | (b << 16) | (g << 8) | r;
+#else
+    return (r << 24) | (g << 16) | (b << 8) | a;
+#endif
 }
 uint32_t xrgb16_to_argb32p(uint16_t pixel) {
-    pixel = ::bits::from_be(pixel);
+#ifndef HTCW_GFX_NO_SWAP
+    pixel = ::bits::swap(pixel);
+#endif
     uint32_t b = (pixel >> xrgb16_r_left) & 0x1F;
     uint32_t g = (pixel >> xrgb16_g_left) & 0x3F;
     uint32_t r = (pixel >> xrgb16_b_left) & 0x1F;
@@ -72,7 +92,11 @@ uint16_t xargb32p_to_rgb16(uint32_t pxl) {
     > px(pxl, true);
     rgb_pixel<16> px2;
     convert(px, &px2);
-    return ::bits::from_be(px2.native_value);
+#ifndef HTCW_GFX_NO_SWAP
+    return ::bits::swap(px2.native_value);
+#else
+    return px2.native_value;
+#endif
 }
 // DIRECT MODE CALLBACK SPECIALIZATIONS
 void xread_callback_rgba32p(uint32_t* buffer, const uint8_t* data,

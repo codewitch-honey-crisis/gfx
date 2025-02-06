@@ -1116,7 +1116,9 @@ namespace gfx {
                 result->native_value=source.native_value;
                 return gfx_result::success;
             } else {
-                return gfx_result::invalid_format;
+                    result->native_value = source.native_value;
+                    // now blend it
+                    return result->blend(*background,source.opacity(),result);
             }
         }
         bool good = false;

@@ -1035,7 +1035,7 @@ static result_t svg_parse_float(svg_context& ctx, const char** current,
 }
 result_t svg_parse_alpha_str(svg_context& ctx, const char** current,
                              char* value, size_t max_len) {
-    int len = 0;
+    size_t len = 0;
     if (*current == nullptr) {
         return SUCCESS;
     }
@@ -1071,7 +1071,7 @@ result_t svg_parse_alpha_str(svg_context& ctx, const char** current,
 
 result_t svg_parse_alphanum_str(svg_context& ctx, const char** current,
                                 char* value, size_t max_len) {
-    int len = 0;
+    size_t len = 0;
     if (*current == nullptr) {
         return SUCCESS;
     }
@@ -1106,7 +1106,7 @@ result_t svg_parse_alphanum_str(svg_context& ctx, const char** current,
 }
 result_t svg_parse_name_str(svg_context& ctx, const char** current, char* value,
                             size_t max_len) {
-    int len = 0;
+    size_t len = 0;
     if (*current == nullptr) {
         return FMT_ERROR;
     }
@@ -1359,7 +1359,7 @@ result_t svg_parse_color(svg_context& ctx, const char** current, int mode,
                          vector_pixel* out_color) {
     bool found = false;
     int state = mode==COLOR_MODE_UNKNOWN?0:5;
-    int r, g, b;
+    unsigned int r, g, b;
     bool hsl = mode==COLOR_MODE_HSL?true:false;
     //char term = 0;
     float rgb[4];
@@ -2183,7 +2183,7 @@ result_t svg_parse_stroke_dash_array(svg_context& ctx, const char** current,
 result_t svg_parse_path_points(svg_context& ctx, const char** current,
                           size_t values_size, float* out_values) {
     result_t result;
-    for (int i = 0; i < values_size; ++i) {
+    for (size_t i = 0; i < values_size; ++i) {
         result = svg_skip_space_or_comma(ctx, current);
         if (!SUCCEEDED(result)) {
             return result;
@@ -2201,7 +2201,7 @@ result_t svg_parse_path_points(svg_context& ctx, const char** current,
 }
 void svg_make_relative_points(float cur_x, float cur_y, float* values,
                               size_t values_size) {
-    for (int i = 0; i < values_size; i += 2) {
+    for (size_t i = 0; i < values_size; i += 2) {
         values[i] += cur_x;
         values[i + 1] += cur_y;
     }
@@ -3048,7 +3048,7 @@ static result_t svg_build_gradient(svg_context& ctx, const rectf& local_bounds, 
                 if(out_grad->stops==nullptr) {
                     return OUT_OF_MEMORY;
                 }
-                for(int i = 0;i<ref_data->stops_size;++i) {
+                for(size_t i = 0;i<ref_data->stops_size;++i) {
                     out_grad->stops[i].color = ref_data->stops[i].color;
                     float alpha = out_grad->stops[i].color.opacity();
                     float opacity = ref_data->stops[i].opacity;
@@ -3089,8 +3089,8 @@ static result_t svg_build_gradient(svg_context& ctx, const rectf& local_bounds, 
             return OUT_OF_MEMORY;
         }
         //int st = ref_data!=nullptr?ref_data->stops_size:0;
-        for(int i = 0;i<data->stops_size;++i) {
-            int j = out_grad->stops_size+i;
+        for(size_t i = 0;i<data->stops_size;++i) {
+            size_t j = out_grad->stops_size+i;
             out_grad->stops[j].color = data->stops[i].color;
             float alpha = out_grad->stops[i].color.opacity();
             float opacity = data->stops[i].opacity;

@@ -26,7 +26,7 @@ FetchContent_Declare(htcw_ml
     GIT_REPOSITORY https://github.com/codewitch-honey-crisis/htcw_ml.git
     GIT_TAG 0.2.4
     GIT_SHALLOW ON
-    FIND_PACKAGE_ARGS 0.2.4
+    FIND_PACKAGE_ARGS 0.2.6
 )
 
 FetchContent_MakeAvailable(htcw_ml)

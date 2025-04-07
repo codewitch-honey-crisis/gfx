@@ -275,22 +275,29 @@ void plutovg_font_face_get_glyph_metrics(const plutovg_font_face_t* face, float 
     }
 }
 
-static void glyph_traverse_func(void* closure, plutovg_path_command_t command, const ::gfx::pointf* points, int npoints)
+static bool glyph_traverse_func(void* closure, plutovg_path_command_t command, const ::gfx::pointf* points, int npoints)
 {
     plutovg_path_t* path = (plutovg_path_t*)(closure);
     switch(command) {
     case PLUTOVG_PATH_COMMAND_MOVE_TO:
-        plutovg_path_move_to(path, points[0].x, points[0].y);
+        if(!plutovg_path_move_to(path, points[0].x, points[0].y)) {
+            return false;
+        }
         break;
     case PLUTOVG_PATH_COMMAND_LINE_TO:
-        plutovg_path_line_to(path, points[0].x, points[0].y);
+        if(!plutovg_path_line_to(path, points[0].x, points[0].y)) {
+            return false;
+        }
         break;
     case PLUTOVG_PATH_COMMAND_CUBIC_TO:
-        plutovg_path_cubic_to(path, points[0].x, points[0].y, points[1].x, points[1].y, points[2].x, points[2].y);
+        if(!plutovg_path_cubic_to(path, points[0].x, points[0].y, points[1].x, points[1].y, points[2].x, points[2].y)) {
+            return false;
+        }
         break;
     case PLUTOVG_PATH_COMMAND_CLOSE:
         assert(false);
     }
+    return true;
 }
 
 float plutovg_font_face_get_glyph_path(const plutovg_font_face_t* face, float size, float x, float y, plutovg_codepoint_t codepoint, plutovg_path_t* path)
@@ -314,14 +321,18 @@ float plutovg_font_face_traverse_glyph_path(const plutovg_font_face_t* face, flo
             points[0].y = glyph->vertices[i].y;
             current_point = points[0];
             matrix.map(points->x,points->y,&points->x,&points->y);
-            traverse_func(closure, PLUTOVG_PATH_COMMAND_MOVE_TO, points, 1);
+            if(!traverse_func(closure, PLUTOVG_PATH_COMMAND_MOVE_TO, points, 1)) {
+                return NAN;
+            }
             break;
         case STBTT_vline:
             points[0].x = glyph->vertices[i].x;
             points[0].y = glyph->vertices[i].y;
             current_point = points[0];
             matrix.map(points->x,points->y,&points->x,&points->y);
-            traverse_func(closure, PLUTOVG_PATH_COMMAND_LINE_TO, points, 1);
+            if(!traverse_func(closure, PLUTOVG_PATH_COMMAND_LINE_TO, points, 1)) {
+                return NAN;
+            }
             break;
         case STBTT_vcurve:
             points[0].x = 2.f / 3.f * glyph->vertices[i].cx + 1.f / 3.f * current_point.x;
@@ -334,7 +345,9 @@ float plutovg_font_face_traverse_glyph_path(const plutovg_font_face_t* face, flo
             matrix.map(points[0].x,points[0].y,&points[0].x,&points[0].y);
             matrix.map(points[1].x,points[1].y,&points[1].x,&points[1].y);
             matrix.map(points[2].x,points[2].y,&points[2].x,&points[2].y);
-            traverse_func(closure, PLUTOVG_PATH_COMMAND_CUBIC_TO, points, 3);
+            if(!traverse_func(closure, PLUTOVG_PATH_COMMAND_CUBIC_TO, points, 3)) {
+                return NAN;
+            }
             break;
         case STBTT_vcubic:
             points[0].x = glyph->vertices[i].cx;
@@ -347,7 +360,9 @@ float plutovg_font_face_traverse_glyph_path(const plutovg_font_face_t* face, flo
             matrix.map(points[0].x,points[0].y,&points[0].x,&points[0].y);
             matrix.map(points[1].x,points[1].y,&points[1].x,&points[1].y);
             matrix.map(points[2].x,points[2].y,&points[2].x,&points[2].y);
-            traverse_func(closure, PLUTOVG_PATH_COMMAND_CUBIC_TO, points, 3);
+            if(!traverse_func(closure, PLUTOVG_PATH_COMMAND_CUBIC_TO, points, 3)) {
+                return NAN;
+            }
             break;
         default:
             assert(false);

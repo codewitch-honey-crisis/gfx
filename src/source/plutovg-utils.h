@@ -8,6 +8,7 @@
 #include <string.h>
 #include <float.h>
 #include <math.h>
+#include <memory.h>
 
 #define plutovg_min(a, b) ((a) < (b) ? (a) : (b))
 #define plutovg_max(a, b) ((a) > (b) ? (a) : (b))
@@ -34,12 +35,24 @@ static inline uint32_t plutovg_premultiply_argb(uint32_t color)
     return (a << 24) | (r << 16) | (g << 8) | (b);
 }
 
-#define plutovg_array_init(array) \
-    do { \
-        (array).data = NULL; \
-        (array).size = 0; \
-        (array).capacity = 0; \
-    } while(0)
+// #define plutovg_array_init(array,allocator,reallocator,deallocator) \
+//     do { \
+//         (array).data = NULL; \
+//         (array).size = 0; \
+//         (array).capacity = 0; \
+//         (array).allocator = allocator; \
+//         (array).reallocator = reallocator; \
+//         (array).deallocator = deallocator; \
+//     } while(0)
+template<typename T>
+void plutovg_array_init(T& array, void*(*allocator)(size_t), void*(*reallocator)(void*,size_t), void(*deallocator)(void*)) {
+    array.data = nullptr;
+    array.size = 0;
+    array.capacity = 0;
+    array.allocator = allocator;
+    array.reallocator = reallocator;
+    array.deallocator = deallocator;
+}
 
 // #define plutovg_array_ensure(array, count) 
 //     do { 
@@ -55,12 +68,12 @@ static inline uint32_t plutovg_premultiply_argb(uint32_t color)
 template<typename T,typename ET>
 bool plutovg_array_ensure(T& array, size_t count) {
     if((array).data == NULL || ((array).size + (count) > (array).capacity)) { 
-        using e_t = decltype(array.data[0]);
+        using e_t =decltype(array.data[0]);
         using p_t = decltype(array.data);
         int capacity = (array).size + (count); 
         int newcapacity = (array).capacity == 0 ? 8 : (array).capacity; 
         while(newcapacity < capacity) { newcapacity *= 2; } 
-        (array).data = (p_t)realloc((array).data, newcapacity * sizeof(e_t)); 
+        (array).data = (p_t)(array).reallocator((array).data, newcapacity * sizeof(e_t)); 
         if((array).data==nullptr) {
             return false;
         }
@@ -95,7 +108,7 @@ bool plutovg_array_append(T& array, const T& other) {
 
 //#define plutovg_array_append(array, other) plutovg_array_append_data(array, (other).data, (other).size)
 #define plutovg_array_clear(array) ((array).size = 0)
-#define plutovg_array_destroy(array) do { free((array).data); (array).data=NULL; } while(0);
+#define plutovg_array_destroy(array) if((array).data!=NULL) { (array).deallocator((array).data); (array).data=NULL; };
 
 #define PLUTOVG_IS_NUM(c) ((c) >= '0' && (c) <= '9')
 #define PLUTOVG_IS_ALPHA(c) (((c) >= 'a' && (c) <= 'z') || ((c) >= 'A' && (c) <= 'Z'))

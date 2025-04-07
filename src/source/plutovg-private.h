@@ -22,6 +22,9 @@ struct plutovg_path {
         plutovg_path_element_t* data;
         int size;
         int capacity;
+        void*(*allocator)(size_t);
+        void*(*reallocator)(void*, size_t);
+        void(*deallocator)(void*);
     } elements;
 };
 
@@ -79,6 +82,9 @@ typedef struct {
     plutovg_span_t* data;
     int size;
     int capacity;
+    void*(*allocator)(size_t);
+    void*(*reallocator)(void*, size_t);
+    void(*deallocator)(void*);
 } plutovg_span_buffer_array_t;
 typedef struct {
     plutovg_span_buffer_array_t spans;
@@ -94,6 +100,9 @@ typedef struct {
         float* data;
         int size;
         int capacity;
+        void*(*allocator)(size_t);
+        void*(*reallocator)(void*, size_t);
+        void(*deallocator)(void*);
     } array;
 } plutovg_stroke_dash_t;
 
@@ -143,17 +152,20 @@ struct plutovg_canvas {
     plutovg_rect_t clip_rect;
     plutovg_span_buffer_t clip_spans;
     plutovg_span_buffer_t fill_spans;
+    void*(*allocator)(size_t);
+    void*(*reallocator)(void*, size_t);
+    void(*deallocator)(void*);
 };
 
-void plutovg_span_buffer_init(plutovg_span_buffer_t* span_buffer);
-void plutovg_span_buffer_init_rect(plutovg_span_buffer_t* span_buffer, int x, int y, int width, int height);
+bool plutovg_span_buffer_init(plutovg_span_buffer_t* span_buffer,void*(*allocator)(size_t), void*(*reallocator)(void*,size_t), void(*deallocator)(void*));
+bool plutovg_span_buffer_init_rect(plutovg_span_buffer_t* span_buffer, int x, int y, int width, int height);
 void plutovg_span_buffer_reset(plutovg_span_buffer_t* span_buffer);
 void plutovg_span_buffer_destroy(plutovg_span_buffer_t* span_buffer);
-void plutovg_span_buffer_copy(plutovg_span_buffer_t* span_buffer, const plutovg_span_buffer_t* source);
+bool plutovg_span_buffer_copy(plutovg_span_buffer_t* span_buffer, const plutovg_span_buffer_t* source);
 void plutovg_span_buffer_extents(plutovg_span_buffer_t* span_buffer, plutovg_rect_t* extents);
 bool plutovg_span_buffer_intersect(plutovg_span_buffer_t* span_buffer, const plutovg_span_buffer_t* a, const plutovg_span_buffer_t* b);
 
-bool plutovg_rasterize(plutovg_span_buffer_t* span_buffer, const plutovg_path_t* path, const ::gfx::matrix* matrix, const plutovg_rect_t* clip_rect, const plutovg_stroke_data_t* stroke_data, plutovg_fill_rule_t winding);
-void plutovg_blend(plutovg_canvas_t* canvas, const plutovg_span_buffer_t* span_buffer);
+bool plutovg_rasterize(plutovg_span_buffer_t* span_buffer, const plutovg_path_t* path, const ::gfx::matrix* matrix, const plutovg_rect_t* clip_rect, const plutovg_stroke_data_t* stroke_data, plutovg_fill_rule_t winding,void*(*allocator)(size_t),void*(*reallocator)(void*,size_t),void(*deallocator)(void*));
+bool plutovg_blend(plutovg_canvas_t* canvas, const plutovg_span_buffer_t* span_buffer);
 
 #endif // PLUTOVG_PRIVATE_H

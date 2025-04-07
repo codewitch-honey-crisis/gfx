@@ -3,7 +3,7 @@
 #define PHND ((plutovg_path_t*)m_info)
 
 namespace gfx {
-canvas_path::canvas_path() : m_info(nullptr) {
+canvas_path::canvas_path(void*(*allocator)(size_t),void*(*reallocator)(void*,size_t),void(*deallocator)(void*)) : m_info(nullptr),m_allocator(allocator),m_reallocator(reallocator),m_deallocator(deallocator) {
 
 }
 canvas_path::~canvas_path() {
@@ -21,7 +21,7 @@ canvas_path& canvas_path::operator=(canvas_path&& rhs) {
 }
 gfx_result canvas_path::initialize() {
     if(m_info==nullptr) {
-        plutovg_path* p = plutovg_path_create();
+        plutovg_path* p = plutovg_path_create(m_allocator,m_reallocator,m_deallocator);
         if(p==nullptr) {
             return gfx_result::out_of_memory;
         }
@@ -34,7 +34,7 @@ bool canvas_path::initialized() const {
 }
 void canvas_path::deinitialize() {
     if(m_info!=nullptr) {
-        plutovg_path_destroy(PHND);
+        plutovg_path_destroy(PHND,m_deallocator);
         m_info = nullptr;
     }
 }

@@ -7,10 +7,10 @@
 namespace gfx {
 
 
-canvas::canvas() : m_info(nullptr), m_style(nullptr), m_dimensions(0,0),m_global_clip(NAN,NAN,NAN,NAN),m_write_callback(nullptr),m_read_callback(nullptr), m_free_callback_state(nullptr) {
+canvas::canvas(void*(*allocator)(size_t), void*(*reallocator)(void*,size_t), void(*deallocator)(void*)) : m_info(nullptr), m_style(nullptr), m_dimensions(0,0),m_global_clip(NAN,NAN,NAN,NAN),m_write_callback(nullptr),m_read_callback(nullptr), m_free_callback_state(nullptr),m_allocator(allocator),m_reallocator(reallocator),m_deallocator(deallocator) {
 
 }
-canvas::canvas(size16 dimensions) : m_info(nullptr),m_style(nullptr), m_dimensions(dimensions),m_global_clip(NAN,NAN,NAN,NAN), m_write_callback(nullptr),m_read_callback(nullptr), m_free_callback_state(nullptr) {
+canvas::canvas(size16 dimensions,void*(*allocator)(size_t), void*(*reallocator)(void*,size_t), void(*deallocator)(void*)) : m_info(nullptr),m_style(nullptr), m_dimensions(dimensions),m_global_clip(NAN,NAN,NAN,NAN), m_write_callback(nullptr),m_read_callback(nullptr), m_free_callback_state(nullptr),m_allocator(allocator),m_reallocator(reallocator),m_deallocator(deallocator) {
 
 }
 canvas::canvas(canvas&& rhs) {
@@ -28,6 +28,9 @@ canvas::canvas(canvas&& rhs) {
     m_free_callback_state = rhs.m_free_callback_state;
     rhs.m_free_callback_state = nullptr;
     m_global_clip = rhs.m_global_clip;
+    m_allocator = rhs.m_allocator;
+    m_reallocator = rhs.m_reallocator;
+    m_deallocator = rhs.m_deallocator;
 }
 
 canvas::~canvas() {
@@ -49,6 +52,9 @@ canvas& canvas::operator=(canvas&& rhs) {
     m_free_callback_state = rhs.m_free_callback_state;
     rhs.m_free_callback_state = nullptr;
     m_global_clip = rhs.m_global_clip;
+    m_allocator = rhs.m_allocator;
+    m_reallocator = rhs.m_reallocator;
+    m_deallocator = rhs.m_deallocator;
     return *this;
 }
 vector_on_write_callback_type canvas::on_write_callback() const {
@@ -133,12 +139,11 @@ gfx_result canvas::initialize() {
     if(m_dimensions==size16::zero()) {
         return gfx_result::invalid_state;
     }
-    
-    m_info = plutovg_canvas_create(m_dimensions.width,m_dimensions.height);
+    m_info = plutovg_canvas_create(m_dimensions.width,m_dimensions.height,m_allocator,m_reallocator,m_deallocator);
     if(m_info==nullptr) {
         return gfx_result::out_of_memory;
     }
-    m_style = (canvas_style*)malloc(sizeof(canvas_style));
+    m_style = (canvas_style*)m_allocator(sizeof(canvas_style));
     if(m_style==nullptr) {
         plutovg_canvas_destroy(CHND);
         m_info = nullptr;
@@ -175,7 +180,7 @@ void canvas::deinitialize() {
         m_info = nullptr;
     }
     if(m_style!=nullptr) {
-        free(m_style);
+        m_deallocator(m_style);
         m_style = nullptr;
     }
     if(m_callback_state!=nullptr && m_free_callback_state!=nullptr) {
@@ -533,7 +538,9 @@ rectf canvas::fill_bounds() const {
 rectf canvas::stroke_bounds() const {
     if(!initialized()) return {0,0,0,0};
     plutovg_rect_t r;
-    plutovg_canvas_stroke_extents(CHND,&r);
+    if(!plutovg_canvas_stroke_extents(CHND,&r)) {
+        return {NAN,NAN,NAN,NAN};
+    }
     return rectf(r.x,r.y,r.x+r.w-1,r.y+r.h-1);
 }
 rectf canvas::clip_bounds() const {
@@ -544,32 +551,44 @@ rectf canvas::clip_bounds() const {
 }
 gfx_result canvas::move_to(pointf location) {
     if(!initialized()) return gfx_result::invalid_state;
-    plutovg_canvas_move_to(CHND,location.x,location.y);
+    if(!plutovg_canvas_move_to(CHND,location.x,location.y)) {
+        return gfx_result::out_of_memory;
+    }
     return gfx_result::success;
 }
 gfx_result canvas::line_to(pointf location) {
     if(!initialized()) return gfx_result::invalid_state;
-    plutovg_canvas_line_to(CHND,location.x,location.y);
+    if(!plutovg_canvas_line_to(CHND,location.x,location.y)) {
+        return gfx_result::out_of_memory;
+    }
     return gfx_result::success;
 }
 gfx_result canvas::quad_to(pointf point1, pointf point2) {
     if(!initialized()) return gfx_result::invalid_state;
-    plutovg_canvas_quad_to(CHND,point1.x,point1.y,point2.x,point2.y);
+    if(!plutovg_canvas_quad_to(CHND,point1.x,point1.y,point2.x,point2.y)) {
+        return gfx_result::out_of_memory;
+    }
     return gfx_result::success;
 }
 gfx_result canvas::cubic_to(pointf point1, pointf point2, pointf point3) {
     if(!initialized()) return gfx_result::invalid_state;
-    plutovg_canvas_cubic_to(CHND,point1.x,point1.y,point2.x,point2.y,point3.x,point3.y);
+    if(!plutovg_canvas_cubic_to(CHND,point1.x,point1.y,point2.x,point2.y,point3.x,point3.y)) {
+        return gfx_result::out_of_memory;
+    }
     return gfx_result::success;
 }
 gfx_result canvas::arc_to(sizef radiuses,float angle, bool large_arc, bool sweep, pointf location) {
     if(!initialized()) return gfx_result::invalid_state;
-    plutovg_canvas_arc_to(CHND,radiuses.width,radiuses.height,angle,large_arc,sweep,location.x,location.y);
+    if(!plutovg_canvas_arc_to(CHND,radiuses.width,radiuses.height,angle,large_arc,sweep,location.x,location.y)) {
+        return gfx_result::out_of_memory;
+    }
     return gfx_result::success;
 }
 gfx_result canvas::close_path() {
     if(!initialized()) return gfx_result::invalid_state;
-    plutovg_canvas_close_path(CHND);
+    if(!plutovg_canvas_close_path(CHND)) {
+        return gfx_result::out_of_memory;
+    }
     return gfx_result::success;
 }
 void canvas::clear_path() {
@@ -579,28 +598,38 @@ void canvas::clear_path() {
 gfx_result canvas::rectangle(const rectf& bounds) {
     if(!initialized()) return gfx_result::invalid_state;
     rectf n = bounds.normalize();
-    plutovg_canvas_rect(CHND,n.x1,n.y1,n.x2-n.x1+1,n.y2-n.y1+1);
+    if(!plutovg_canvas_rect(CHND,n.x1,n.y1,n.x2-n.x1+1,n.y2-n.y1+1)) {
+        return gfx_result::out_of_memory;
+    }
     return gfx_result::success;
 }
 gfx_result canvas::rounded_rectangle(const rectf& bounds, sizef radiuses) {
     if(!initialized()) return gfx_result::invalid_state;
     rectf n = bounds.normalize();
-    plutovg_canvas_round_rect(CHND,n.x1,n.y1,n.x2-n.x1+1,n.y2-n.y1+1,radiuses.width,radiuses.height);
+    if(!plutovg_canvas_round_rect(CHND,n.x1,n.y1,n.x2-n.x1+1,n.y2-n.y1+1,radiuses.width,radiuses.height)) {
+        return gfx_result::out_of_memory;
+    }
     return gfx_result::success;
 }
 gfx_result canvas::ellipse(pointf center, sizef radiuses) {
     if(!initialized()) return gfx_result::invalid_state;
-    plutovg_canvas_ellipse(CHND,center.x,center.y,radiuses.width,radiuses.height);
+    if(!plutovg_canvas_ellipse(CHND,center.x,center.y,radiuses.width,radiuses.height)) {
+        return gfx_result::out_of_memory;
+    }
     return gfx_result::success;
 }
 gfx_result canvas::circle(pointf center, float radius) {
     if(!initialized()) return gfx_result::invalid_state;
-    plutovg_canvas_circle(CHND,center.x,center.y,radius);
+    if(!plutovg_canvas_circle(CHND,center.x,center.y,radius)) {
+        return gfx_result::out_of_memory;
+    }
     return gfx_result::success;
 }
 gfx_result canvas::arc(pointf center, float radius,float a0, float a1, bool ccw) {
     if(!initialized()) return gfx_result::invalid_state;
-    plutovg_canvas_arc(CHND,center.x,center.y,radius,a0,a1,ccw);
+    if(!plutovg_canvas_arc(CHND,center.x,center.y,radius,a0,a1,ccw)) {
+        return gfx_result::out_of_memory;
+    }
     return gfx_result::success;
 }
 gfx_result canvas::text(pointf location, const canvas_text_info& info) {
@@ -624,16 +653,22 @@ gfx_result canvas::text(pointf location, const canvas_text_info& info) {
 }
 gfx_result canvas::path(const canvas_path& path) {
     if(!initialized()) return gfx_result::invalid_state;
-    plutovg_canvas_add_path(CHND,(plutovg_path_t*)path.m_info);
+    if(!plutovg_canvas_add_path(CHND,(plutovg_path_t*)path.m_info)) {
+        return gfx_result::out_of_memory;
+    }
     return gfx_result::success;
 }
 gfx_result canvas::reserve(size_t points) {
-    plutovg_path_reserve(plutovg_canvas_get_path(CHND), points*2);
+    if(!plutovg_path_reserve(plutovg_canvas_get_path(CHND), points*2)) {
+        return gfx_result::out_of_memory;
+    }
     return gfx_result::success;
 }
-gfx_result canvas::render(bool preserve) {
+gfx_result canvas::render(bool preserve,void*(*allocator)(size_t),void*(*reallocator)(void*,size_t),void(*deallocator)(void*)) {
     if(!initialized()) return gfx_result::invalid_state;
-    
+    if(allocator==nullptr) allocator = m_allocator;
+    if(reallocator==nullptr) reallocator = m_reallocator;
+    if(deallocator==nullptr) deallocator = m_deallocator;
     plutovg_canvas_set_fill_rule(CHND,(plutovg_fill_rule_t)(int)m_style->fill_rule);
     plutovg_canvas_set_font_size(CHND,m_style->font_size);
     bool paint_fill = m_style->fill_paint_type!=paint_type::none;
@@ -700,11 +735,11 @@ gfx_result canvas::render(bool preserve) {
     
     if(paint_fill) {
         if(paint_stroke || preserve) {
-            if(!plutovg_canvas_fill_preserve(CHND)) {
+            if(!plutovg_canvas_fill_preserve(CHND,allocator,reallocator,deallocator)) {
                 return gfx_result::out_of_memory;
             }
         } else {
-            if(!plutovg_canvas_fill(CHND)) {
+            if(!plutovg_canvas_fill(CHND,allocator,reallocator,deallocator)) {
                 return gfx_result::out_of_memory;
             }
         }
@@ -784,11 +819,11 @@ gfx_result canvas::render(bool preserve) {
     }
     if(paint_stroke) {
         if(preserve) {
-            if(!plutovg_canvas_stroke_preserve(CHND)) {
+            if(!plutovg_canvas_stroke_preserve(CHND,allocator,reallocator,deallocator)) {
                 return gfx_result::out_of_memory;
             }
         } else {
-            if(!plutovg_canvas_stroke(CHND)) {
+            if(!plutovg_canvas_stroke(CHND,allocator,reallocator,deallocator)) {
                 return gfx_result::out_of_memory;
             }
         }

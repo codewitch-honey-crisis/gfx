@@ -80,7 +80,7 @@ typedef ptrdiff_t  PVG_FT_PtrDist;
 #include <stdlib.h>
 #include <limits.h>
 
-#define PVG_FT_MINIMUM_POOL_SIZE 8192
+#define PVG_FT_MINIMUM_POOL_SIZE 4096
 
 #define RAS_ARG   PWorker  worker
 #define RAS_ARG_  PWorker  worker,
@@ -1031,7 +1031,7 @@ PVG_FT_END_STMNT
   }
 
 
-  static void
+  static bool
   gray_hline( RAS_ARG_ TCoord  x,
                        TCoord  y,
                        TPos    area,
@@ -1092,7 +1092,7 @@ PVG_FT_END_STMNT
            span->coverage == coverage         )
       {
         span->len = span->len + acount;
-        return;
+        return true;
       }
 
       if ( count >= PVG_FT_MAX_GRAY_SPANS )
@@ -1100,9 +1100,11 @@ PVG_FT_END_STMNT
         if ( ras.render_span && count > ras.skip_spans )
         {
           skip = ras.skip_spans > 0 ? ras.skip_spans : 0;
-          ras.render_span( ras.num_gray_spans - skip,
+          if(!ras.render_span( ras.num_gray_spans - skip,
                            ras.gray_spans + skip,
-                           ras.render_span_data );
+                           ras.render_span_data )) {
+                            return false;
+                           }
         }
 
         ras.skip_spans -= ras.num_gray_spans;
@@ -1122,17 +1124,18 @@ PVG_FT_END_STMNT
 
       ras.num_gray_spans++;
     }
+    return true;
   }
 
 
 
-  static void
+  static bool
   gray_sweep( RAS_ARG)
   {
     int  yindex;
 
     if ( ras.num_cells == 0 )
-      return;
+      return true;
 
     for ( yindex = 0; yindex < ras.ycount; yindex++ )
     {
@@ -1147,22 +1150,29 @@ PVG_FT_END_STMNT
 
 
         if ( cell->x > x && cover != 0 )
-          gray_hline( RAS_VAR_ x, yindex, cover * ( ONE_PIXEL * 2 ),
-                      cell->x - x );
+          if(!gray_hline( RAS_VAR_ x, yindex, cover * ( ONE_PIXEL * 2 ),
+                      cell->x - x )) {
+                        return false;
+                      }
 
         cover += cell->cover;
         area   = cover * ( ONE_PIXEL * 2 ) - cell->area;
 
         if ( area != 0 && cell->x >= 0 )
-          gray_hline( RAS_VAR_ cell->x, yindex, area, 1 );
+          if(!gray_hline( RAS_VAR_ cell->x, yindex, area, 1 )) {
+            return false;
+          }
 
         x = cell->x + 1;
       }
 
       if ( ras.count_ex > x && cover != 0 )
-        gray_hline( RAS_VAR_ x, yindex, cover * ( ONE_PIXEL * 2 ),
-                    ras.count_ex - x );
+        if(!gray_hline( RAS_VAR_ x, yindex, cover * ( ONE_PIXEL * 2 ),
+                    ras.count_ex - x )) {
+                        return false;
+                    }
     }
+    return true;
   }
 
   /*************************************************************************/
@@ -1508,7 +1518,9 @@ PVG_FT_END_STMNT
         error = gray_convert_glyph_inner( RAS_VAR );
         if ( !error )
         {
-          gray_sweep( RAS_VAR);
+          if(!gray_sweep( RAS_VAR)) {
+            return 1;
+          }
           band--;
           continue;
         }
@@ -1542,9 +1554,11 @@ PVG_FT_END_STMNT
     if ( ras.render_span && ras.num_gray_spans > ras.skip_spans )
     {
         skip = ras.skip_spans > 0 ? ras.skip_spans : 0;
-        ras.render_span( ras.num_gray_spans - skip,
+        if(!ras.render_span( ras.num_gray_spans - skip,
                          ras.gray_spans + skip,
-                         ras.render_span_data );
+                         ras.render_span_data )) {
+                            return 1;
+                         }
     }
 
     ras.skip_spans -= ras.num_gray_spans;
@@ -1611,17 +1625,18 @@ PVG_FT_END_STMNT
   bool
   PVG_FT_Raster_Render(const PVG_FT_Raster_Params *params)
   {
-      void* memory = malloc(PVG_FT_MINIMUM_POOL_SIZE);
-      if(memory==nullptr) {
-        return false;
-      }
       size_t length = PVG_FT_MINIMUM_POOL_SIZE;
 
-      TWorker* worker = (TWorker*)malloc(sizeof(TWorker));
+      TWorker* worker = (TWorker*)params->allocator(sizeof(TWorker));
       if(worker==nullptr) {
-        free(memory);
         return false;
       }
+      void* memory = params->allocator(PVG_FT_MINIMUM_POOL_SIZE);
+      if(memory==nullptr) {
+        params->deallocator(worker);
+        return false;
+      }
+      
       worker->skip_spans = 0;
       int rendered_spans = 0;
       int error = gray_raster_render(worker, memory, length, params);
@@ -1629,15 +1644,15 @@ PVG_FT_END_STMNT
           if(worker->skip_spans < 0)
               rendered_spans += -worker->skip_spans;
           worker->skip_spans = rendered_spans;
-          length *= 2;
-          memory = realloc(memory, length);
+          length += PVG_FT_MINIMUM_POOL_SIZE;
+          memory = params->reallocator(memory, length);
           if(memory==nullptr) {
             return false;
           }
           error = gray_raster_render(worker, memory, length, params);
       }
-      free(worker);
-      free(memory);
+      params->deallocator(memory);
+      params->deallocator(worker);
       return true;
   }
 

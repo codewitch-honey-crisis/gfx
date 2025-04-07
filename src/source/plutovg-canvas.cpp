@@ -42,9 +42,9 @@ static bool plutovg_stroke_data_copy(plutovg_stroke_data_t* stroke, const plutov
     return true;
 }
 
-static void plutovg_state_reset(plutovg_state_t* state)
+static void plutovg_state_reset(plutovg_state_t* state,void(*deallocator)(void*))
 {
-    plutovg_paint_destroy(state->paint);
+    plutovg_paint_destroy(state->paint,deallocator);
     state->color.a = 255;
     state->color.r = 0;
     state->color.g = 0;
@@ -76,9 +76,9 @@ static void plutovg_state_copy(plutovg_state_t* state, const plutovg_state_t* so
     state->opacity = source->opacity;
 }
 
-static plutovg_state_t* plutovg_state_create(void)
+static plutovg_state_t* plutovg_state_create(void*(*allocator)(size_t),void(*deallocator)(void*))
 {
-    plutovg_state_t* state = (plutovg_state_t*)malloc(sizeof(plutovg_state_t));
+    plutovg_state_t* state = (plutovg_state_t*)allocator(sizeof(plutovg_state_t));
     if(state==nullptr) {
         return nullptr;
     }
@@ -96,42 +96,45 @@ static plutovg_state_t* plutovg_state_create(void)
     state->stroke.dash.array.data = nullptr;
     state->stroke.dash.array.size = 0;
     state->stroke.dash.array.capacity = 0;
-    plutovg_state_reset(state);
+    plutovg_state_reset(state,deallocator);
     return state;
 }
 
-static void plutovg_state_destroy(plutovg_state_t* state)
+static void plutovg_state_destroy(plutovg_state_t* state,void(*deallocator)(void*))
 {
-    plutovg_paint_destroy(state->paint);
+    plutovg_paint_destroy(state->paint,deallocator);
     plutovg_array_destroy(state->stroke.dash.array);
-    plutovg_span_buffer_destroy(&state->clip_spans);
-    free(state);
+    //plutovg_span_buffer_destroy(&state->clip_spans);
+    //deallocator(state);
 }
 
-plutovg_canvas_t* plutovg_canvas_create(int width, int height)
+plutovg_canvas* plutovg_canvas_create(int width, int height, void*(*allocator)(size_t), void*(*reallocator)(void*,size_t), void(*deallocator)(void*))
 {
-    plutovg_canvas_t* canvas = (plutovg_canvas_t*)malloc(sizeof(plutovg_canvas_t));
-    if(canvas==nullptr) {
+   plutovg_canvas_t* out_result = (plutovg_canvas_t*)allocator(sizeof(plutovg_canvas_t));
+   if(out_result==nullptr) {
         return nullptr;
-    }
-    canvas->ref_count = 1;
-    //canvas->surface = plutovg_surface_reference(surface);
-    canvas->width = width;
-    canvas->height = height;
-    canvas->path = plutovg_path_create();
-    canvas->state = plutovg_state_create();
-    canvas->freed_state = NULL;
-    canvas->clip_rect = PLUTOVG_MAKE_RECT(0, 0, width, height);
-    canvas->read_callback = NULL;
-    canvas->write_callback = NULL;
-    canvas->direct = NULL;
-    canvas->direct_on_read = NULL;
-    canvas->direct_on_write = NULL;
-    canvas->direct_width = 0;
-    canvas->direct_height = 0;
-    plutovg_span_buffer_init(&canvas->clip_spans);
-    plutovg_span_buffer_init(&canvas->fill_spans);
-    return canvas;
+   }
+    out_result->ref_count = 1;
+    //out_result->surface = plutovg_surface_reference(surface);
+    out_result->width = width;
+    out_result->height = height;
+    out_result->path = plutovg_path_create(allocator,reallocator,deallocator);
+    out_result->state = plutovg_state_create(allocator,deallocator);
+    out_result->freed_state = NULL;
+    out_result->clip_rect = PLUTOVG_MAKE_RECT(0, 0, width, height);
+    out_result->read_callback = NULL;
+    out_result->write_callback = NULL;
+    out_result->direct = NULL;
+    out_result->direct_on_read = NULL;
+    out_result->direct_on_write = NULL;
+    out_result->direct_width = 0;
+    out_result->direct_height = 0;
+    plutovg_span_buffer_init(&out_result->clip_spans,allocator,reallocator,deallocator);
+    plutovg_span_buffer_init(&out_result->fill_spans,allocator,reallocator,deallocator);
+    out_result->allocator = allocator;
+    out_result->reallocator = reallocator;
+    out_result->deallocator = deallocator;
+    return out_result;
 }
 void plutovg_canvas_set_callbacks(plutovg_canvas_t* canvas,plutovg_write_callback_t write_callback,plutovg_read_callback_t read_callback, void* state) {
     canvas->write_callback = write_callback;
@@ -188,20 +191,20 @@ void plutovg_canvas_destroy(plutovg_canvas_t* canvas)
         while(canvas->state) {
             plutovg_state_t* state = canvas->state;
             canvas->state = state->next;
-            plutovg_state_destroy(state);
+            plutovg_state_destroy(state,canvas->deallocator);
         }
 
         while(canvas->freed_state) {
             plutovg_state_t* state = canvas->freed_state;
             canvas->freed_state = state->next;
-            plutovg_state_destroy(state);
+            plutovg_state_destroy(state,canvas->deallocator);
         }
 
         plutovg_span_buffer_destroy(&canvas->fill_spans);
         plutovg_span_buffer_destroy(&canvas->clip_spans);
         //plutovg_surface_destroy(canvas->surface);
-        plutovg_path_destroy(canvas->path);
-        free(canvas);
+        plutovg_path_destroy(canvas->path,canvas->deallocator);
+        canvas->deallocator(canvas);
     }
 }
 
@@ -217,7 +220,7 @@ bool plutovg_canvas_save(plutovg_canvas_t* canvas)
 {
     plutovg_state_t* new_state = canvas->freed_state;
     if(new_state == NULL)
-        new_state = plutovg_state_create();
+        new_state = plutovg_state_create(canvas->allocator,canvas->deallocator);
     else
         canvas->freed_state = new_state->next;
     if(new_state==nullptr) {
@@ -235,7 +238,7 @@ void plutovg_canvas_restore(plutovg_canvas_t* canvas)
         return;
     plutovg_state_t* old_state = canvas->state;
     canvas->state = old_state->next;
-    plutovg_state_reset(old_state);
+    plutovg_state_reset(old_state,canvas->deallocator);
     old_state->next = canvas->freed_state;
     canvas->freed_state = old_state;
 }
@@ -258,29 +261,29 @@ bool plutovg_canvas_set_color(plutovg_canvas_t* canvas, const plutovg_color_t* c
 
 bool plutovg_canvas_set_linear_gradient(plutovg_canvas_t* canvas, float x1, float y1, float x2, float y2, plutovg_spread_method_t spread, const plutovg_gradient_stop_t* stops, int nstops, const ::gfx::matrix* matrix)
 {
-    plutovg_paint_t* paint = plutovg_paint_create_linear_gradient(x1, y1, x2, y2, spread, stops, nstops, matrix);
+    plutovg_paint_t* paint = plutovg_paint_create_linear_gradient(x1, y1, x2, y2, spread, stops, nstops, matrix,canvas->allocator);
     if(paint==nullptr) {
         return false;
     }
     if(!plutovg_canvas_set_paint(canvas, paint)) {
-        plutovg_paint_destroy(paint);    
+        plutovg_paint_destroy(paint,canvas->deallocator);
         return false;
     }
-    plutovg_paint_destroy(paint);
+    plutovg_paint_destroy(paint,canvas->deallocator);
     return true;
 }
 
 bool plutovg_canvas_set_radial_gradient(plutovg_canvas_t* canvas, float cx, float cy, float cr, float fx, float fy, float fr, plutovg_spread_method_t spread, const plutovg_gradient_stop_t* stops, int nstops, const ::gfx::matrix* matrix)
 {
-    plutovg_paint_t* paint = plutovg_paint_create_radial_gradient(cx, cy, cr, fx, fy, fr, spread, stops, nstops, matrix);
+    plutovg_paint_t* paint = plutovg_paint_create_radial_gradient(cx, cy, cr, fx, fy, fr, spread, stops, nstops, matrix,canvas->allocator);
     if(paint==nullptr) {
         return false;
     }
     if(!plutovg_canvas_set_paint(canvas, paint)) {
-        plutovg_paint_destroy(paint);
+        plutovg_paint_destroy(paint,canvas->deallocator);
         return false;
     }
-    plutovg_paint_destroy(paint);
+    plutovg_paint_destroy(paint,canvas->deallocator);
     return true;
 }
 //PLUTOVG_API void plutovg_canvas_set_texture(plutovg_canvas_t* canvas, int width, int height,const ::gfx::canvas_on_read_callback_type* callback, void* callback_state, plutovg_texture_type_t type, float opacity, const ::gfx::matrix* matrix);
@@ -288,34 +291,34 @@ bool plutovg_canvas_set_radial_gradient(plutovg_canvas_t* canvas, float cx, floa
 
 bool plutovg_canvas_set_texture(plutovg_canvas_t* canvas, int width, int height,::gfx::vector_on_read_callback_type callback, void* callback_state, plutovg_texture_type_t type, float opacity, const ::gfx::matrix* matrix)
 {
-    plutovg_paint_t* paint = plutovg_paint_create_texture(width,height,callback,callback_state, type, opacity, matrix);
+    plutovg_paint_t* paint = plutovg_paint_create_texture(width,height,callback,callback_state, type, opacity, matrix,canvas->allocator);
     if(paint==nullptr) {
         return false;
     }
     if(!plutovg_canvas_set_paint(canvas, paint)) {
-        plutovg_paint_destroy(paint);
+        plutovg_paint_destroy(paint,canvas->deallocator );
         return false;
     }
-    plutovg_paint_destroy(paint);
+    plutovg_paint_destroy(paint,canvas->deallocator);
     return true;
 }
 bool plutovg_canvas_set_texture_direct(plutovg_canvas_t* canvas, int width, int height,const ::gfx::const_blt_span* direct, const ::gfx::on_direct_read_callback_type direct_callback, plutovg_texture_type_t type, float opacity, const ::gfx::matrix* matrix)
 {
-    plutovg_paint_t* paint = plutovg_paint_create_texture_direct(width,height,direct, direct_callback, type, opacity, matrix);
+    plutovg_paint_t* paint = plutovg_paint_create_texture_direct(width,height,direct, direct_callback, type, opacity, matrix,canvas->allocator);
     if(paint==nullptr) {
         return false;
     }
     if(!plutovg_canvas_set_paint(canvas, paint)) {
-        plutovg_paint_destroy(paint);    
+        plutovg_paint_destroy(paint,canvas->deallocator);    
         return false;
     }
-    plutovg_paint_destroy(paint);
+    plutovg_paint_destroy(paint,canvas->deallocator);
     return true;
 }
 bool plutovg_canvas_set_paint(plutovg_canvas_t* canvas, plutovg_paint_t* paint)
 {
     paint = plutovg_paint_reference(paint);
-    plutovg_paint_destroy(canvas->state->paint);
+    plutovg_paint_destroy(canvas->state->paint,canvas->deallocator);
     canvas->state->paint = paint;
     return true;
 }
@@ -517,59 +520,59 @@ void plutovg_canvas_map_rect(const plutovg_canvas_t* canvas, const plutovg_rect_
     dst->h = r.height();
 }
 
-void plutovg_canvas_move_to(plutovg_canvas_t* canvas, float x, float y)
+bool plutovg_canvas_move_to(plutovg_canvas_t* canvas, float x, float y)
 {
-    plutovg_path_move_to(canvas->path, x, y);
+    return plutovg_path_move_to(canvas->path, x, y);
 }
 
-void plutovg_canvas_line_to(plutovg_canvas_t* canvas, float x, float y)
+bool plutovg_canvas_line_to(plutovg_canvas_t* canvas, float x, float y)
 {
-    plutovg_path_line_to(canvas->path, x, y);
+    return plutovg_path_line_to(canvas->path, x, y);
 }
 
-void plutovg_canvas_quad_to(plutovg_canvas_t* canvas, float x1, float y1, float x2, float y2)
+bool plutovg_canvas_quad_to(plutovg_canvas_t* canvas, float x1, float y1, float x2, float y2)
 {
-    plutovg_path_quad_to(canvas->path, x1, y1, x2, y2);
+    return plutovg_path_quad_to(canvas->path, x1, y1, x2, y2);
 }
 
-void plutovg_canvas_cubic_to(plutovg_canvas_t* canvas, float x1, float y1, float x2, float y2, float x3, float y3)
+bool plutovg_canvas_cubic_to(plutovg_canvas_t* canvas, float x1, float y1, float x2, float y2, float x3, float y3)
 {
-    plutovg_path_cubic_to(canvas->path, x1, y1, x2, y2, x3, y3);
+    return plutovg_path_cubic_to(canvas->path, x1, y1, x2, y2, x3, y3);
 }
 
-void plutovg_canvas_arc_to(plutovg_canvas_t* canvas, float rx, float ry, float angle, bool large_arc_flag, bool sweep_flag, float x, float y)
+bool plutovg_canvas_arc_to(plutovg_canvas_t* canvas, float rx, float ry, float angle, bool large_arc_flag, bool sweep_flag, float x, float y)
 {
-    plutovg_path_arc_to(canvas->path, rx, ry, angle, large_arc_flag, sweep_flag, x, y);
+    return plutovg_path_arc_to(canvas->path, rx, ry, angle, large_arc_flag, sweep_flag, x, y);
 }
 
-void plutovg_canvas_rect(plutovg_canvas_t* canvas, float x, float y, float w, float h)
+bool plutovg_canvas_rect(plutovg_canvas_t* canvas, float x, float y, float w, float h)
 {
-    plutovg_path_add_rect(canvas->path, x, y, w, h);
+    return plutovg_path_add_rect(canvas->path, x, y, w, h);
 }
 
-void plutovg_canvas_round_rect(plutovg_canvas_t* canvas, float x, float y, float w, float h, float rx, float ry)
+bool plutovg_canvas_round_rect(plutovg_canvas_t* canvas, float x, float y, float w, float h, float rx, float ry)
 {
-    plutovg_path_add_round_rect(canvas->path, x, y, w, h, rx, ry);
+    return plutovg_path_add_round_rect(canvas->path, x, y, w, h, rx, ry);
 }
 
-void plutovg_canvas_ellipse(plutovg_canvas_t* canvas, float cx, float cy, float rx, float ry)
+bool plutovg_canvas_ellipse(plutovg_canvas_t* canvas, float cx, float cy, float rx, float ry)
 {
-    plutovg_path_add_ellipse(canvas->path, cx, cy, rx, ry);
+    return plutovg_path_add_ellipse(canvas->path, cx, cy, rx, ry);
 }
 
-void plutovg_canvas_circle(plutovg_canvas_t* canvas, float cx, float cy, float r)
+bool plutovg_canvas_circle(plutovg_canvas_t* canvas, float cx, float cy, float r)
 {
-    plutovg_path_add_circle(canvas->path, cx, cy, r);
+    return plutovg_path_add_circle(canvas->path, cx, cy, r);
 }
 
-void plutovg_canvas_arc(plutovg_canvas_t* canvas, float cx, float cy, float r, float a0, float a1, bool ccw)
+bool plutovg_canvas_arc(plutovg_canvas_t* canvas, float cx, float cy, float r, float a0, float a1, bool ccw)
 {
-    plutovg_path_add_arc(canvas->path, cx, cy, r, a0, a1, ccw);
+    return plutovg_path_add_arc(canvas->path, cx, cy, r, a0, a1, ccw);
 }
 
-void plutovg_canvas_add_path(plutovg_canvas_t* canvas, const plutovg_path_t* path)
+bool plutovg_canvas_add_path(plutovg_canvas_t* canvas, const plutovg_path_t* path)
 {
-    plutovg_path_add_path(canvas->path, path, NULL);
+    return plutovg_path_add_path(canvas->path, path, NULL);
 }
 
 void plutovg_canvas_new_path(plutovg_canvas_t* canvas)
@@ -577,9 +580,9 @@ void plutovg_canvas_new_path(plutovg_canvas_t* canvas)
     plutovg_path_reset(canvas->path);
 }
 
-void plutovg_canvas_close_path(plutovg_canvas_t* canvas)
+bool plutovg_canvas_close_path(plutovg_canvas_t* canvas)
 {
-    plutovg_path_close(canvas->path);
+    return plutovg_path_close(canvas->path);
 }
 
 void plutovg_canvas_get_current_point(const plutovg_canvas_t* canvas, float* x, float* y)
@@ -592,13 +595,17 @@ plutovg_path_t* plutovg_canvas_get_path(const plutovg_canvas_t* canvas)
     return canvas->path;
 }
 
-void plutovg_canvas_fill_extents(const plutovg_canvas_t* canvas, plutovg_rect_t* extents)
+bool plutovg_canvas_fill_extents(const plutovg_canvas_t* canvas, plutovg_rect_t* extents)
 {
-    plutovg_path_extents(canvas->path, extents, true);
+    float f= plutovg_path_extents(canvas->path, extents, true);
+    if(f!=f) {
+        return false;
+    }
     plutovg_canvas_map_rect(canvas, extents, extents);
+    return true;
 }
 
-void plutovg_canvas_stroke_extents(const plutovg_canvas_t* canvas, plutovg_rect_t* extents)
+bool plutovg_canvas_stroke_extents(const plutovg_canvas_t* canvas, plutovg_rect_t* extents)
 {
     plutovg_stroke_data_t* stroke = &canvas->state->stroke;
     float cap_limit = stroke->style.width / 2.f;
@@ -610,105 +617,121 @@ void plutovg_canvas_stroke_extents(const plutovg_canvas_t* canvas, plutovg_rect_
     }
 
     float delta = plutovg_max(cap_limit, join_limit);
-    plutovg_path_extents(canvas->path, extents, true);
+    float f = plutovg_path_extents(canvas->path, extents, true);
+    if(f!=f) {
+        return false;
+    }
     extents->x -= delta;
     extents->y -= delta;
     extents->w += delta * 2.f;
     extents->h += delta * 2.f;
     plutovg_canvas_map_rect(canvas, extents, extents);
+    return true;
 }
 
 void plutovg_canvas_clip_extents(const plutovg_canvas_t* canvas, plutovg_rect_t* extents)
 {
     if(canvas->state->clipping) {
         plutovg_span_buffer_extents(&canvas->state->clip_spans, extents);
+        
     } else {
         extents->x = canvas->clip_rect.x;
         extents->y = canvas->clip_rect.y;
         extents->w = canvas->clip_rect.w;
         extents->h = canvas->clip_rect.h;
     }
+    
 }
 
-bool plutovg_canvas_fill(plutovg_canvas_t* canvas)
+bool plutovg_canvas_fill(plutovg_canvas_t* canvas,void*(*allocator)(size_t),void*(*reallocator)(void*,size_t),void(*deallocator)(void*))
 {
-    if(!plutovg_canvas_fill_preserve(canvas)) {
+    if(!plutovg_canvas_fill_preserve(canvas,allocator,reallocator,deallocator)) {
         return false;
     }
     plutovg_canvas_new_path(canvas);
     return true;
 }
 
-bool plutovg_canvas_stroke(plutovg_canvas_t* canvas)
+bool plutovg_canvas_stroke(plutovg_canvas_t* canvas,void*(*allocator)(size_t),void*(*reallocator)(void*,size_t),void(*deallocator)(void*))
 {
-    if(!plutovg_canvas_stroke_preserve(canvas)) {
+    if(!plutovg_canvas_stroke_preserve(canvas,allocator,reallocator,deallocator)) {
         return false;
     }
     plutovg_canvas_new_path(canvas);
     return true;
 }
 
-bool plutovg_canvas_clip(plutovg_canvas_t* canvas)
+bool plutovg_canvas_clip(plutovg_canvas_t* canvas,void*(*allocator)(size_t),void*(*reallocator)(void*,size_t),void(*deallocator)(void*))
 {
-    if(!plutovg_canvas_clip_preserve(canvas)) {
+    if(!plutovg_canvas_clip_preserve(canvas,allocator,reallocator,deallocator)) {
         return false;
     }
     plutovg_canvas_new_path(canvas);
     return true;
 }
 
-void plutovg_canvas_paint(plutovg_canvas_t* canvas)
+bool plutovg_canvas_paint(plutovg_canvas_t* canvas)
 {
     plutovg_state_t* state = canvas->state;
     if(state->clipping) {
-        plutovg_blend(canvas, &state->clip_spans);
+        return plutovg_blend(canvas, &state->clip_spans);
     } else {
-        plutovg_span_buffer_init_rect(&canvas->clip_spans, 0, 0, canvas->width, canvas->height);
-        plutovg_blend(canvas, &canvas->clip_spans);
-    }
-}
-
-bool plutovg_canvas_fill_preserve(plutovg_canvas_t* canvas)
-{
-    plutovg_state_t* state = canvas->state;
-    if(!plutovg_rasterize(&canvas->fill_spans, canvas->path, &state->matrix, &canvas->clip_rect, NULL, state->winding)) {
-        return false;
-    }
-    if(state->clipping) {
-        plutovg_span_buffer_intersect(&canvas->clip_spans, &canvas->fill_spans, &state->clip_spans);
-        plutovg_blend(canvas, &canvas->clip_spans);
-    } else {
-        plutovg_blend(canvas, &canvas->fill_spans);
-    }
-    return true;
-}
-
-bool plutovg_canvas_stroke_preserve(plutovg_canvas_t* canvas)
-{
-    plutovg_state_t* state = canvas->state;
-    if(!plutovg_rasterize(&canvas->fill_spans, canvas->path, &state->matrix, &canvas->clip_rect, &state->stroke, PLUTOVG_FILL_RULE_NON_ZERO)) {
-        return false;
-    }
-    if(state->clipping) {
-        plutovg_span_buffer_intersect(&canvas->clip_spans, &canvas->fill_spans, &state->clip_spans);
-        plutovg_blend(canvas, &canvas->clip_spans);
-    } else {
-        plutovg_blend(canvas, &canvas->fill_spans);
-    }
-    return true;
-}
-
-bool plutovg_canvas_clip_preserve(plutovg_canvas_t* canvas)
-{
-    plutovg_state_t* state = canvas->state;
-    if(state->clipping) {
-        if(!plutovg_rasterize(&canvas->fill_spans, canvas->path, &state->matrix, &canvas->clip_rect, NULL, state->winding)) {
+        if(!plutovg_span_buffer_init_rect(&canvas->clip_spans, 0, 0, canvas->width, canvas->height)) {
             return false;
         }
-        plutovg_span_buffer_intersect(&canvas->clip_spans, &canvas->fill_spans, &state->clip_spans);
-        plutovg_span_buffer_copy(&state->clip_spans, &canvas->clip_spans);
+        return plutovg_blend(canvas, &canvas->clip_spans);
+    }
+}
+
+bool plutovg_canvas_fill_preserve(plutovg_canvas_t* canvas,void*(*allocator)(size_t),void*(*reallocator)(void*,size_t),void(*deallocator)(void*))
+{
+    plutovg_state_t* state = canvas->state;
+    if(!plutovg_rasterize(&canvas->fill_spans, canvas->path, &state->matrix, &canvas->clip_rect, NULL, state->winding,allocator,reallocator,deallocator )) {
+        return false;
+    }
+    if(state->clipping) {
+        
+        if(!plutovg_span_buffer_intersect(&canvas->clip_spans, &canvas->fill_spans, &state->clip_spans)) {
+            return false;
+        }
+        return plutovg_blend(canvas, &canvas->clip_spans);
+
     } else {
-        if(!plutovg_rasterize(&state->clip_spans, canvas->path, &state->matrix, &canvas->clip_rect, NULL, state->winding)) {
+        return plutovg_blend(canvas, &canvas->fill_spans);
+    }
+}
+
+bool plutovg_canvas_stroke_preserve(plutovg_canvas_t* canvas,void*(*allocator)(size_t),void*(*reallocator)(void*,size_t),void(*deallocator)(void*))
+{
+    plutovg_state_t* state = canvas->state;
+    if(!plutovg_rasterize(&canvas->fill_spans, canvas->path, &state->matrix, &canvas->clip_rect, &state->stroke, PLUTOVG_FILL_RULE_NON_ZERO,allocator,reallocator,deallocator)) {
+        return false;
+    }
+    if(state->clipping) {
+        if(!plutovg_span_buffer_intersect(&canvas->clip_spans, &canvas->fill_spans, &state->clip_spans)) {
+            return false;
+        }
+        return plutovg_blend(canvas, &canvas->clip_spans);
+    } else {
+        return plutovg_blend(canvas, &canvas->fill_spans);
+    }
+}
+
+bool plutovg_canvas_clip_preserve(plutovg_canvas_t* canvas,void*(*allocator)(size_t),void*(*reallocator)(void*,size_t),void(*deallocator)(void*))
+{
+    plutovg_state_t* state = canvas->state;
+    if(state->clipping) {
+        if(!plutovg_rasterize(&canvas->fill_spans, canvas->path, &state->matrix, &canvas->clip_rect, NULL, state->winding,allocator,reallocator,deallocator)) {
+            return false;
+        }
+        if(!plutovg_span_buffer_intersect(&canvas->clip_spans, &canvas->fill_spans, &state->clip_spans)) {
+            return false;
+        }
+        if(!plutovg_span_buffer_copy(&state->clip_spans, &canvas->clip_spans)) {
+            return false;
+        }
+    } else {
+        if(!plutovg_rasterize(&state->clip_spans, canvas->path, &state->matrix, &canvas->clip_rect, NULL, state->winding,allocator,reallocator,deallocator)) {
             return false;
         }
         state->clipping = true;
@@ -716,46 +739,59 @@ bool plutovg_canvas_clip_preserve(plutovg_canvas_t* canvas)
     return true;
 }
 
-void plutovg_canvas_fill_rect(plutovg_canvas_t* canvas, float x, float y, float w, float h)
+bool plutovg_canvas_fill_rect(plutovg_canvas_t* canvas, float x, float y, float w, float h,void*(*allocator)(size_t),void*(*reallocator)(void*,size_t),void(*deallocator)(void*))
 {
     plutovg_canvas_new_path(canvas);
     plutovg_canvas_rect(canvas, x, y, w, h);
-    plutovg_canvas_fill(canvas);
+    if(!plutovg_canvas_fill(canvas,allocator,reallocator,deallocator)) {
+        return false;
+    }
+    return true;
 }
 
-void plutovg_canvas_fill_path(plutovg_canvas_t* canvas, const plutovg_path_t* path)
+bool plutovg_canvas_fill_path(plutovg_canvas_t* canvas, const plutovg_path_t* path,void*(*allocator)(size_t),void*(*reallocator)(void*,size_t),void(*deallocator)(void*))
 {
     plutovg_canvas_new_path(canvas);
-    plutovg_canvas_add_path(canvas, path);
-    plutovg_canvas_fill(canvas);
+    if(!plutovg_canvas_add_path(canvas, path)) {
+        return false;
+    }
+    return plutovg_canvas_fill(canvas,allocator,reallocator,deallocator);
 }
 
-void plutovg_canvas_stroke_rect(plutovg_canvas_t* canvas, float x, float y, float w, float h)
+bool plutovg_canvas_stroke_rect(plutovg_canvas_t* canvas, float x, float y, float w, float h,void*(*allocator)(size_t),void*(*reallocator)(void*,size_t),void(*deallocator)(void*))
 {
     plutovg_canvas_new_path(canvas);
-    plutovg_canvas_rect(canvas, x, y, w, h);
-    plutovg_canvas_stroke(canvas);
+    if(!plutovg_canvas_rect(canvas, x, y, w, h)) {
+        return false;
+    }
+    return plutovg_canvas_stroke(canvas,allocator,reallocator,deallocator);
 }
 
-void plutovg_canvas_stroke_path(plutovg_canvas_t* canvas, const plutovg_path_t* path)
+bool plutovg_canvas_stroke_path(plutovg_canvas_t* canvas, const plutovg_path_t* path,void*(*allocator)(size_t),void*(*reallocator)(void*,size_t),void(*deallocator)(void*))
 {
     plutovg_canvas_new_path(canvas);
-    plutovg_canvas_add_path(canvas, path);
-    plutovg_canvas_stroke(canvas);
+    if(!plutovg_canvas_add_path(canvas, path)) {
+        return false;
+    }
+    return plutovg_canvas_stroke(canvas,allocator,reallocator,deallocator);
 }
 
-void plutovg_canvas_clip_rect(plutovg_canvas_t* canvas, float x, float y, float w, float h)
+bool plutovg_canvas_clip_rect(plutovg_canvas_t* canvas, float x, float y, float w, float h,void*(*allocator)(size_t),void*(*reallocator)(void*,size_t),void(*deallocator)(void*))
 {
     plutovg_canvas_new_path(canvas);
-    plutovg_canvas_rect(canvas, x, y, w, h);
-    plutovg_canvas_clip(canvas);
+    if(!plutovg_canvas_rect(canvas, x, y, w, h)) {
+        return false;
+    }
+    return plutovg_canvas_clip(canvas,allocator,reallocator,deallocator);
 }
 
-void plutovg_canvas_clip_path(plutovg_canvas_t* canvas, const plutovg_path_t* path)
+bool plutovg_canvas_clip_path(plutovg_canvas_t* canvas, const plutovg_path_t* path,void*(*allocator)(size_t),void*(*reallocator)(void*,size_t),void(*deallocator)(void*))
 {
     plutovg_canvas_new_path(canvas);
-    plutovg_canvas_add_path(canvas, path);
-    plutovg_canvas_clip(canvas);
+    if(!plutovg_canvas_add_path(canvas, path)) {
+        return false;
+    }
+    return plutovg_canvas_clip(canvas,allocator,reallocator,deallocator);
 }
 
 float plutovg_canvas_add_glyph(plutovg_canvas_t* canvas, plutovg_codepoint_t codepoint, float x, float y)
@@ -786,27 +822,27 @@ float plutovg_canvas_add_text(plutovg_canvas_t* canvas, const ::gfx::text_handle
     return advance_width;
 }
 
-float plutovg_canvas_fill_text(plutovg_canvas_t* canvas, const ::gfx::text_handle text, size_t length, const ::gfx::text_encoder* encoding, float x, float y)
+float plutovg_canvas_fill_text(plutovg_canvas_t* canvas, const ::gfx::text_handle text, size_t length, const ::gfx::text_encoder* encoding, float x, float y,void*(*allocator)(size_t),void*(*reallocator)(void*,size_t),void(*deallocator)(void*))
 {
     plutovg_canvas_new_path(canvas);
     float advance_width = plutovg_canvas_add_text(canvas, text, length, encoding, x, y);
-    plutovg_canvas_fill(canvas);
+    plutovg_canvas_fill(canvas,allocator,reallocator,deallocator);
     return advance_width;
 }
 
-float plutovg_canvas_stroke_text(plutovg_canvas_t* canvas, const ::gfx::text_handle text, size_t length, const ::gfx::text_encoder* encoding, float x, float y)
+float plutovg_canvas_stroke_text(plutovg_canvas_t* canvas, const ::gfx::text_handle text, size_t length, const ::gfx::text_encoder* encoding, float x, float y,void*(*allocator)(size_t),void*(*reallocator)(void*,size_t),void(*deallocator)(void*))
 {
     plutovg_canvas_new_path(canvas);
     float advance_width = plutovg_canvas_add_text(canvas, text, length, encoding, x, y);
-    plutovg_canvas_stroke(canvas);
+    plutovg_canvas_stroke(canvas,allocator,reallocator,deallocator);
     return advance_width;
 }
 
-float plutovg_canvas_clip_text(plutovg_canvas_t* canvas, const ::gfx::text_handle text, size_t length, const ::gfx::text_encoder* encoding, float x, float y)
+float plutovg_canvas_clip_text(plutovg_canvas_t* canvas, const ::gfx::text_handle text, size_t length, const ::gfx::text_encoder* encoding, float x, float y,void*(*allocator)(size_t),void*(*reallocator)(void*,size_t),void(*deallocator)(void*))
 {
     plutovg_canvas_new_path(canvas);
     float advance_width = plutovg_canvas_add_text(canvas, text, length, encoding, x, y);
-    plutovg_canvas_clip(canvas);
+    plutovg_canvas_clip(canvas,allocator,reallocator,deallocator);
     return advance_width;
 }
 

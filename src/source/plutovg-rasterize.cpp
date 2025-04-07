@@ -5,17 +5,20 @@
 #include "plutovg-ft-stroker.h"
 
 #include <limits.h>
-
-void plutovg_span_buffer_init(plutovg_span_buffer_t* span_buffer)
+#include <memory.h>
+bool plutovg_span_buffer_init(plutovg_span_buffer_t* span_buffer,void*(*allocator)(size_t), void*(*reallocator)(void*,size_t), void(*deallocator)(void*))
 {
-    plutovg_array_init(span_buffer->spans);
+    plutovg_array_init(span_buffer->spans,allocator,reallocator,deallocator);
     plutovg_span_buffer_reset(span_buffer);
+    return true;
 }
 
-void plutovg_span_buffer_init_rect(plutovg_span_buffer_t* span_buffer, int x, int y, int width, int height)
+bool plutovg_span_buffer_init_rect(plutovg_span_buffer_t* span_buffer, int x, int y, int width, int height)
 {
     plutovg_array_clear(span_buffer->spans);
-    plutovg_array_ensure<decltype(span_buffer->spans),plutovg_span_t>(span_buffer->spans, height);
+    if(!plutovg_array_ensure<decltype(span_buffer->spans),plutovg_span_t>(span_buffer->spans, height)) {
+        return false;
+    }
     plutovg_span_t* spans = span_buffer->spans.data;
     for(int i = 0; i < height; i++) {
         spans[i].x = x;
@@ -29,6 +32,7 @@ void plutovg_span_buffer_init_rect(plutovg_span_buffer_t* span_buffer, int x, in
     span_buffer->w = width;
     span_buffer->h = height;
     span_buffer->spans.size = height;
+    return true;
 }
 
 void plutovg_span_buffer_reset(plutovg_span_buffer_t* span_buffer)
@@ -45,14 +49,17 @@ void plutovg_span_buffer_destroy(plutovg_span_buffer_t* span_buffer)
     plutovg_array_destroy(span_buffer->spans);
 }
 
-void plutovg_span_buffer_copy(plutovg_span_buffer_t* span_buffer, const plutovg_span_buffer_t* source)
+bool plutovg_span_buffer_copy(plutovg_span_buffer_t* span_buffer, const plutovg_span_buffer_t* source)
 {
     plutovg_array_clear(span_buffer->spans);
-    plutovg_array_append(span_buffer->spans, source->spans);
+    if(!plutovg_array_append(span_buffer->spans, source->spans)) {
+        return false;
+    }
     span_buffer->x = source->x;
     span_buffer->y = source->y;
     span_buffer->w = source->w;
     span_buffer->h = source->h;
+    return true;
 }
 
 static void plutovg_span_buffer_update_extents(plutovg_span_buffer_t* span_buffer)
@@ -150,13 +157,13 @@ bool plutovg_span_buffer_intersect(plutovg_span_buffer_t* span_buffer, const plu
 }
 
 #define ALIGN_SIZE(size) (((size) + 7ul) & ~7ul)
-static PVG_FT_Outline* ft_outline_create(int points, int contours)
+static PVG_FT_Outline* ft_outline_create(int points, int contours,void*(*allocator)(size_t))
 {
     size_t points_size = ALIGN_SIZE((points + contours) * sizeof(vector_t));
     size_t tags_size = ALIGN_SIZE((points + contours) * sizeof(char));
     size_t contours_size = ALIGN_SIZE(contours * sizeof(int));
     size_t contours_flag_size = ALIGN_SIZE(contours * sizeof(char));
-    PVG_FT_Outline* outline = (PVG_FT_Outline*)malloc(points_size + tags_size + contours_size + contours_flag_size + sizeof(PVG_FT_Outline));
+    PVG_FT_Outline* outline = (PVG_FT_Outline*)allocator(points_size + tags_size + contours_size + contours_flag_size + sizeof(PVG_FT_Outline));
     if(outline==nullptr) {
         return nullptr;
     }
@@ -171,9 +178,9 @@ static PVG_FT_Outline* ft_outline_create(int points, int contours)
     return outline;
 }
 
-static void ft_outline_destroy(PVG_FT_Outline* outline)
+static void ft_outline_destroy(PVG_FT_Outline* outline,void(*deallocator)(void*))
 {
-    free(outline);
+    deallocator(outline);
 }
 
 #define FT_COORD(x) (vector_pos_t)((x) * 64)
@@ -237,19 +244,22 @@ static void ft_outline_end(PVG_FT_Outline* ft)
     }
 }
 
-static PVG_FT_Outline* ft_outline_convert_stroke(const plutovg_path_t* path, const ::gfx::matrix* matrix, const plutovg_stroke_data_t* stroke_data);
+static PVG_FT_Outline* ft_outline_convert_stroke(const plutovg_path_t* path, const ::gfx::matrix* matrix, const plutovg_stroke_data_t* stroke_data,void*(*allocator)(size_t),void*(*reallocator)(void*,size_t), void(*deallocator)(void*));
 
-static PVG_FT_Outline* ft_outline_convert(const plutovg_path_t* path, const ::gfx::matrix* matrix, const plutovg_stroke_data_t* stroke_data)
+static PVG_FT_Outline* ft_outline_convert(const plutovg_path_t* path, const ::gfx::matrix* matrix, const plutovg_stroke_data_t* stroke_data,void*(*allocator)(size_t),void*(*reallocator)(void*,size_t),void(*deallocator)(void*))
 {
     if(stroke_data != NULL) {
-        return ft_outline_convert_stroke(path, matrix, stroke_data);
+        return ft_outline_convert_stroke(path, matrix, stroke_data,allocator,reallocator,deallocator);
     }
 
     plutovg_path_iterator_t it;
     plutovg_path_iterator_init(&it, path);
 
     ::gfx::pointf points[3];
-    PVG_FT_Outline* outline = ft_outline_create(path->num_points, path->num_contours);
+    PVG_FT_Outline* outline = ft_outline_create(path->num_points, path->num_contours,allocator);
+    if(outline==nullptr) {
+        return nullptr;
+    }
     while(plutovg_path_iterator_has_next(&it)) {
         switch(plutovg_path_iterator_next(&it, points)) {
         case PLUTOVG_PATH_COMMAND_MOVE_TO:
@@ -276,17 +286,24 @@ static PVG_FT_Outline* ft_outline_convert(const plutovg_path_t* path, const ::gf
     return outline;
 }
 
-static PVG_FT_Outline* ft_outline_convert_dash(const plutovg_path_t* path, const ::gfx::matrix* matrix, const plutovg_stroke_dash_t* stroke_dash)
+static PVG_FT_Outline* ft_outline_convert_dash(const plutovg_path_t* path, const ::gfx::matrix* matrix, const plutovg_stroke_dash_t* stroke_dash,void*(*allocator)(size_t),void*(*reallocator)(void*,size_t), void(*deallocator)(void*))
 {
     if(stroke_dash->array.size == 0)
-        return ft_outline_convert(path, matrix, NULL);
-    plutovg_path_t* dashed = plutovg_path_clone_dashed(path, stroke_dash->offset, stroke_dash->array.data, stroke_dash->array.size);
-    PVG_FT_Outline* outline = ft_outline_convert(dashed, matrix, NULL);
-    plutovg_path_destroy(dashed);
+        return ft_outline_convert(path, matrix, NULL,allocator,reallocator,deallocator);
+    plutovg_path_t* dashed = plutovg_path_clone_dashed(path, stroke_dash->offset, stroke_dash->array.data, stroke_dash->array.size,allocator,reallocator,deallocator);
+    if(dashed==nullptr) {
+        return nullptr;
+    }
+    PVG_FT_Outline* outline = ft_outline_convert(dashed, matrix, NULL,allocator,reallocator,deallocator);
+    if(outline==nullptr) {
+        plutovg_path_destroy(dashed,deallocator);
+        return nullptr;
+    }
+    plutovg_path_destroy(dashed,deallocator);
     return outline;
 }
 
-static PVG_FT_Outline* ft_outline_convert_stroke(const plutovg_path_t* path, const gfx::matrix* matrix, const plutovg_stroke_data_t* stroke_data)
+static PVG_FT_Outline* ft_outline_convert_stroke(const plutovg_path_t* path, const gfx::matrix* matrix, const plutovg_stroke_data_t* stroke_data,void*(*allocator)(size_t),void*(*reallocator)(void*,size_t), void(*deallocator)(void*))
 {
     double scale_x = sqrt(matrix->a * matrix->a + matrix->b * matrix->b);
     double scale_y = sqrt(matrix->c * matrix->c + matrix->d * matrix->d);
@@ -323,7 +340,10 @@ static PVG_FT_Outline* ft_outline_convert_stroke(const plutovg_path_t* path, con
         break;
     }
 
-    PVG_FT_Outline* outline = ft_outline_convert_dash(path, matrix, &stroke_data->dash);
+    PVG_FT_Outline* outline = ft_outline_convert_dash(path, matrix, &stroke_data->dash,allocator,reallocator,deallocator);
+    if(outline==nullptr) {
+        return nullptr;
+    }
     PVG_FT_Stroker stroker;
     PVG_FT_Stroker_New(&stroker);
     PVG_FT_Stroker_Set(stroker, ftWidth, ftCap, ftJoin, ftMiterLimit);
@@ -333,15 +353,16 @@ static PVG_FT_Outline* ft_outline_convert_stroke(const plutovg_path_t* path, con
     vector_uint_t contours;
     PVG_FT_Stroker_GetCounts(stroker, &points, &contours);
 
-    PVG_FT_Outline* stroke_outline = ft_outline_create(points, contours);
+    PVG_FT_Outline* stroke_outline = ft_outline_create(points, contours,allocator);
     PVG_FT_Stroker_Export(stroker, stroke_outline);
     PVG_FT_Stroker_Done(stroker);
-    ft_outline_destroy(outline);
+    ft_outline_destroy(outline,deallocator);
     return stroke_outline;
 }
 
 static bool spans_generation_callback(int count, const PVG_FT_Span* spans, plutovg_span_buffer_t* user)
 {
+    
     plutovg_span_buffer_t* span_buffer = user;
     plutovg_span_buffer_array_t& dst = span_buffer->spans;
     using e_t = PVG_FT_Span;
@@ -351,7 +372,8 @@ static bool spans_generation_callback(int count, const PVG_FT_Span* spans, pluto
         int capacity = dst.size + (count); 
         int newcapacity = dst.capacity == 0 ? 8 : dst.capacity; 
         while(newcapacity < capacity) { newcapacity *= 2; } 
-        dst.data = (p_t)realloc(dst.data, newcapacity * sizeof(e_t)); 
+        dst.data = (p_t)span_buffer->spans.reallocator(dst.data, newcapacity * sizeof(e_t)); 
+        
         if(dst.data==nullptr) {
             return false;
         }
@@ -363,15 +385,19 @@ static bool spans_generation_callback(int count, const PVG_FT_Span* spans, pluto
     //     dst.data[dst.size+i]=*((plutovg_span_t*)&spans[i]);
     // }
     dst.size += count;
+    
     return true;
 }
 
-bool plutovg_rasterize(plutovg_span_buffer_t* span_buffer, const plutovg_path_t* path, const ::gfx::matrix* matrix, const plutovg_rect_t* clip_rect, const plutovg_stroke_data_t* stroke_data, plutovg_fill_rule_t winding)
+bool plutovg_rasterize(plutovg_span_buffer_t* span_buffer, const plutovg_path_t* path, const ::gfx::matrix* matrix, const plutovg_rect_t* clip_rect, const plutovg_stroke_data_t* stroke_data, plutovg_fill_rule_t winding,void*(*allocator)(size_t),void*(*reallocator)(void*,size_t),void(*deallocator)(void*))
 {
     PVG_FT_Raster_Params params;
     params.flags = PVG_FT_RASTER_FLAG_DIRECT | PVG_FT_RASTER_FLAG_AA;
     params.gray_spans = spans_generation_callback;
     params.user = span_buffer;
+    params.allocator = allocator;
+    params.reallocator=reallocator;
+    params.deallocator = deallocator;
     if(clip_rect) {
         params.flags |= PVG_FT_RASTER_FLAG_CLIP;
         params.clip_box.xMin = (vector_pos_t)clip_rect->x;
@@ -379,7 +405,10 @@ bool plutovg_rasterize(plutovg_span_buffer_t* span_buffer, const plutovg_path_t*
         params.clip_box.xMax = (vector_pos_t)(clip_rect->x + clip_rect->w);
         params.clip_box.yMax = (vector_pos_t)(clip_rect->y + clip_rect->h);
     }
-    PVG_FT_Outline* outline = ft_outline_convert(path, matrix, stroke_data);
+    PVG_FT_Outline* outline = ft_outline_convert(path, matrix, stroke_data,allocator,reallocator,deallocator);
+    if(outline==nullptr) {
+        return false;
+    }
     if(stroke_data) {
         outline->flags = PVG_FT_OUTLINE_NONE;
     } else {
@@ -396,6 +425,6 @@ bool plutovg_rasterize(plutovg_span_buffer_t* span_buffer, const plutovg_path_t*
     plutovg_span_buffer_reset(span_buffer);
     params.source = outline;
     bool result = PVG_FT_Raster_Render(&params);
-    ft_outline_destroy(outline);
+    ft_outline_destroy(outline,deallocator);
     return result;
 }

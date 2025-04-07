@@ -1326,7 +1326,7 @@ error:
     return res;
 }
 
-gfx_result canvas::render_tvg(stream& document, const matrix& transform) {
+gfx_result canvas::render_tvg(stream& document, const matrix& transform,void*(*allocator)(size_t),void*(*reallocator)(void*,size_t),void(*deallocator)(void*)) {
     return tvg_render_document(document,*this,transform);
 }
 gfx_result canvas::tvg_dimensions(stream& document, sizef* out_dimensions) {

@@ -409,6 +409,9 @@ struct svg_context {
     bool in_path;
     bool in_defs;
     int tag_id;
+    void*(*allocator)(size_t);
+    void*(*reallocator)(void*,size_t);
+    void(*deallocator)(void*);
 };
 static result_t svg_parse_attribute_id(svg_context& ctx, const char** current,
                                        int id, bool is_css);
@@ -469,10 +472,10 @@ static void svg_delete_context(svg_context& ctx) {
     svg_grad_data* gd = ctx.grad_head;
     while(gd!=nullptr) {
         if(gd->stops!=nullptr) {
-            free(gd->stops);
+            ctx.deallocator(gd->stops);
         }
         svg_grad_data* next = gd->next;
-        free(gd);
+        ctx.deallocator(gd);
         gd = next;
     }
     ctx.grad_head = nullptr;
@@ -480,7 +483,7 @@ static void svg_delete_context(svg_context& ctx) {
     svg_css_data* css = ctx.css_head;
     while(css!=nullptr) {
         svg_css_data* next = css->next;
-        free(css);
+        ctx.deallocator(css);
         css=next;
     }
     ctx.css_head = nullptr;
@@ -3044,7 +3047,7 @@ static result_t svg_build_gradient(svg_context& ctx, const rectf& local_bounds, 
             out_grad->transform = ref_data->transform;
             if(ref_data->stops_size>0) {
                 size_t sz = sizeof(gradient_stop)*ref_data->stops_size;
-                out_grad->stops = (gradient_stop*)malloc(sz);
+                out_grad->stops = (gradient_stop*)ctx.allocator(sz);
                 if(out_grad->stops==nullptr) {
                     return OUT_OF_MEMORY;
                 }
@@ -3084,7 +3087,7 @@ static result_t svg_build_gradient(svg_context& ctx, const rectf& local_bounds, 
     }
     if(data->stops_size>0) {
         size_t sz = sizeof(gradient_stop)*(data->stops_size+out_grad->stops_size);
-        out_grad->stops = out_grad->stops_size>0?(gradient_stop*)realloc(out_grad->stops,sz):(gradient_stop*)malloc(sz);
+        out_grad->stops = out_grad->stops_size>0?(gradient_stop*)ctx.reallocator(out_grad->stops,sz):(gradient_stop*)ctx.allocator(sz);
         if(out_grad->stops==nullptr) {
             return OUT_OF_MEMORY;
         }
@@ -3204,7 +3207,7 @@ static result_t svg_apply_attribute(svg_context& ctx, const rectf& local_bounds,
             res = svg_build_gradient(ctx,local_bounds,a.xform,gd,&out_style->stroke_gradient);
             if(!SUCCEEDED(res)) {
                 if(out_style->fill_gradient.stops!=nullptr) {
-                    free(out_style->fill_gradient.stops);
+                    ctx.deallocator(out_style->fill_gradient.stops);
                     out_style->fill_gradient.stops=nullptr;
                     out_style->fill_gradient.stops_size = 0;
                 }
@@ -3410,7 +3413,7 @@ static result_t svg_parse_gradient_stop_elem(svg_context& ctx) {
     }
     if(ctx.grad_tail!=nullptr) {
         if(ctx.grad_tail->stops==nullptr) {
-            ctx.grad_tail->stops = (svg_grad_stop*)malloc(sizeof(svg_grad_stop));
+            ctx.grad_tail->stops = (svg_grad_stop*)ctx.allocator(sizeof(svg_grad_stop));
             if(ctx.grad_tail->stops==nullptr) {
                 ctx.grad_tail->stops_size = 0;
                 return OUT_OF_MEMORY;
@@ -3418,7 +3421,7 @@ static result_t svg_parse_gradient_stop_elem(svg_context& ctx) {
             ctx.grad_tail->stops_size = 1;
         } else {
             size_t sz = (ctx.grad_tail->stops_size+1)*sizeof(svg_grad_stop);
-            ctx.grad_tail->stops = (svg_grad_stop*)realloc(ctx.grad_tail->stops,sz);
+            ctx.grad_tail->stops = (svg_grad_stop*)ctx.reallocator(ctx.grad_tail->stops,sz);
             if(ctx.grad_tail->stops==nullptr) {
                 ctx.grad_tail->stops_size = 0;
                 return OUT_OF_MEMORY;
@@ -3970,7 +3973,7 @@ static result_t svg_parse_css_data(svg_context& ctx, const char** current) {
     ++(*current);
     res = svg_ensure_current(ctx,current);
     if(!SUCCEEDED(res)) {return res;}
-    svg_css_data* data = (svg_css_data*)malloc(sizeof(svg_css_data));
+    svg_css_data* data = (svg_css_data*)ctx.allocator(sizeof(svg_css_data));
     if(data==nullptr) {
         return OUT_OF_MEMORY;
     }
@@ -4012,7 +4015,7 @@ static result_t svg_parse_css_data(svg_context& ctx, const char** current) {
 
 error:
     if(data!=nullptr) {
-        free(data);
+        ctx.deallocator(data);
     }
     return res;
 }
@@ -4051,7 +4054,7 @@ static result_t svg_parse_gradient_elem(svg_context& ctx) {
     ctx.css_current = nullptr;
     result_t res = SUCCESS;
     svg_coord x1,y1,x2,y2,fx,fy,cx,cy,r;
-    svg_grad_data* data = (svg_grad_data*)malloc(sizeof(svg_grad_data));
+    svg_grad_data* data = (svg_grad_data*)ctx.allocator(sizeof(svg_grad_data));
     if(data==nullptr) {
         res= OUT_OF_MEMORY;
         goto error;
@@ -4217,9 +4220,9 @@ static result_t svg_parse_gradient_elem(svg_context& ctx) {
 error:
     if(data!=nullptr) {
         if(data->stops!=nullptr) {
-            free(data->stops);
+            ctx.deallocator(data->stops);
         }
-        free(data);
+        ctx.deallocator(data);
     }
     
     return res;
@@ -4238,15 +4241,15 @@ static result_t svg_draw_path(svg_context& ctx,const canvas_path& path) {
     if(!SUCCEEDED(res)) {
         goto error;
     }
-    res= ctx.cvs->render();
+    res= ctx.cvs->render(false,ctx.allocator,ctx.reallocator,ctx.deallocator);
 error:
     if(s.fill_gradient.stops!=nullptr) {
-        free(s.fill_gradient.stops);
+        ctx.deallocator(s.fill_gradient.stops);
         s.fill_gradient.stops  =nullptr;
         s.fill_gradient.stops_size = 0;
     }
     if(s.stroke_gradient.stops!=nullptr) {
-        free(s.stroke_gradient.stops);
+        ctx.deallocator(s.stroke_gradient.stops);
         s.stroke_gradient.stops  =nullptr;
         s.stroke_gradient.stops_size = 0;
     }
@@ -4578,7 +4581,7 @@ static result_t svg_document_dimensions(stream& stream, sizef* out_dimensions, f
     return res;
     
 }
-static result_t svg_render_document(stream& stream, canvas& destination, const matrix& transform, float dpi = 96.f) {
+static result_t svg_render_document(stream& stream, canvas& destination, const matrix& transform, float dpi,void*(*allocator)(size_t),void*(*reallocator)(void*,size_t),void(*deallocator)(void*)) {
     if(stream.caps().read==0) {
         return INVALID_ARG;
     }
@@ -4592,7 +4595,12 @@ static result_t svg_render_document(stream& stream, canvas& destination, const m
     pctx->dpi = dpi;
     pctx->cvs    = &destination;
     pctx->xform = transform;
+    pctx->allocator = allocator;
+    pctx->reallocator = reallocator;
+    pctx->deallocator = deallocator;
     pctx->rdr.set(stream);
+    matrix init_xfrm = destination.transform();
+    canvas_style init_style = destination.style();
     while (ml_node_type::element_end == pctx->rdr.node_type() || pctx->rdr.read()) {
         switch (pctx->rdr.node_type()) {
             case ::ml::ml_node_type::element:
@@ -4622,10 +4630,21 @@ error:
         svg_delete_context(*pctx);
         delete pctx;
     }
+    destination.transform(init_xfrm);
+    destination.style(init_style);
     return res;
 }
-gfx_result canvas::render_svg(stream& document, const matrix& transform, float dpi) {
-    return svg_render_document(document,*this,transform,dpi);
+gfx_result canvas::render_svg(stream& document, const matrix& transform, float dpi,void*(*allocator)(size_t),void*(*reallocator)(void*,size_t),void(*deallocator)(void*)) {
+    if(allocator==nullptr) {
+        allocator = this->m_allocator;
+    }
+    if(reallocator==nullptr) {
+        reallocator = this->m_reallocator;
+    }
+    if(deallocator==nullptr) {
+        deallocator = this->m_deallocator;
+    }
+    return svg_render_document(document,*this,transform,dpi,allocator,reallocator,deallocator);
 }
 gfx_result canvas::svg_dimensions(stream& document, sizef* out_dimensions,float dpi) {
     return svg_document_dimensions(document,out_dimensions,dpi);

@@ -356,9 +356,9 @@ int plutovg_color_parse(plutovg_color_t* color, const char* data, int length)
     return it - data;
 }
 
-static void* plutovg_paint_create(plutovg_paint_type_t type, size_t size)
+static void* plutovg_paint_create(plutovg_paint_type_t type, size_t size,void*(*allocator)(size_t))
 {
-    plutovg_paint_t* paint = (plutovg_paint_t*)malloc(size);
+    plutovg_paint_t* paint = (plutovg_paint_t*)allocator(size);
     if(paint==nullptr) {
         return nullptr;
     }
@@ -367,14 +367,14 @@ static void* plutovg_paint_create(plutovg_paint_type_t type, size_t size)
     return paint;
 }
 
-plutovg_paint_t* plutovg_paint_create_rgb(float r, float g, float b)
+plutovg_paint_t* plutovg_paint_create_rgb(float r, float g, float b,void*(*allocator)(size_t))
 {
-    return plutovg_paint_create_rgba(r, g, b, 1.f);
+    return plutovg_paint_create_rgba(r, g, b, 1.f,allocator);
 }
 
-plutovg_paint_t* plutovg_paint_create_rgba(float r, float g, float b, float a)
+plutovg_paint_t* plutovg_paint_create_rgba(float r, float g, float b, float a,void*(*allocator)(size_t))
 {
-    plutovg_solid_paint_t* solid = (plutovg_solid_paint_t*)plutovg_paint_create(PLUTOVG_PAINT_TYPE_COLOR, sizeof(plutovg_solid_paint_t));
+    plutovg_solid_paint_t* solid = (plutovg_solid_paint_t*)plutovg_paint_create(PLUTOVG_PAINT_TYPE_COLOR, sizeof(plutovg_solid_paint_t),allocator);
     solid->color.r = plutovg_clamp(r, 0.f, 1.f);
     solid->color.g = plutovg_clamp(g, 0.f, 1.f);
     solid->color.b = plutovg_clamp(b, 0.f, 1.f);
@@ -382,14 +382,14 @@ plutovg_paint_t* plutovg_paint_create_rgba(float r, float g, float b, float a)
     return &solid->base;
 }
 
-plutovg_paint_t* plutovg_paint_create_color(const plutovg_color_t* color)
+plutovg_paint_t* plutovg_paint_create_color(const plutovg_color_t* color,void*(*allocator)(size_t))
 {
-    return plutovg_paint_create_rgba(color->r, color->g, color->b, color->a);
+    return plutovg_paint_create_rgba(color->r, color->g, color->b, color->a,allocator);
 }
 
-static plutovg_gradient_paint_t* plutovg_gradient_create(plutovg_gradient_type_t type, plutovg_spread_method_t spread, const plutovg_gradient_stop_t* stops, int nstops, const ::gfx::matrix* matrix)
+static plutovg_gradient_paint_t* plutovg_gradient_create(plutovg_gradient_type_t type, plutovg_spread_method_t spread, const plutovg_gradient_stop_t* stops, int nstops, const ::gfx::matrix* matrix,void*(*allocator)(size_t))
 {
-    plutovg_gradient_paint_t* gradient = (plutovg_gradient_paint_t*)plutovg_paint_create(PLUTOVG_PAINT_TYPE_GRADIENT, sizeof(plutovg_gradient_paint_t) + nstops * sizeof(plutovg_gradient_stop_t));
+    plutovg_gradient_paint_t* gradient = (plutovg_gradient_paint_t*)plutovg_paint_create(PLUTOVG_PAINT_TYPE_GRADIENT, sizeof(plutovg_gradient_paint_t) + nstops * sizeof(plutovg_gradient_stop_t),allocator);
     if(gradient==nullptr) {
         return nullptr;
     }
@@ -410,9 +410,9 @@ static plutovg_gradient_paint_t* plutovg_gradient_create(plutovg_gradient_type_t
     return gradient;
 }
 
-plutovg_paint_t* plutovg_paint_create_linear_gradient(float x1, float y1, float x2, float y2, plutovg_spread_method_t spread, const plutovg_gradient_stop_t* stops, int nstops, const ::gfx::matrix* matrix)
+plutovg_paint_t* plutovg_paint_create_linear_gradient(float x1, float y1, float x2, float y2, plutovg_spread_method_t spread, const plutovg_gradient_stop_t* stops, int nstops, const ::gfx::matrix* matrix,void*(*allocator)(size_t))
 {
-    plutovg_gradient_paint_t* gradient = (plutovg_gradient_paint_t*)plutovg_gradient_create(PLUTOVG_GRADIENT_TYPE_LINEAR, spread, stops, nstops, matrix);
+    plutovg_gradient_paint_t* gradient = (plutovg_gradient_paint_t*)plutovg_gradient_create(PLUTOVG_GRADIENT_TYPE_LINEAR, spread, stops, nstops, matrix,allocator);
     gradient->values[0] = x1;
     gradient->values[1] = y1;
     gradient->values[2] = x2;
@@ -420,9 +420,9 @@ plutovg_paint_t* plutovg_paint_create_linear_gradient(float x1, float y1, float 
     return &gradient->base;
 }
 
-plutovg_paint_t* plutovg_paint_create_radial_gradient(float cx, float cy, float cr, float fx, float fy, float fr, plutovg_spread_method_t spread, const plutovg_gradient_stop_t* stops, int nstops, const ::gfx::matrix* matrix)
+plutovg_paint_t* plutovg_paint_create_radial_gradient(float cx, float cy, float cr, float fx, float fy, float fr, plutovg_spread_method_t spread, const plutovg_gradient_stop_t* stops, int nstops, const ::gfx::matrix* matrix,void*(*allocator)(size_t))
 {
-    plutovg_gradient_paint_t* gradient = (plutovg_gradient_paint_t*)plutovg_gradient_create(PLUTOVG_GRADIENT_TYPE_RADIAL, spread, stops, nstops, matrix);
+    plutovg_gradient_paint_t* gradient = (plutovg_gradient_paint_t*)plutovg_gradient_create(PLUTOVG_GRADIENT_TYPE_RADIAL, spread, stops, nstops, matrix,allocator);
     gradient->values[0] = cx;
     gradient->values[1] = cy;
     gradient->values[2] = cr;
@@ -432,9 +432,9 @@ plutovg_paint_t* plutovg_paint_create_radial_gradient(float cx, float cy, float 
     return &gradient->base;
 }
 
-plutovg_paint_t* plutovg_paint_create_texture(int width, int height, ::gfx::vector_on_read_callback_type callback, void* callback_state, plutovg_texture_type_t type, float opacity, const ::gfx::matrix* matrix)
+plutovg_paint_t* plutovg_paint_create_texture(int width, int height, ::gfx::vector_on_read_callback_type callback, void* callback_state, plutovg_texture_type_t type, float opacity, const ::gfx::matrix* matrix,void*(*allocator)(size_t))
 {
-    plutovg_texture_paint_t* texture = (plutovg_texture_paint_t*)plutovg_paint_create(PLUTOVG_PAINT_TYPE_TEXTURE, sizeof(plutovg_texture_paint_t));
+    plutovg_texture_paint_t* texture = (plutovg_texture_paint_t*)plutovg_paint_create(PLUTOVG_PAINT_TYPE_TEXTURE, sizeof(plutovg_texture_paint_t),allocator);
     texture->type = type;
     texture->opacity = plutovg_clamp(opacity, 0.f, 1.f);
     texture->matrix = matrix ? *matrix : ::gfx::matrix::create_identity();
@@ -446,9 +446,9 @@ plutovg_paint_t* plutovg_paint_create_texture(int width, int height, ::gfx::vect
     texture->height = height;
     return &texture->base;
 }
-plutovg_paint_t* plutovg_paint_create_texture_direct(int width, int height, const ::gfx::const_blt_span* direct, ::gfx::on_direct_read_callback_type callback, plutovg_texture_type_t type, float opacity, const ::gfx::matrix* matrix)
+plutovg_paint_t* plutovg_paint_create_texture_direct(int width, int height, const ::gfx::const_blt_span* direct, ::gfx::on_direct_read_callback_type callback, plutovg_texture_type_t type, float opacity, const ::gfx::matrix* matrix,void*(*allocator)(size_t))
 {
-    plutovg_texture_paint_t* texture = (plutovg_texture_paint_t*)plutovg_paint_create(PLUTOVG_PAINT_TYPE_TEXTURE, sizeof(plutovg_texture_paint_t));
+    plutovg_texture_paint_t* texture = (plutovg_texture_paint_t*)plutovg_paint_create(PLUTOVG_PAINT_TYPE_TEXTURE, sizeof(plutovg_texture_paint_t),allocator);
     texture->type = type;
     texture->opacity = plutovg_clamp(opacity, 0.f, 1.f);
     texture->matrix = matrix ? *matrix : ::gfx::matrix::create_identity();
@@ -468,7 +468,7 @@ plutovg_paint_t* plutovg_paint_reference(plutovg_paint_t* paint)
     return paint;
 }
 
-void plutovg_paint_destroy(plutovg_paint_t* paint)
+void plutovg_paint_destroy(plutovg_paint_t* paint,void(*deallocator)(void*))
 {
     if(paint == NULL)
         return;
@@ -478,7 +478,7 @@ void plutovg_paint_destroy(plutovg_paint_t* paint)
             // plutovg_surface_destroy(texture->surface);
         }
 
-        free(paint);
+        deallocator(paint);
     }
 }
 

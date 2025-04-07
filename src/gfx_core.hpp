@@ -34,6 +34,7 @@ namespace gfx {
     using const_buffer_stream = io::const_buffer_stream;
 #ifndef IO_NO_FS
     using file_stream = io::file_stream;
+    using c_file_stream = io::c_file_stream;
 #endif
     namespace helpers {
         // implement std::move to limit dependencies on the STL, which may not be there

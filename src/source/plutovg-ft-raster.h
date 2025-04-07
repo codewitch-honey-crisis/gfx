@@ -411,6 +411,9 @@ typedef struct  PVG_FT_Raster_Params_
     PVG_FT_SpanFunc          gray_spans;
     plutovg_span_buffer_t*   user;
     PVG_FT_BBox              clip_box;
+    void*(*allocator)(size_t);
+    void*(*reallocator)(void*,size_t);
+    void(*deallocator)(void*);
 
 } PVG_FT_Raster_Params;
 

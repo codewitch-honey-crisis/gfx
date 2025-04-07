@@ -52,10 +52,13 @@ class canvas;
 class canvas_path {
     friend class canvas;
     void* m_info;
+    void*(*m_allocator)(size_t);
+    void*(*m_reallocator)(void*,size_t);
+    void(*m_deallocator)(void*);
     canvas_path(const canvas_path& rhs)=delete;
     canvas_path& operator=(const canvas_path& rhs)=delete;
 public: 
-    canvas_path();
+    canvas_path(void*(*allocator)(size_t)=::malloc,void*(*reallocator)(void*,size_t)=::realloc,void(*deallocator)(void*)=::free);
     virtual ~canvas_path();
     canvas_path(canvas_path&& rhs);
     canvas_path& operator=(canvas_path&& rhs);
@@ -113,11 +116,14 @@ class canvas final {
     vector_on_read_callback_type m_read_callback;
     void* m_callback_state;
     void(*m_free_callback_state)(void*);
+    void*(*m_allocator)(size_t);
+    void*(*m_reallocator)(void*, size_t);
+    void(*m_deallocator)(void*);
     canvas(const canvas& rhs)=delete;
     canvas& operator=(const canvas& rhs)=delete;
 public:
-    canvas();
-    canvas(size16 dimensions);
+    canvas(void*(*allocator)(size_t)=::malloc, void*(*reallocator)(void*,size_t)=::realloc, void(*deallocator)(void*)=::free);
+    canvas(size16 dimensions,void*(*allocator)(size_t)=::malloc, void*(*reallocator)(void*,size_t)=::realloc, void(*deallocator)(void*)=::free);
     canvas(canvas&& rhs);
     ~canvas();
     canvas& operator=(canvas&& rhs);
@@ -194,10 +200,10 @@ public:
     gfx_result arc(pointf center, float radius, float start_angle, float end_angle, bool direction);
     gfx_result text(pointf location, const canvas_text_info& info);
     gfx_result path(const canvas_path& value);
-    gfx_result render(bool preserve=false);
-    gfx_result render_svg(stream& document, const matrix& transform=matrix::create_identity(), float dpi = 96.f);
+    gfx_result render(bool preserve=false,void*(*allocator)(size_t)=nullptr,void*(*reallocator)(void*,size_t)=nullptr,void(*deallocator)(void*)=nullptr);
+    gfx_result render_svg(stream& document, const matrix& transform=matrix::create_identity(), float dpi = 96.f,void*(*allocator)(size_t)=nullptr,void*(*reallocator)(void*,size_t)=nullptr,void(*deallocator)(void*)=nullptr);
     static gfx_result svg_dimensions(stream& document, sizef* out_dimensions, float dpi= 96.f);
-    gfx_result render_tvg(stream& document, const matrix& transform=matrix::create_identity());
+    gfx_result render_tvg(stream& document, const matrix& transform=matrix::create_identity(),void*(*allocator)(size_t)=nullptr,void*(*reallocator)(void*,size_t)=nullptr,void(*deallocator)(void*)=nullptr);
     static gfx_result tvg_dimensions(stream& document, sizef* out_dimensions);
 };
 

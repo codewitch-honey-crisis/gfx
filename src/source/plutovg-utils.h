@@ -35,15 +35,6 @@ static inline uint32_t plutovg_premultiply_argb(uint32_t color)
     return (a << 24) | (r << 16) | (g << 8) | (b);
 }
 
-// #define plutovg_array_init(array,allocator,reallocator,deallocator) \
-//     do { \
-//         (array).data = NULL; \
-//         (array).size = 0; \
-//         (array).capacity = 0; \
-//         (array).allocator = allocator; \
-//         (array).reallocator = reallocator; \
-//         (array).deallocator = deallocator; \
-//     } while(0)
 template<typename T>
 void plutovg_array_init(T& array, void*(*allocator)(size_t), void*(*reallocator)(void*,size_t), void(*deallocator)(void*)) {
     array.data = nullptr;
@@ -53,17 +44,6 @@ void plutovg_array_init(T& array, void*(*allocator)(size_t), void*(*reallocator)
     array.reallocator = reallocator;
     array.deallocator = deallocator;
 }
-
-// #define plutovg_array_ensure(array, count) 
-//     do { 
-//         if((array).data == NULL || ((array).size + (count) > (array).capacity)) { 
-//             int capacity = (array).size + (count); 
-//             int newcapacity = (array).capacity == 0 ? 8 : (array).capacity; 
-//             while(newcapacity < capacity) { newcapacity *= 2; } 
-//             (array).data = realloc((array).data, newcapacity * sizeof((array).data[0])); 
-//             (array).capacity = newcapacity; 
-//         } 
-//     } while(0)
 
 template<typename T,typename ET>
 bool plutovg_array_ensure(T& array, size_t count) {

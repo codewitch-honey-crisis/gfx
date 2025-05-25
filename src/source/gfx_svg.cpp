@@ -3334,8 +3334,8 @@ static void svg_apply_view_transform(svg_context& ctx, float width,
                     matrix::create_translate(-ctx.view_box_min_x, -ctx.view_box_min_y);
     } else {
         float scale = (ctx.align_scale == view_scale_meet)
-                          ? math::min(scale_x, scale_y)
-                          : math::max(scale_x, scale_y);
+                          ? math::min_(scale_x, scale_y)
+                          : math::max_(scale_x, scale_y);
         float offset_x = -ctx.view_box_min_x * scale;
         float offset_y = -ctx.view_box_min_y * scale;
         float view_width = ctx.view_box_width * scale;

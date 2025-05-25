@@ -42,8 +42,8 @@ class xdraw_bitmap {
         }
         out_result->dst_loc = (point16)dstr.point1();
         out_result->src_loc = point16(sofx,sofy);
-        out_result->width = math::min(dstr.x2-dstr.x1+1,srcr.width()-sofx);
-        out_result->height = math::min(dstr.y2-dstr.y1+1,srcr.height()-sofx);
+        out_result->width = math::min_(dstr.x2-dstr.x1+1,srcr.width()-sofx);
+        out_result->height = math::min_(dstr.y2-dstr.y1+1,srcr.height()-sofx);
         return true;
     }
     template <typename Destination, typename Source, bool CopyFrom, bool CopyTo, bool BltDst, bool BltSrc>
@@ -373,7 +373,7 @@ class xdraw_bitmap {
                     gfx_span dst_sp = dst.span(point16(x,y+d_offsy));
                     gfx_cspan src_csp = src.cspan(point16(sx,sy));
                     if(dst_sp.data!=nullptr && src_csp.cdata!=nullptr) {
-                        int len = math::min((int)(dxe*dst.pixel_width()),(int)dst_sp.length,(int)src_csp.length);
+                        int len = math::min_((int)(dxe*dst.pixel_width()),(int)dst_sp.length,(int)src_csp.length);
                         memcpy(dst_sp.data, src_csp.cdata,len);
                     }
                     ++sy;

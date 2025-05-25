@@ -82,12 +82,12 @@ gfx_result canvas::callbacks(size16 dimensions, spoint16 offset,vector_on_read_c
         
     rectf clip_rect;
     clip_rect.x1 =
-        math::max((float)bmp_loc.x, 0.f);
+        math::max_((float)bmp_loc.x, 0.f);
     clip_rect.y1 =
-        math::max((float)bmp_loc.y, 0.f);
-    clip_rect.x2 = math::min((float)bmp_loc.x + dimensions.width-1.f,
+        math::max_((float)bmp_loc.y, 0.f);
+    clip_rect.x2 = math::min_((float)bmp_loc.x + dimensions.width-1.f,
                                 (float)m_dimensions.width-1.f);
-    clip_rect.y2 = math::min((float)bmp_loc.y + dimensions.height-1.f,
+    clip_rect.y2 = math::min_((float)bmp_loc.y + dimensions.height-1.f,
                                 (float)m_dimensions.height-1.f);
     plutovg_rect_t r={clip_rect.x1,clip_rect.y1,clip_rect.width(),clip_rect.height()};
     plutovg_canvas_global_clip(CHND,&r);
@@ -115,12 +115,12 @@ gfx_result canvas::direct(blt_span* bmp_data, size16 dimensions, spoint16 offset
         
     rectf clip_rect;
     clip_rect.x1 =
-        math::max((float)bmp_loc.x, 0.f);
+        math::max_((float)bmp_loc.x, 0.f);
     clip_rect.y1 =
-        math::max((float)bmp_loc.y, 0.f);
-    clip_rect.x2 = math::min((float)bmp_loc.x + dimensions.width-1.f,
+        math::max_((float)bmp_loc.y, 0.f);
+    clip_rect.x2 = math::min_((float)bmp_loc.x + dimensions.width-1.f,
                                 (float)m_dimensions.width-1.f);
-    clip_rect.y2 = math::min((float)bmp_loc.y + dimensions.height-1.f,
+    clip_rect.y2 = math::min_((float)bmp_loc.y + dimensions.height-1.f,
                                 (float)m_dimensions.height-1.f);
     plutovg_rect_t r={clip_rect.x1,clip_rect.y1,clip_rect.width(),clip_rect.height()};
     plutovg_canvas_global_clip(CHND,&r);

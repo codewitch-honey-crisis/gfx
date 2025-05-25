@@ -1397,8 +1397,8 @@ namespace gfx {
                 const double cG = source.template channelr_unchecked<chiG>();
                 const double cB = source.template channelr_unchecked<chiB>();
 
-                const double max = math::max(cR, cG, cB);
-                const double min = math::min(cR, cG, cB);
+                const double max = math::max_(cR, cG, cB);
+                const double min = math::min_(cR, cG, cB);
                 const double c   = max - min;
                 double hue=0;
                 if(c!=0) {

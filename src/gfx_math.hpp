@@ -49,26 +49,26 @@ struct math {
     static inline float rad2deg(float x) {
         return x * (180.0f/pi);
     }
-    template<typename T> constexpr static T min(T a, T b) {
+    template<typename T> constexpr static T min_(T a, T b) {
         return a < b ? a : b;
     }
-    template<typename T> constexpr static T min(T a, T b, T c) {
-        return min(min(a,b),c);
+    template<typename T> constexpr static T min_(T a, T b, T c) {
+        return min_(min_(a,b),c);
     }
-    template<typename T> constexpr static T min(T a, T b, T c, T d) {
-        return min(min(a,b),min(c,d));
+    template<typename T> constexpr static T min_(T a, T b, T c, T d) {
+        return min_(min_(a,b),min_(c,d));
     }
-    template<typename T> constexpr static T max(T a, T b) {
+    template<typename T> constexpr static T max_(T a, T b) {
         return a > b ? a : b;
     }
-    template<typename T> constexpr static T max(T a, T b, T c) {
-        return max(max(a,b),c);
+    template<typename T> constexpr static T max_(T a, T b, T c) {
+        return max_(max_(a,b),c);
     }
-    template<typename T> constexpr static T max(T a, T b, T c, T d) {
-        return max(max(a,b),max(c,d));
+    template<typename T> constexpr static T max_(T a, T b, T c, T d) {
+        return max_(max_(a,b),max_(c,d));
     }
     template<typename T> constexpr static T clamp(T minimum, T value, T maximum) {
-        return max(minimum, (min(value, maximum)));
+        return max_(minimum, (min_(value, maximum)));
     }
     template<typename T> constexpr static T absx(T value) {
         return value > 0 ? value : -value;

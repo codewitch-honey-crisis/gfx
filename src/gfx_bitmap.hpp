@@ -894,7 +894,7 @@ namespace gfx {
             default: {
                 const uint8_t* target = (const uint8_t*)data;
                 int j=0;
-                for (int i = 0; i < length*ba; i+=ba) {
+                for (size_t i = 0; i < length*ba; i+=ba) {
                     typename Source::pixel_type::int_type v;
                     memcpy(&v,&target[i],ba);
 #ifndef HTCW_GFX_NO_SWAP
@@ -991,7 +991,7 @@ namespace gfx {
             default: {
                 uint8_t* target = (uint8_t*)data;
                 int j=0;
-                for (int i = 0; i < length*ba; i+=ba) {
+                for (size_t i = 0; i < length*ba; i+=ba) {
                     vector_pixel lhs(buffer[j],true);
                     typename Destination::pixel_type rhs;
                     convert(lhs,&rhs);

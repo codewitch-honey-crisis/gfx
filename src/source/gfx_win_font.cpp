@@ -72,7 +72,7 @@ gfx_result win_font::initialize() {
             }
             uint16_t rtable=bits::from_le(m_stream->read<uint16_t>());
             long long rtablea=rtable+neoff;
-            if(rtablea!=m_stream->seek(rtablea)) {
+            if(rtablea!=(long long)m_stream->seek(rtablea)) {
                 // Unexpected end of stream parsing NE
                 return gfx_result::io_error;
             }
@@ -154,7 +154,7 @@ gfx_result win_font::seek_char(char ch) const {
         return gfx_result::invalid_argument;
     }
     long long offs = m_char_table_offset + m_char_table_len * (cmp-fc);
-    if(offs+m_font_offset!=m_stream->seek(offs+m_font_offset)) {
+    if(offs+m_font_offset!=(long long)m_stream->seek(offs+m_font_offset)) {
         // unexpected end of stream
         return gfx_result::io_error;
     }

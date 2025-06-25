@@ -181,7 +181,7 @@ gfx_result font_draw_cache::find(int32_t codepoint, size16* out_dimensions,uint8
     return gfx_result::success;
 }
 void font_draw_cache::clear() {
-    for(int i = 0;i<m_cache.size();++i) {
+    for(size_t i = 0;i<m_cache.size();++i) {
         uint8_t* p = m_cache.at(i)->value.data;
         if(p!=nullptr) {
             m_deallocator(p);

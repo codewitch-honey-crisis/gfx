@@ -1523,7 +1523,7 @@ result_t svg_parse_color(svg_context& ctx, const char** current, int mode,
                     }
                     break;
                 case 6:
-                    if ((rc - rgb) > (sizeof(rgb) / sizeof(float))) {
+                    if (((size_t)(rc - rgb)) > (sizeof(rgb) / sizeof(float))) {
                         return FMT_ERROR;
                     }
                     res = svg_parse_float(ctx, current, true, rc);

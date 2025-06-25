@@ -268,7 +268,7 @@ gfx_result vlw_font::on_draw(bitmap<alpha_pixel<8>>& destination,int32_t codepoi
         if(i>=m_glyph_count) {
             return gfx_result::invalid_argument;
         }
-        if(bmp_offset!=m_stream->seek(bmp_offset)) {
+        if(bmp_offset!=(long long)m_stream->seek(bmp_offset)) {
             return gfx_result::io_error;
         }
         if((w*h)!=m_stream->read(destination.begin(),w*h)) {

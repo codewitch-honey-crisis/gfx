@@ -864,7 +864,7 @@ static result_t tvg_parse_polyline(tvg_context_t* ctx,size_t size, const tvg_sty
     if(res!=TVG_SUCCESS) {
         return res;
     }
-    for(int i = 1;i<size;++i) {
+    for(size_t i = 1;i<size;++i) {
         res=tvg_read_point(ctx,&pt);
         if(res!=TVG_SUCCESS) {
             return res;
@@ -899,7 +899,7 @@ static result_t tvg_parse_polyline(tvg_context_t* ctx,size_t size, const tvg_sty
 static result_t tvg_parse_lines(tvg_context_t* ctx,size_t size, const tvg_style_t* line_style, float line_width) {
     tvg_point_t pt;
     result_t res;
-    for(int i = 0;i<size;++i) {
+    for(size_t i = 0;i<size;++i) {
         res=tvg_read_point(ctx,&pt);
         if(res!=TVG_SUCCESS) {
             return res;
@@ -1016,7 +1016,7 @@ static result_t tvg_parse_outline_fill_polyline(tvg_context_t* ctx, size_t size,
     if(res!=TVG_SUCCESS) {
         return res;
     }
-    for(int i = 1;i<size;++i) {
+    for(size_t i = 1;i<size;++i) {
         res=tvg_read_point(ctx,&pt);
         if(res!=TVG_SUCCESS) {
             return res;

@@ -2,6 +2,11 @@
 #define HTCW_GFX_CORE_HPP
 #include <string.h>
 #include <stdint.h>
+#ifdef __has_include
+#if __has_include("gfx_conf.h")
+#include "gfx_conf.h"
+#endif
+#endif
 //#define HTCW_GFX_NO_SWAP
 #ifdef GFX_BIG_ENDIAN
     #define HTCW_BIG_ENDIAN

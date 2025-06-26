@@ -1,6 +1,6 @@
 #ifndef PLUTOVG_PRIVATE_H
 #define PLUTOVG_PRIVATE_H
-
+#include <stddef.h>
 #include "plutovg.h"
 
 struct plutovg_surface {
@@ -20,8 +20,8 @@ struct plutovg_path {
     ::gfx::pointf start_point;
     struct {
         plutovg_path_element_t* data;
-        int size;
-        int capacity;
+        size_t size;
+        size_t capacity;
         void*(*allocator)(size_t);
         void*(*reallocator)(void*, size_t);
         void(*deallocator)(void*);
@@ -80,8 +80,8 @@ typedef struct {
 } plutovg_span_t;
 typedef struct {
     plutovg_span_t* data;
-    int size;
-    int capacity;
+    size_t size;
+    size_t capacity;
     void*(*allocator)(size_t);
     void*(*reallocator)(void*, size_t);
     void(*deallocator)(void*);
@@ -98,8 +98,8 @@ typedef struct {
     float offset;
     struct {
         float* data;
-        int size;
-        int capacity;
+        size_t size;
+        size_t capacity;
         void*(*allocator)(size_t);
         void*(*reallocator)(void*, size_t);
         void(*deallocator)(void*);

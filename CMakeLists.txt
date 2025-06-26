@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(htcw_gfx VERSION 2.2.3)
+project(htcw_gfx VERSION 2.2.4)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_STATIC_LIBRARY_PREFIX "")
@@ -15,9 +15,9 @@ FetchContent_Declare(htcw_bits
 
 FetchContent_Declare(htcw_data
     GIT_REPOSITORY https://github.com/codewitch-honey-crisis/htcw_data.git
-    GIT_TAG 1.4.3
+    GIT_TAG 1.4.4
     GIT_SHALLOW ON
-    FIND_PACKAGE_ARGS 1.4.3
+    FIND_PACKAGE_ARGS 1.4.4
 )
 
 FetchContent_MakeAvailable(htcw_data)

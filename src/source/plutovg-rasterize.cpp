@@ -16,7 +16,7 @@ bool plutovg_span_buffer_init(plutovg_span_buffer_t* span_buffer,void*(*allocato
 bool plutovg_span_buffer_init_rect(plutovg_span_buffer_t* span_buffer, int x, int y, int width, int height)
 {
     plutovg_array_clear(span_buffer->spans);
-    if(!plutovg_array_ensure<decltype(span_buffer->spans),plutovg_span_t>(span_buffer->spans, height)) {
+    if(!plutovg_array_ensure<decltype(span_buffer->spans),plutovg_span_t>(span_buffer->spans,(size_t) height)) {
         return false;
     }
     plutovg_span_t* spans = span_buffer->spans.data;
@@ -79,7 +79,7 @@ static void plutovg_span_buffer_update_extents(plutovg_span_buffer_t* span_buffe
     int y1 = spans[0].y;
     int x2 = 0;
     int y2 = spans[span_buffer->spans.size - 1].y;
-    for(int i = 0; i < span_buffer->spans.size; i++) {
+    for(size_t i = 0; i < span_buffer->spans.size; i++) {
         if(spans[i].x < x1) x1 = spans[i].x;
         if(spans[i].x + spans[i].len > x2) x2 = spans[i].x + spans[i].len;
     }
@@ -102,7 +102,7 @@ void plutovg_span_buffer_extents(plutovg_span_buffer_t* span_buffer, plutovg_rec
 bool plutovg_span_buffer_intersect(plutovg_span_buffer_t* span_buffer, const plutovg_span_buffer_t* a, const plutovg_span_buffer_t* b)
 {
     plutovg_span_buffer_reset(span_buffer);
-    if(!plutovg_array_ensure<decltype(span_buffer->spans),plutovg_span_t>(span_buffer->spans, plutovg_max(a->spans.size, b->spans.size))) {
+    if(!plutovg_array_ensure<decltype(span_buffer->spans),plutovg_span_t>(span_buffer->spans, (size_t)plutovg_max(a->spans.size, b->spans.size))) {
         return false;
     }
 
@@ -368,9 +368,9 @@ static bool spans_generation_callback(int count, const PVG_FT_Span* spans, pluto
     using e_t = PVG_FT_Span;
     static_assert(sizeof(e_t)==sizeof(plutovg_span_t));
     using p_t = plutovg_span_t*; 
-    if(dst.data == NULL || (dst.size + (count) > dst.capacity)) { 
-        int capacity = dst.size + (count); 
-        int newcapacity = dst.capacity == 0 ? 8 : dst.capacity; 
+    if(dst.data == NULL || (dst.size + ((size_t)count) > dst.capacity)) { 
+        size_t capacity = dst.size + ((size_t)count); 
+        size_t newcapacity = dst.capacity == 0 ? 8 : dst.capacity; 
         while(newcapacity < capacity) { newcapacity *= 2; } 
         dst.data = (p_t)span_buffer->spans.reallocator(dst.data, newcapacity * sizeof(e_t)); 
         
@@ -380,11 +380,11 @@ static bool spans_generation_callback(int count, const PVG_FT_Span* spans, pluto
         dst.capacity = newcapacity; 
     } 
     
-    memcpy(dst.data + dst.size, spans, (count) * sizeof(e_t));
+    memcpy(dst.data + dst.size, spans, ((size_t)count) * sizeof(e_t));
     // for(int i = 0;i<count;++i) {
     //     dst.data[dst.size+i]=*((plutovg_span_t*)&spans[i]);
     // }
-    dst.size += count;
+    dst.size += (size_t)count;
     
     return true;
 }

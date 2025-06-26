@@ -411,7 +411,7 @@ bool plutovg_path_add_arc(plutovg_path_t* path, float cx, float cy, float r, flo
 void plutovg_path_transform(plutovg_path_t* path, const ::gfx::matrix* matrix)
 {
     plutovg_path_element_t* elements = path->elements.data;
-    for(int i = 0; i < path->elements.size; i += elements[i].header.length) {
+    for(size_t i = 0; i < path->elements.size; i += elements[i].header.length) {
         switch(elements[i].header.command) {
         case PLUTOVG_PATH_COMMAND_MOVE_TO:
         case PLUTOVG_PATH_COMMAND_LINE_TO:

@@ -50,8 +50,8 @@ bool plutovg_array_ensure(T& array, size_t count) {
     if((array).data == NULL || ((array).size + (count) > (array).capacity)) { 
         using e_t =decltype(array.data[0]);
         using p_t = decltype(array.data);
-        int capacity = (array).size + (count); 
-        int newcapacity = (array).capacity == 0 ? 8 : (array).capacity; 
+        size_t capacity = (array).size + (count); 
+        size_t newcapacity = (array).capacity == 0 ? 8 : (array).capacity; 
         while(newcapacity < capacity) { newcapacity *= 2; } 
         (array).data = (p_t)(array).reallocator((array).data, newcapacity * sizeof(e_t)); 
         if((array).data==nullptr) {

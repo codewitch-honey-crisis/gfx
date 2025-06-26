@@ -317,7 +317,7 @@ struct composition_params {
     const uint32_t* src;
     int x;
     int y;
-    int length;
+    size_t length;
     uint32_t color;
     uint32_t const_alpha;
     uint8_t* direct;
@@ -336,7 +336,7 @@ static void composition_solid_source(const composition_params& params) {
     } else {
         uint32_t ialpha = 255 - params.const_alpha;
         uint32_t color = BYTE_MUL(params.color, params.const_alpha);
-        for (int i = 0; i < params.length; i++) {
+        for (size_t i = 0; i < params.length; i++) {
             dest[i] = color + BYTE_MUL(dest[i], ialpha);
         }
     }
@@ -348,7 +348,7 @@ static void composition_solid_source_over(const composition_params& params) {
     uint32_t color = params.color;
     if (params.const_alpha != 255) color = BYTE_MUL(color, params.const_alpha);
     uint32_t ialpha = 255 - plutovg_alpha(color);
-    for (int i = 0; i < params.length; i++) {
+    for (size_t i = 0; i < params.length; i++) {
         dest[i] = color + BYTE_MUL(dest[i], ialpha);
     }
 }
@@ -360,7 +360,7 @@ static void composition_solid_destination_in(const composition_params& params) {
     uint32_t a = plutovg_alpha(color);
     if (params.const_alpha != 255)
         a = BYTE_MUL(a, params.const_alpha) + 255 - params.const_alpha;
-    for (int i = 0; i < params.length; i++) {
+    for (size_t i = 0; i < params.length; i++) {
         dest[i] = BYTE_MUL(dest[i], a);
     }
 }
@@ -373,7 +373,7 @@ static void composition_solid_destination_out(
     uint32_t a = plutovg_alpha(~color);
     if (params.const_alpha != 255)
         a = BYTE_MUL(a, params.const_alpha) + 255 - params.const_alpha;
-    for (int i = 0; i < params.length; i++) {
+    for (size_t i = 0; i < params.length; i++) {
         dest[i] = BYTE_MUL(dest[i], a);
     }
 }
@@ -382,12 +382,12 @@ static void composition_source(const composition_params& params) {
     uint32_t* dest = (uint32_t*)params.direct;
 
     if (params.const_alpha == 255) {
-        for (int i = 0; i < params.length; ++i) {
+        for (size_t i = 0; i < params.length; ++i) {
             dest[i] = params.src[i];
         }
     } else {
         uint32_t ialpha = 255 - params.const_alpha;
-        for (int i = 0; i < params.length; i++) {
+        for (size_t i = 0; i < params.length; i++) {
             dest[i] = interpolate_pixel(params.src[i], params.const_alpha,
                                         dest[i], ialpha);
         }
@@ -399,7 +399,7 @@ static void composition_source_over(const composition_params& params) {
 
     uint32_t s, sia;
     if (params.const_alpha == 255) {
-        for (int i = 0; i < params.length; i++) {
+        for (size_t i = 0; i < params.length; i++) {
             s = params.src[i];
             if (s >= 0xff000000) {
                 dest[i] = s;
@@ -409,7 +409,7 @@ static void composition_source_over(const composition_params& params) {
             }
         }
     } else {
-        for (int i = 0; i < params.length; i++) {
+        for (size_t i = 0; i < params.length; i++) {
             s = BYTE_MUL(params.src[i], params.const_alpha);
             sia = plutovg_alpha(~s);
             dest[i] = s + BYTE_MUL(dest[i], sia);
@@ -420,13 +420,13 @@ static void composition_source_over(const composition_params& params) {
 static void composition_destination_in(const composition_params& params) {
     uint32_t* dest = (uint32_t*)params.direct;
     if (params.const_alpha == 255) {
-        for (int i = 0; i < params.length; i++) {
+        for (size_t i = 0; i < params.length; i++) {
             dest[i] = BYTE_MUL(dest[i], plutovg_alpha(params.src[i]));
         }
     } else {
         uint32_t cia = 255 - params.const_alpha;
         uint32_t a;
-        for (int i = 0; i < params.length; i++) {
+        for (size_t i = 0; i < params.length; i++) {
             a = BYTE_MUL(plutovg_alpha(params.src[i]), params.const_alpha) +
                 cia;
             dest[i] = BYTE_MUL(dest[i], a);
@@ -437,13 +437,13 @@ static void composition_destination_in(const composition_params& params) {
 static void composition_destination_out(const composition_params& params) {
     uint32_t* dest = (uint32_t*)params.direct;
     if (params.const_alpha == 255) {
-        for (int i = 0; i < params.length; i++) {
+        for (size_t i = 0; i < params.length; i++) {
             dest[i] = BYTE_MUL(dest[i], plutovg_alpha(~params.src[i]));
         }
     } else {
         uint32_t cia = 255 - params.const_alpha;
         uint32_t sia;
-        for (int i = 0; i < params.length; i++) {
+        for (size_t i = 0; i < params.length; i++) {
             sia = BYTE_MUL(plutovg_alpha(~params.src[i]), params.const_alpha) +
                   cia;
             dest[i] = BYTE_MUL(dest[i], sia);
@@ -572,7 +572,7 @@ static void blend_solid(plutovg_canvas_t* canvas, plutovg_operator_t op,
                     // into buffer
                     const ::gfx::gfx_cspan cs =
                         direct->cspan(::gfx::point16(params.x, params.y));
-                    int ll = params.length>cs.length?cs.length:params.length;
+                    size_t ll = params.length>cs.length?cs.length:params.length;
                     if (cs.cdata != nullptr) {
 
                         on_read(buffer, cs.cdata, ll);
@@ -723,7 +723,7 @@ static void blend_linear_gradient(plutovg_canvas_t* canvas,
                     params.direct = (uint8_t*)buffer;
                     const ::gfx::gfx_cspan cs =
                         direct->cspan(::gfx::point16(params.x, params.y));
-                    int ll = params.length>cs.length?cs.length:params.length;
+                    size_t ll = params.length>cs.length?cs.length:params.length;
                     if (cs.cdata != nullptr) {
                         // Read the current surface pixels as ARGB Premultiplied
                         // into buffer
@@ -869,7 +869,7 @@ static void blend_radial_gradient(plutovg_canvas_t* canvas,
                     params.direct = (uint8_t*)buffer;
                     const ::gfx::gfx_cspan cs =
                         direct->cspan(::gfx::point16(params.x, params.y));
-                    int ll = params.length>cs.length?cs.length:params.length;
+                    size_t ll = params.length>cs.length?cs.length:params.length;
                     if (cs.cdata != nullptr) {
                         // Read the current surface pixels as ARGB Premultiplied
                         // into buffer
@@ -1024,7 +1024,7 @@ static void blend_transformed_argb(plutovg_canvas_t* canvas,
                 case MODE_DIRECT: {
                     const ::gfx::gfx_cspan cs =
                         direct->cspan(::gfx::point16(params.x, params.y));
-                    int ll = params.length>cs.length?cs.length:params.length;
+                    size_t ll = params.length>cs.length?cs.length:params.length;
                     // Read the current surface pixels as ARGB Premultiplied
                     // into buffer
                     if (cs.cdata != nullptr) {
@@ -1142,7 +1142,7 @@ static void blend_untransformed_argb(plutovg_canvas_t* canvas,
                     case MODE_CALLBACK:
                         // Read the current surface pixels as ARGB Premultiplied
                         // into the buffer using read_callback
-                        for (int i = 0; i < params.length; ++i) {
+                        for (size_t i = 0; i < params.length; ++i) {
                             ::gfx::vector_pixel c;
                             if (params.canvas->read_callback != nullptr) {
                                 params.canvas->read_callback(
@@ -1172,7 +1172,7 @@ static void blend_untransformed_argb(plutovg_canvas_t* canvas,
                         func(params);
                         // Write the modified buffer back to the surface using
                         // write callback
-                        for (int i = 0; i < params.length; ++i) {
+                        for (size_t i = 0; i < params.length; ++i) {
                             uint32_t pixel = buffer[i];
                             if (params.canvas->write_callback != nullptr) {
                                 ::gfx::vector_pixel px(pixel, true);
@@ -1187,7 +1187,7 @@ static void blend_untransformed_argb(plutovg_canvas_t* canvas,
                     case MODE_DIRECT: {
                         const ::gfx::gfx_cspan cs =
                             direct->cspan(::gfx::point16(params.x, params.y));
-                        int ll = params.length>cs.length?cs.length:params.length;
+                        size_t ll = params.length>cs.length?cs.length:params.length;
                         if (cs.cdata != nullptr) {
                             // Read the current surface pixels as ARGB
                             // Premultiplied into buffer
@@ -1350,7 +1350,7 @@ static void blend_untransformed_tiled_argb(
                 case MODE_DIRECT: {
                     const ::gfx::gfx_cspan cs =
                         direct->cspan(::gfx::point16(params.x, params.y));
-                    int ll = params.length>cs.length?cs.length:params.length;
+                    size_t ll = params.length>cs.length?cs.length:params.length;
                     if (cs.cdata != nullptr) {
                         // Read the current surface pixels as ARGB Premultiplied
                         // into buffer
@@ -1532,7 +1532,7 @@ static void blend_transformed_tiled_argb(
                 case MODE_DIRECT: {
                     const ::gfx::gfx_cspan cs =
                         direct->cspan(::gfx::point16(params.x, params.y));
-                    int ll = params.length>cs.length?cs.length:params.length;
+                    size_t ll = params.length>cs.length?cs.length:params.length;
                     if (cs.cdata != nullptr) {
                         // Read the current surface pixels as ARGB Premultiplied
                         // into buffer

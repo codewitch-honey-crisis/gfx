@@ -4601,7 +4601,8 @@ static result_t svg_render_document(stream& stream, canvas& destination, const m
     pctx->rdr.set(stream);
     matrix init_xfrm = destination.transform();
     canvas_style init_style = destination.style();
-    while (ml_node_type::element_end == pctx->rdr.node_type() || pctx->rdr.read()) {
+    bool done = !pctx->rdr.read();
+    while (!done) {
         switch (pctx->rdr.node_type()) {
             case ::ml::ml_node_type::element:
                 res = svg_parse_start_element(*pctx);
@@ -4615,10 +4616,13 @@ static result_t svg_render_document(stream& stream, canvas& destination, const m
                     goto error;
                 }
                 if (pctx->rdr.node_type() == ::ml::ml_node_type::element_end &&
-                    !pctx->rdr.read()) {
+            (done=!pctx->rdr.read())) {
                     res=IO_ERROR;
                     goto error;
                 }
+                break;
+            case ::ml::ml_node_type::eof:
+                done = true;
                 break;
             default:
                 break;

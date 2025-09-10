@@ -4255,6 +4255,15 @@ error:
     }
     return res;
 }
+static result_t svg_skip_to_end_elem(svg_context& ctx) {
+    int depth = ctx.rdr.depth();
+    while(ctx.rdr.node_type()!=ml_node_type::element_end && ctx.rdr.depth()>=depth) {
+        if(!ctx.rdr.read()) {
+            return IO_ERROR;
+        }
+    }
+    return SUCCESS;
+}
 static result_t svg_parse_start_element(svg_context& ctx) {
     result_t res = SUCCESS;
     int id = svg_elementid(ctx.rdr.value());
@@ -4286,6 +4295,10 @@ static result_t svg_parse_start_element(svg_context& ctx) {
                 }
                 break;
             default:
+                res=svg_skip_to_end_elem(ctx);
+                if(!SUCCEEDED(res)) {
+                    return res;
+                }
                 break;
         }
         return SUCCESS;
@@ -4412,6 +4425,10 @@ static result_t svg_parse_start_element(svg_context& ctx) {
             }
             break;
         default:
+            res=svg_skip_to_end_elem(ctx);
+            if(!SUCCEEDED(res)) {
+                return res;
+            }
             break;
             // return NOT_SUPPORTED;
     }
@@ -4603,7 +4620,8 @@ static result_t svg_render_document(stream& stream, canvas& destination, const m
     canvas_style init_style = destination.style();
     bool done = !pctx->rdr.read();
     while (!done) {
-        switch (pctx->rdr.node_type()) {
+        ml::ml_node_type nt = pctx->rdr.node_type();
+        switch (nt) {
             case ::ml::ml_node_type::element:
                 res = svg_parse_start_element(*pctx);
                 if (!SUCCEEDED(res)) {
@@ -4615,16 +4633,25 @@ static result_t svg_render_document(stream& stream, canvas& destination, const m
                 if (!SUCCEEDED(res)) {
                     goto error;
                 }
-                if (pctx->rdr.node_type() == ::ml::ml_node_type::element_end &&
+                nt = pctx->rdr.node_type();
+                if (nt == ::ml::ml_node_type::element_end &&
             (done=!pctx->rdr.read())) {
                     res=IO_ERROR;
                     goto error;
                 }
+                nt = pctx->rdr.node_type();
                 break;
             case ::ml::ml_node_type::eof:
                 done = true;
                 break;
+            case ::ml::ml_node_type::error_eclose:
+            case ::ml::ml_node_type::error_eof:
+            case ::ml::ml_node_type::error_eref:
+            case ::ml::ml_node_type::error_overflow:
+            case ::ml::ml_node_type::error_syntax:
+                goto error;
             default:
+                done = !pctx->rdr.read();
                 break;
         }
     }

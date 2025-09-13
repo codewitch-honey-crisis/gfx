@@ -833,7 +833,10 @@ namespace gfx {
                                     int length);
     extern void xread_callback_rgb16(uint32_t* buffer, const uint8_t* data,
                                     int length);
-    template <typename Source>
+    extern void xread_callback_gsc8(uint32_t* buffer, const uint8_t* data,
+                                    int length);
+    
+                                    template <typename Source>
     static void xread_callback_any(uint32_t* buffer, const uint8_t* data,
                                     int length) {
         using vector_pixel = pixel<
@@ -920,7 +923,8 @@ namespace gfx {
                                     int length);
     extern void xwrite_callback_rgb16(uint8_t* data, const uint32_t* buffer,
                                     int length);
-        
+    extern void xwrite_callback_gsc8(uint8_t* data, const uint32_t* buffer,
+                                int length);
     template<typename Destination>
     static void xwrite_callback_any(uint8_t* data, const uint32_t* buffer,
                                     int length) {

@@ -98,6 +98,24 @@ uint16_t xargb32p_to_rgb16(uint32_t pxl) {
     return px2.native_value;
 #endif
 }
+uint16_t xargb32p_to_gsc8(uint32_t pixel) {
+    //uint32_t a = (pixel >> 24) & 0xFF;
+    uint32_t r = (pixel >> 16) & 0xFF;
+    uint32_t g = (pixel >> 8) & 0xFF;
+    uint32_t b = (pixel >> 0) & 0xFF;
+    uint8_t v =255*((r * (1/255.f) * .299) +
+                (g * (1/255.f) * .587) +
+                (b * (1/255.f) * .114));
+    return v;
+}
+uint32_t gsc_to_argb32p(uint8_t pixel) {
+    uint32_t b = pixel;
+    uint32_t g = pixel;
+    uint32_t r = pixel;
+    // Return the ARGB Premultiplied pixel value
+    return (((uint32_t)255) << 24) | (r << 16) | (g << 8) | b;
+}
+
 // DIRECT MODE CALLBACK SPECIALIZATIONS
 void xread_callback_rgba32p(uint32_t* buffer, const uint8_t* data,
                                 int length) {
@@ -126,7 +144,15 @@ void xread_callback_rgb16(uint32_t* buffer, const uint8_t* data,
         buffer[i] = xrgb16_to_argb32p(target[i]);
     }
 }
-
+void xread_callback_gsc8(uint32_t* buffer, const uint8_t* data, int length) {
+    // Assuming the surface format is GSC Plain, fetch the pixel data
+    const uint8_t* target = (const uint8_t*)data;
+    for (int i = 0; i < length; ++i) {
+        // Convert each GSC pixel to ARGB Premultiplied
+        buffer[i] = gsc_to_argb32p(target[i]);
+    }
+}
+    
 void xwrite_callback_rgba32(uint8_t* data, const uint32_t* buffer,
                                 int length) {
     // Assuming the surface format is RGBA Plain, write the pixel data
@@ -146,6 +172,16 @@ void xwrite_callback_rgb16(uint8_t* data, const uint32_t* buffer,
         // Convert each ARGB Premultiplied pixel to RGB565 Plain before writing
         // it back
         target[i] = xargb32p_to_rgb16(buffer[i]);
+    }
+}
+void xwrite_callback_gsc8(uint8_t* data, const uint32_t* buffer,
+                                int length) {
+    // Assuming the surface format is RGB565 Plain, write the pixel data
+    uint8_t* target = (uint8_t*)data;
+    for (int i = 0; i < length; ++i) {
+        // Convert each ARGB Premultiplied pixel to RGB565 Plain before writing
+        // it back
+        target[i] = xargb32p_to_gsc8(buffer[i]);
     }
 }
 }

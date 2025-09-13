@@ -116,6 +116,10 @@ struct xdraw_canvas_binder<Destination,true> {
             return in_canvas.direct(&destination,
                             (size16)b.dimensions(), spoint16(-b.x1,-b.y1),
                             helpers::xread_callback_rgb16, helpers::xwrite_callback_rgb16);    
+        } else if(helpers::is_same<pixel_t,gsc_pixel<8>>::value) {
+            return in_canvas.direct(&destination,
+                            (size16)b.dimensions(), spoint16(-b.x1,-b.y1),
+                            helpers::xread_callback_gsc8, helpers::xwrite_callback_gsc8);    
         } 
         return in_canvas.direct(&destination,
                         (size16)b.dimensions(), spoint16(-b.x1,-b.y1),

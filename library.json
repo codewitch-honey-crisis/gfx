@@ -1,6 +1,6 @@
 {
     "name": "htcw_gfx",
-    "version": "2.2.8",
+    "version": "2.2.9",
     "description": "A device independent graphics library for embedded and IoT devices",
     "keywords": ["tft", "lcd","e-paper","e-ink", "graphics", "spi", "parallel", "i2c", "drawing", "jpg", "ttf","vlw", "font", "svg","2d", "vector"],
     "authors": {
@@ -21,7 +21,7 @@
     "dependencies": {
         "codewitch-honey-crisis/htcw_bits": "^1.0.16",
         "codewitch-honey-crisis/htcw_data": "^1.4.4",
-        "codewitch-honey-crisis/htcw_ml": "^0.2.7"
+        "codewitch-honey-crisis/htcw_ml": "^0.2.8"
     },
     "export": {
         "exclude":

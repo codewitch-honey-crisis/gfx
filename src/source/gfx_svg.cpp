@@ -4317,6 +4317,9 @@ static result_t svg_parse_start_element(svg_context& ctx) {
             break;
         case TAG_DEFS:
             ctx.in_defs = true;
+            if(!ctx.rdr.read()) {
+                return IO_ERROR;
+            }
             break;
         case TAG_G:
             res = svg_push_attr(ctx);

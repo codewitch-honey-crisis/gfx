@@ -315,11 +315,20 @@ struct pixel_diff_impl<PixelType, Count, ChannelTrait, ChannelTraits...> {
         const double d = (lhs.template channelr<index>() - rhs.template channelr<index>());
         return d * d + next::diff_sum(lhs, rhs);
     }
+    constexpr static inline bits::uintx<HTCW_MAX_WORD> diff_sum_fast(PixelType lhs, PixelType rhs) {
+        constexpr const size_t index = Count;
+        if (ChannelTrait::bit_depth == 0) return NAN;
+        const auto d = (lhs.template channel<index>() - rhs.template channel<index>());
+        return d * d + next::diff_sum_fast(lhs, rhs);
+    }
 };
 template <typename PixelType, int Count>
 struct pixel_diff_impl<PixelType, Count> {
     constexpr static inline double diff_sum(PixelType lhs, PixelType rhs) {
         return 0.0;
+    }
+    constexpr static inline bits::uintx<HTCW_MAX_WORD> diff_sum_fast(PixelType lhs, PixelType rhs) {
+        return 0;
     }
 };
 
@@ -863,6 +872,9 @@ struct pixel {
     // returns the difference between two pixels
     constexpr double difference(type rhs) const {
         return sqrt(helpers::pixel_diff_impl<type, 0, ChannelTraits...>::diff_sum(*this, rhs));
+    }
+    constexpr bits::uintx<HTCW_MAX_WORD> difference_fast(type rhs) const {
+        return helpers::pixel_diff_impl<type, 0, ChannelTraits...>::diff_sum_fast(*this, rhs);
     }
     // blends two pixels. ratio is between zero and one. larger ratio numbers favor this pixel
     constexpr gfx_result blend(const type rhs, double ratio, type* out_pixel) const {

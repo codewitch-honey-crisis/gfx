@@ -328,8 +328,8 @@ namespace gfx {
             if(gfx_result::success!=r) {
                 return r;
             }
-            double least = mpx.difference(mapped_pixel);
-            if(0.0==least) {
+            auto least = mpx.difference_fast(mapped_pixel);
+            if(0==least) {
                 pixel->native_value = 0;
                 return gfx_result::success;
             }
@@ -339,10 +339,10 @@ namespace gfx {
                 if(gfx_result::success!=r) {
                     return r;
                 }
-                double cmp = mpx.difference(mapped_pixel);
-                if(0.0==cmp) {
+                auto cmp = mpx.difference_fast(mapped_pixel);
+                if(0==cmp) {
                     ii=i;
-                    least = 0.0;
+                    least = 0;
                     break;
                 }
                 if(cmp<least) {

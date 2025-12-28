@@ -764,10 +764,10 @@ gfx_result font::draw(const gfx::srect16& bounds, const text_handle text, size_t
                         size_t bsize = gi.dimensions.width*gi.dimensions.height;
                         if(buffer_size==0) {
                             buffer = (uint8_t*)malloc(bsize);
-                            memset(buffer,0,bsize);
                             if(buffer==nullptr) {
                                 return gfx_result::out_of_memory;
                             }
+                            memset(buffer,0,bsize);
                             buffer_size = bsize;
                         } else {
                             if(buffer_size<bsize) {

@@ -12,6 +12,9 @@ void plutovg_path_iterator_init(plutovg_path_iterator_t* it, const plutovg_path_
 
 bool plutovg_path_iterator_has_next(const plutovg_path_iterator_t* it)
 {
+    if(it->elements==NULL) {
+        return false;
+    }
     return it->index < it->size;
 }
 
@@ -140,8 +143,11 @@ bool plutovg_path_quad_to(plutovg_path_t* path, float x1, float y1, float x2, fl
 
 bool plutovg_path_cubic_to(plutovg_path_t* path, float x1, float y1, float x2, float y2, float x3, float y3)
 {
-    if(path->elements.size == 0)
-        plutovg_path_move_to(path, 0, 0);
+    if(path->elements.size == 0) {
+        if(!plutovg_path_move_to(path, 0, 0)) {
+            return false;
+        }
+    }
     plutovg_path_element_t* elements = plutovg_path_add_command(path, PLUTOVG_PATH_COMMAND_CUBIC_TO, 3);
     if(elements==nullptr) {
         return false;

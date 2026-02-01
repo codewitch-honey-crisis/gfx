@@ -1,0 +1,12 @@
+menu "HTCW GFX Configuration"
+
+    config HTCW_GFX_NO_SWAP
+        bool "Disable color byte order reversal"
+        default n
+        help
+            When enabled, disables automatic byte swapping for color values.
+            Most MCUs are little-endian and most displays are big-endian,
+            so swapping is usually needed. Disable this only if your display
+            uses the same endianness as the MCU.
+
+endmenu

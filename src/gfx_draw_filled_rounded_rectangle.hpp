@@ -1,4 +1,4 @@
-#ifndef HTCW_GFX_DRAW_FILLEDROUNDED_RECTANGLE_HPP
+#ifndef HTCW_GFX_DRAW_FILLED_ROUNDED_RECTANGLE_HPP
 #define HTCW_GFX_DRAW_FILLED_ROUNDED_RECTANGLE_HPP
 #include "gfx_draw_common.hpp"
 #include "gfx_draw_filled_rectangle.hpp"

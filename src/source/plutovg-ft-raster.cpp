@@ -1465,7 +1465,7 @@ PVG_FT_END_STMNT
     min   = ras.min_ey;
     max_y = ras.max_ey;
 
-    for ( n = 0; n < num_bands; n++, min = max )
+    for ( n = 0; n < num_bands;)
     {
       max = min + ras.band_size;
       if ( n == num_bands - 1 || max > max_y )
@@ -1521,7 +1521,9 @@ PVG_FT_END_STMNT
           if(!gray_sweep( RAS_VAR)) {
             return 1;
           }
-          band--;
+          band=band-1;
+          min=max;
+          n=n+1;
           continue;
         }
         else if ( error != ErrRaster_Memory_Overflow )
@@ -1547,8 +1549,10 @@ PVG_FT_END_STMNT
         band[1].max = middle;
         band[0].min = middle;
         band[0].max = top;
-        band++;
+        band=band+1;
       }
+      min=max;
+      n=n+1;
     }
 
     if ( ras.render_span && ras.num_gray_spans > ras.skip_spans )

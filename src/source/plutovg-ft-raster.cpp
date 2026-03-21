@@ -1527,7 +1527,7 @@ static int gray_convert_glyph( RAS_ARG )
           if(!gray_sweep( RAS_VAR)) {
             return 1;
           }
-          band--;
+          band=band-1;
           continue;
         }
         else if ( error != ErrRaster_Memory_Overflow )
@@ -1553,9 +1553,9 @@ static int gray_convert_glyph( RAS_ARG )
         band[1].max = middle;
         band[0].min = middle;
         band[0].max = top;
-        band++;
+        band=band+1;
       }
-        ++n;
+        n=n+1;
         min = max;
     }
 

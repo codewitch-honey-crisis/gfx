@@ -533,25 +533,72 @@ class is_color_model_impl {
     constexpr static const bool value = sizeof...(ChannelNames) == PixelType::color_channels && is_color_model_inner_impl<PixelType, ChannelNames...>::value;
 };
 
-// converts one channel's bit depth to another
+// ---- integer fixed-point color math (Q16: 1.0 == 65536) --------------------
+// The color-model conversions in convert<>() work in a normalized Q16
+// fixed-point space instead of floating point. Internal working precision is
+// intentionally capped at 16 bits per channel: that is ample for every real
+// display format (which top out around 16bpp), and the only case that loses
+// sub-16-bit precision is a lone >16-bit grayscale channel, a non-display
+// outlier. No transcendental or non-constexpr library calls are used, so these
+// paths are usable in constant expressions on GCC/MSVC/Clang under C++17.
+constexpr static const uint32_t fp16_one = 65536u;   // represents 1.0
+constexpr static const uint32_t fp16_half = 32768u;  // represents 0.5
+// raw channel integer value -> Q16 normalized [0..65536], 16-bit-capped
+constexpr inline static uint32_t channel_to_fp16(uint64_t v, size_t bit_depth, uint64_t scale) {
+    if (scale == 0) return 0;
+    const int s = (bit_depth > 16) ? (int)(bit_depth - 16) : 0;
+    uint64_t vv = v >> s;
+    uint64_t sc = scale >> s;
+    if (sc == 0) sc = 1;
+    return (uint32_t)((vv * (uint64_t)fp16_one + (sc >> 1)) / sc);
+}
+// read channel Index of a pixel as Q16 normalized [0..65536]
+template <typename PixelType, int Index>
+constexpr inline static uint32_t channel_fp16(const PixelType& px) {
+    using ch = typename PixelType::template channel_by_index_unchecked<Index>;
+    return channel_to_fp16((uint64_t)px.template channel_unchecked<Index>(), (size_t)ch::bit_depth, (uint64_t)ch::scale);
+}
+// Q16 normalized [0..65536] -> destination channel value (rounded, clamped)
+template <typename Channel>
+constexpr inline static typename Channel::int_type fp16_to_channel(uint32_t n) {
+    uint64_t dv = ((uint64_t)n * (uint64_t)Channel::scale + (uint64_t)fp16_half) >> 16;
+    if (dv < (uint64_t)Channel::min) dv = (uint64_t)Channel::min;
+    if (dv > (uint64_t)Channel::max) dv = (uint64_t)Channel::max;
+    return (typename Channel::int_type)dv;
+}
+// unsigned Q16 multiply, inputs/result in the [0..65536] domain, round to nearest
+constexpr inline static uint32_t fp16_mul(uint32_t a, uint32_t b) {
+    return (uint32_t)(((uint64_t)a * (uint64_t)b + (uint64_t)fp16_half) >> 16);
+}
+// signed Q16 multiply, round to nearest (avoids shifting negatives)
+constexpr inline static int64_t fp16_smul(int64_t a, int64_t b) {
+    int64_t p = a * b;
+    return (p >= 0) ? ((p + (int64_t)fp16_half) >> 16) : -(((-p) + (int64_t)fp16_half) >> 16);
+}
+// clamp a signed Q16 value into [0..65536]
+constexpr inline static uint32_t fp16_clampu(int64_t v) {
+    return (uint32_t)(v < 0 ? 0 : (v > (int64_t)fp16_one ? (int64_t)fp16_one : v));
+}
+// integer HSL hue->channel helper (Q16). p,q,t are Q16; result clamped to [0..65536]
+constexpr inline static uint32_t fp16_hue2rgb(int64_t p, int64_t q, int64_t t) {
+    if (t < 0) t += (int64_t)fp16_one;
+    if (t > (int64_t)fp16_one) t -= (int64_t)fp16_one;
+    const int64_t s6 = (int64_t)fp16_one / 6;
+    const int64_t h2 = (int64_t)fp16_one / 2;
+    const int64_t t3 = (2 * (int64_t)fp16_one) / 3;
+    if (t < s6) return fp16_clampu(p + fp16_smul(q - p, 6 * t));
+    if (t < h2) return fp16_clampu(q);
+    if (t < t3) return fp16_clampu(p + fp16_smul(q - p, (t3 - t) * 6));
+    return fp16_clampu(p);
+}
+
+// converts one channel's bit depth to another (integer rational rescale)
 template <typename ChannelLhs, typename ChannelRhs>
 constexpr inline static typename ChannelRhs::int_type convert_channel_depth(typename ChannelLhs::int_type v) {
-    typename ChannelRhs::int_type rv = 0;
     if (ChannelLhs::bit_depth == 0 || ChannelRhs::bit_depth == 0) return 0;
-    const uint8_t srf = ((int)ChannelLhs::bit_depth - (int)ChannelRhs::bit_depth) & (HTCW_MAX_WORD - 1);
-    if (0 < srf) {
-        // rv = (typename ChannelRhs::int_type)(v>>(0>srf?0:srf));
-        // rv = clamp(rv,ChannelRhs::min,ChannelRhs::max);
-        float vs = v * ChannelLhs::scaler;
-        rv = clamp((typename ChannelRhs::int_type)(vs * ChannelRhs::scale + .5f), ChannelRhs::min, ChannelRhs::max);
-    } else if (0 > srf) {
-        // rv = (typename ChannelRhs::int_type)(v<<(0<srf?0:-srf));
-        // rv = clamp(rv,ChannelRhs::min,ChannelRhs::max);
-        float vs = v * ChannelLhs::scaler;
-        rv = clamp((typename ChannelRhs::int_type)(vs * ChannelRhs::scale + .5f), ChannelRhs::min, ChannelRhs::max);
-    } else
-        rv = (typename ChannelRhs::int_type)(v);
-    return rv;
+    if (ChannelLhs::bit_depth == ChannelRhs::bit_depth) return (typename ChannelRhs::int_type)v;
+    const uint32_t n = channel_to_fp16((uint64_t)v, (size_t)ChannelLhs::bit_depth, (uint64_t)ChannelLhs::scale);
+    return fp16_to_channel<ChannelRhs>(n);
 }
 // gets the native_value of a channel without doing compile time checking on the index
 template <typename PixelType, int Index>
@@ -1300,15 +1347,16 @@ constexpr static inline gfx_result convert(PixelTypeLhs source, PixelTypeRhs* re
             using trindexV = typename PixelTypeRhs::template channel_index_by_name<channel_name::V>;
             using trchV = typename PixelTypeRhs::template channel_by_index_unchecked<trindexV::value>;
 
-            const auto cR = (source.template channel_unchecked<chiR>() * tchR::scaler) * 255.0;
-            const auto cG = (source.template channel_unchecked<chiG>() * tchG::scaler) * 255.0;
-            const auto cB = (source.template channel_unchecked<chiB>() * tchB::scaler) * 255.0;
-            const auto chY = (0.257 * cR + 0.504 * cG + 0.098 * cB + 16) / 255.0;
-            const auto chU = (-0.148 * cR - 0.291 * cG + 0.439 * cB + 128) / 255.0;
-            const auto chV = (0.439 * cR - 0.368 * cG - 0.071 * cB + 128) / 255.0;
-            const typename trchY::int_type cY = chY * trchY::scale + .5;
-            const typename trchU::int_type cU = chU * trchU::scale + .5;
-            const typename trchV::int_type cV = chV * trchV::scale + .5;
+            // Q16 fixed-point (coefficients scaled by 65536); +offset = studio-swing bias
+            const int64_t cR = (int64_t)helpers::channel_fp16<PixelTypeLhs, chiR>(source);
+            const int64_t cG = (int64_t)helpers::channel_fp16<PixelTypeLhs, chiG>(source);
+            const int64_t cB = (int64_t)helpers::channel_fp16<PixelTypeLhs, chiB>(source);
+            const int64_t chY = helpers::fp16_smul(cR, 16843) + helpers::fp16_smul(cG, 33030) + helpers::fp16_smul(cB, 6423) + 4112;
+            const int64_t chU = helpers::fp16_smul(cR, -9699) + helpers::fp16_smul(cG, -19070) + helpers::fp16_smul(cB, 28770) + 32896;
+            const int64_t chV = helpers::fp16_smul(cR, 28770) + helpers::fp16_smul(cG, -24117) + helpers::fp16_smul(cB, -4653) + 32896;
+            const typename trchY::int_type cY = helpers::fp16_to_channel<trchY>(helpers::fp16_clampu(chY));
+            const typename trchU::int_type cU = helpers::fp16_to_channel<trchU>(helpers::fp16_clampu(chU));
+            const typename trchV::int_type cV = helpers::fp16_to_channel<trchV>(helpers::fp16_clampu(chV));
 
             helpers::set_channel_direct_unchecked<PixelTypeRhs, trindexY::value>(native_value, cY);
             helpers::set_channel_direct_unchecked<PixelTypeRhs, trindexU::value>(native_value, cU);
@@ -1325,23 +1373,18 @@ constexpr static inline gfx_result convert(PixelTypeLhs source, PixelTypeRhs* re
 
             using trindexCr = typename PixelTypeRhs::template channel_index_by_name<channel_name::Cr>;
             using trchCr = typename PixelTypeRhs::template channel_by_index_unchecked<trindexCr::value>;
-            const auto cR = source.template channelr_unchecked<chiR>();
-            const auto cG = source.template channelr_unchecked<chiG>();
-            const auto cB = source.template channelr_unchecked<chiB>();
-            // for BT.601 spec:
-            const double a = .299,
-                         b = .587,
-                         c = .114,
-                         d = 1.772,
-                         e = 1.402;
+            // BT.601 in Q16 fixed-point. Coeffs*65536: .299=19595 .587=38470 .114=7471
+            // 1/1.772=36981, 1/1.402=46741 ; +0.5 bias = +32768
+            const int64_t cR = (int64_t)helpers::channel_fp16<PixelTypeLhs, chiR>(source);
+            const int64_t cG = (int64_t)helpers::channel_fp16<PixelTypeLhs, chiG>(source);
+            const int64_t cB = (int64_t)helpers::channel_fp16<PixelTypeLhs, chiB>(source);
+            const int64_t y = helpers::fp16_smul(cR, 19595) + helpers::fp16_smul(cG, 38470) + helpers::fp16_smul(cB, 7471);
+            const int64_t cb = helpers::fp16_smul(cB - y, 36981) + (int64_t)helpers::fp16_half;
+            const int64_t cr = helpers::fp16_smul(cR - y, 46741) + (int64_t)helpers::fp16_half;
 
-            const double y = a * cR + b * cG + c * cB;
-            const double cb = (cB - y) / d + .5;
-            const double cr = (cR - y) / e + .5;
-
-            const typename trchY::int_type cY = helpers::clamp(typename trchY::int_type(y * trchY::scale + .5), trchY::min, trchY::max);
-            const typename trchCb::int_type cCb = helpers::clamp(typename trchCb::int_type((cb * trchCb::scale + .5)), trchCb::min, trchCb::max);
-            const typename trchCr::int_type cCr = helpers::clamp(typename trchCr::int_type((cr * trchCr::scale + .5)), trchCr::min, trchCr::max);
+            const typename trchY::int_type cY = helpers::fp16_to_channel<trchY>(helpers::fp16_clampu(y));
+            const typename trchCb::int_type cCb = helpers::fp16_to_channel<trchCb>(helpers::fp16_clampu(cb));
+            const typename trchCr::int_type cCr = helpers::fp16_to_channel<trchCr>(helpers::fp16_clampu(cr));
 
             helpers::set_channel_direct_unchecked<PixelTypeRhs, trindexY::value>(native_value, cY);
             helpers::set_channel_direct_unchecked<PixelTypeRhs, trindexCb::value>(native_value, cCb);
@@ -1359,35 +1402,39 @@ constexpr static inline gfx_result convert(PixelTypeLhs source, PixelTypeRhs* re
             using trindexV = typename PixelTypeRhs::template channel_index_by_name<channel_name::V>;
             using trchV = typename PixelTypeRhs::template channel_by_index_unchecked<trindexV::value>;
 
-            const double cR = source.template channelr_unchecked<chiR>();
-            const double cG = source.template channelr_unchecked<chiG>();
-            const double cB = source.template channelr_unchecked<chiB>();
+            const uint32_t cR = helpers::channel_fp16<PixelTypeLhs, chiR>(source);
+            const uint32_t cG = helpers::channel_fp16<PixelTypeLhs, chiG>(source);
+            const uint32_t cB = helpers::channel_fp16<PixelTypeLhs, chiB>(source);
 
-            double cmin = cG < cB ? cG : cB;
+            uint32_t cmin = cG < cB ? cG : cB;
             cmin = cR < cmin ? cR : cmin;
-            double cmax = cG > cB ? cG : cB;
+            uint32_t cmax = cG > cB ? cG : cB;
             cmax = cR > cmax ? cR : cmax;
-            double chroma = cmax - cmin;
+            const uint32_t chroma = cmax - cmin;
 
-            double v = cmax;
-
-            double s = cmax == 0 ? 0 : chroma / cmax;
-            double h = 0;  // achromatic
+            const uint32_t v = cmax;
+            const uint32_t s = cmax == 0 ? 0 : (uint32_t)(((uint64_t)chroma * (uint64_t)helpers::fp16_one + (cmax >> 1)) / cmax);
+            uint32_t h = 0;  // achromatic
             if (cmax != cmin) {
+                int64_t seg = 0, off = 0;
                 if (cmax == cR) {
-                    h = (cG - cB) / chroma + (cG < cB ? 6 : 0);
+                    seg = (int64_t)cG - (int64_t)cB;
+                    off = (cG < cB) ? 6 : 0;
                 } else if (cmax == cG) {
-                    h = (cG - cR) / chroma + 2;
+                    seg = (int64_t)cB - (int64_t)cR;   // standard HSV: (B - R)/chroma + 2
+                    off = 2;
                 } else {  // if(cmax==cB)
-                    h = (cR - cG) / chroma + 4;
+                    seg = (int64_t)cR - (int64_t)cG;
+                    off = 4;
                 }
-                h /= 6.0;
+                const int64_t h6 = (seg * (int64_t)helpers::fp16_one) / (int64_t)chroma + off * (int64_t)helpers::fp16_one;
+                h = (uint32_t)((h6 + 3) / 6);  // /6 with rounding; h6 >= 0 by construction
             }
-            const typename trchH::int_type cH = helpers::clamp(typename trchH::int_type(h * trchH::scale + .5), trchH::min, trchH::max);
+            const typename trchH::int_type cH = helpers::fp16_to_channel<trchH>(h);
             helpers::set_channel_direct_unchecked<PixelTypeRhs, trindexH::value>(native_value, cH);
-            const typename trchS::int_type cS = helpers::clamp(typename trchS::int_type(s * trchS::scale + .5), trchS::min, trchS::max);
+            const typename trchS::int_type cS = helpers::fp16_to_channel<trchS>(s);
             helpers::set_channel_direct_unchecked<PixelTypeRhs, trindexS::value>(native_value, cS);
-            const typename trchV::int_type cV = helpers::clamp(typename trchV::int_type(v * trchV::scale + .5), trchV::min, trchV::max);
+            const typename trchV::int_type cV = helpers::fp16_to_channel<trchV>(v);
             helpers::set_channel_direct_unchecked<PixelTypeRhs, trindexV::value>(native_value, cV);
             good = true;
         } else if (is_rhs_hsl::value && PixelTypeRhs::channels < 5) {
@@ -1401,47 +1448,45 @@ constexpr static inline gfx_result convert(PixelTypeLhs source, PixelTypeRhs* re
             using trindexL = typename PixelTypeRhs::template channel_index_by_name<channel_name::L>;
             using trchL = typename PixelTypeRhs::template channel_by_index_unchecked<trindexL::value>;
 
-            const double cR = source.template channelr_unchecked<chiR>();
-            const double cG = source.template channelr_unchecked<chiG>();
-            const double cB = source.template channelr_unchecked<chiB>();
+            const uint32_t cR = helpers::channel_fp16<PixelTypeLhs, chiR>(source);
+            const uint32_t cG = helpers::channel_fp16<PixelTypeLhs, chiG>(source);
+            const uint32_t cB = helpers::channel_fp16<PixelTypeLhs, chiB>(source);
 
-            const double max = math::max_(cR, cG, cB);
-            const double min = math::min_(cR, cG, cB);
-            const double c = max - min;
-            double hue = 0;
+            uint32_t maxc = cG > cB ? cG : cB;
+            maxc = cR > maxc ? cR : maxc;
+            uint32_t minc = cG < cB ? cG : cB;
+            minc = cR < minc ? cR : minc;
+            const uint32_t c = maxc - minc;
+            uint32_t hue = 0;
             if (c != 0) {
-                if (max == cR) {
-                    double segment = (cG - cB) / (c == 0 ? 1 : c);
-                    double shift = 0.0 / 60.0;  // R° / (360° / hex sides)
-                    if (segment < 0) {          // hue > 180, full rotation
-                        shift = 360.0 / 60.0;   // R° / (360° / hex sides)
-                    }
-                    hue = segment + shift;
-
-                } else if (max == cG) {
-                    double segment = (cB - cR) / (c == 0 ? 1 : c);
-                    double shift = 120.0 / 60.0;  // G° / (360° / hex sides)
-                    hue = segment + shift;
-
-                } else {  // max==cB
-                    double segment = (cR - cG) / (c == 0 ? 1 : c);
-                    double shift = 240.0 / 60.0;  // B° / (360° / hex sides)
-                    hue = segment + shift;
+                int64_t seg = 0, off = 0;
+                if (maxc == cR) {
+                    seg = (int64_t)cG - (int64_t)cB;
+                    off = (seg < 0) ? 6 : 0;  // hue > 180 -> full rotation
+                } else if (maxc == cG) {
+                    seg = (int64_t)cB - (int64_t)cR;
+                    off = 2;  // 120 / 60
+                } else {                      // max==cB
+                    seg = (int64_t)cR - (int64_t)cG;
+                    off = 4;  // 240 / 60
                 }
+                const int64_t h6 = (seg * (int64_t)helpers::fp16_one) / (int64_t)c + off * (int64_t)helpers::fp16_one;
+                hue = (uint32_t)((h6 + 3) / 6);  // hue spans 0..6 in Q16, rescale to 0..1
             }
-            hue /= 6.0;  // hue is in [0,6], scale it up
 
-            double s = 0, l = (max + min) / 2.0;
-
-            if (max != min) {
-                double chroma = max - min;
-                s = l > 0.5 ? chroma / (2.0 - max - min) : chroma / (max + min);
+            const uint32_t l = (maxc + minc) >> 1;
+            uint32_t s = 0;
+            if (maxc != minc) {
+                const uint64_t denom = (l > (uint32_t)helpers::fp16_half)
+                                           ? (2ull * (uint64_t)helpers::fp16_one - maxc - minc)
+                                           : ((uint64_t)maxc + minc);
+                if (denom) s = (uint32_t)(((uint64_t)c * (uint64_t)helpers::fp16_one + (denom >> 1)) / denom);
             }
-            const typename trchH::int_type cH = helpers::clamp(typename trchH::int_type(hue * trchH::scale + .5), trchH::min, trchH::max);
+            const typename trchH::int_type cH = helpers::fp16_to_channel<trchH>(hue);
             helpers::set_channel_direct_unchecked<PixelTypeRhs, trindexH::value>(native_value, cH);
-            const typename trchS::int_type cS = helpers::clamp(typename trchS::int_type(s * trchS::scale + .5), trchS::min, trchS::max);
+            const typename trchS::int_type cS = helpers::fp16_to_channel<trchS>(s);
             helpers::set_channel_direct_unchecked<PixelTypeRhs, trindexS::value>(native_value, cS);
-            const typename trchL::int_type cL = helpers::clamp(typename trchL::int_type(l * trchL::scale + .5), trchL::min, trchL::max);
+            const typename trchL::int_type cL = helpers::fp16_to_channel<trchL>(l);
             helpers::set_channel_direct_unchecked<PixelTypeRhs, trindexL::value>(native_value, cL);
             good = true;
         } else if (is_rhs_cmyk::value) {
@@ -1458,23 +1503,27 @@ constexpr static inline gfx_result convert(PixelTypeLhs source, PixelTypeRhs* re
             using trindexK = typename PixelTypeRhs::template channel_index_by_name<channel_name::K>;
             using trchK = typename PixelTypeRhs::template channel_by_index_unchecked<trindexK::value>;
 
-            const double cR = source.template channelr_unchecked<chiR>();
-            const double cG = source.template channelr_unchecked<chiG>();
-            const double cB = source.template channelr_unchecked<chiB>();
-            double cmax = cR > cG ? cR : cG;
+            const uint32_t cR = helpers::channel_fp16<PixelTypeLhs, chiR>(source);
+            const uint32_t cG = helpers::channel_fp16<PixelTypeLhs, chiG>(source);
+            const uint32_t cB = helpers::channel_fp16<PixelTypeLhs, chiB>(source);
+            uint32_t cmax = cR > cG ? cR : cG;
             cmax = cmax > cB ? cmax : cB;
-            double k = helpers::clampcymk(1 - cmax);
-            double c = helpers::clampcymk((1 - cR - k) / (1 - k));
-            double m = helpers::clampcymk((1 - cG - k) / (1 - k));
-            double y = helpers::clampcymk((1 - cB - k) / (1 - k));
+            // k = 1 - cmax ; c = (cmax - r)/cmax ; m,y likewise (all >= 0, so clampcymk is a no-op)
+            const uint32_t k = (uint32_t)helpers::fp16_one - cmax;
+            uint32_t c = 0, m = 0, y = 0;
+            if (cmax) {
+                c = (uint32_t)(((uint64_t)(cmax - cR) * (uint64_t)helpers::fp16_one + (cmax >> 1)) / cmax);
+                m = (uint32_t)(((uint64_t)(cmax - cG) * (uint64_t)helpers::fp16_one + (cmax >> 1)) / cmax);
+                y = (uint32_t)(((uint64_t)(cmax - cB) * (uint64_t)helpers::fp16_one + (cmax >> 1)) / cmax);
+            }
 
-            const typename trchC::int_type cC = helpers::clamp(typename trchC::int_type(c * trchC::scale + .5), trchC::min, trchC::max);
+            const typename trchC::int_type cC = helpers::fp16_to_channel<trchC>(c);
             helpers::set_channel_direct_unchecked<PixelTypeRhs, trindexC::value>(native_value, cC);
-            const typename trchM::int_type cM = helpers::clamp(typename trchM::int_type(m * trchM::scale + .5), trchM::min, trchM::max);
+            const typename trchM::int_type cM = helpers::fp16_to_channel<trchM>(m);
             helpers::set_channel_direct_unchecked<PixelTypeRhs, trindexM::value>(native_value, cM);
-            const typename trchY::int_type cY = helpers::clamp(typename trchY::int_type(y * trchY::scale + .5), trchY::min, trchY::max);
+            const typename trchY::int_type cY = helpers::fp16_to_channel<trchY>(y);
             helpers::set_channel_direct_unchecked<PixelTypeRhs, trindexY::value>(native_value, cY);
-            const typename trchK::int_type cK = helpers::clamp(typename trchK::int_type(k * trchK::scale + .5), trchK::min, trchK::max);
+            const typename trchK::int_type cK = helpers::fp16_to_channel<trchK>(k);
             helpers::set_channel_direct_unchecked<PixelTypeRhs, trindexK::value>(native_value, cK);
             good = true;
         }
@@ -1483,15 +1532,12 @@ constexpr static inline gfx_result convert(PixelTypeLhs source, PixelTypeRhs* re
             // destination is grayscale or monochrome
             using trindexL = typename PixelTypeRhs::template channel_index_by_name<channel_name::L>;
             using trchL = typename PixelTypeRhs::template channel_by_index_unchecked<trindexL::value>;
-            auto cR = source.template channel_unchecked<chiR>();
-            auto cG = source.template channel_unchecked<chiG>();
-            auto cB = source.template channel_unchecked<chiB>();
-            double f = (cR * tchR::scaler * .299) +
-                       (cG * tchG::scaler * .587) +
-                       (cB * tchB::scaler * .114);
-            const size_t scale = trchL::scale;
-            f = (f * (double)scale) + .5;
-            helpers::set_channel_direct_unchecked<PixelTypeRhs, trindexL::value>(native_value, f);
+            // luma: .299/.587/.114 as Q16 coefficients (19595 + 38470 + 7471 = 65536)
+            const uint32_t cR = helpers::channel_fp16<PixelTypeLhs, chiR>(source);
+            const uint32_t cG = helpers::channel_fp16<PixelTypeLhs, chiG>(source);
+            const uint32_t cB = helpers::channel_fp16<PixelTypeLhs, chiB>(source);
+            const uint32_t l = (uint32_t)(((uint64_t)cR * 19595 + (uint64_t)cG * 38470 + (uint64_t)cB * 7471) >> 16);
+            helpers::set_channel_direct_unchecked<PixelTypeRhs, trindexL::value>(native_value, helpers::fp16_to_channel<trchL>(l));
 
             good = true;
         }  // TODO: add destination color models
@@ -1592,19 +1638,20 @@ constexpr static inline gfx_result convert(PixelTypeLhs source, PixelTypeRhs* re
             using trindexB = typename PixelTypeRhs::template channel_index_by_name<channel_name::B>;
             using trchB = typename PixelTypeRhs::template channel_by_index_unchecked<trindexB::value>;
 
-            double chY = (source.template channel_unchecked<chiY>() * tchY::scaler) * 256.0 - 16;
-            double chU = (source.template channel_unchecked<chiU>() * tchU::scaler) * 256.0 - 128;
-            double chV = (source.template channel_unchecked<chiV>() * tchV::scaler) * 256.0 - 128;
+            // Q16: *256 == <<8. chY/U/V carry the studio-swing bias in Q16 units.
+            const int64_t chY = ((int64_t)helpers::channel_fp16<PixelTypeLhs, chiY>(source) << 8) - 16 * (int64_t)helpers::fp16_one;
+            const int64_t chU = ((int64_t)helpers::channel_fp16<PixelTypeLhs, chiU>(source) << 8) - 128 * (int64_t)helpers::fp16_one;
+            const int64_t chV = ((int64_t)helpers::channel_fp16<PixelTypeLhs, chiV>(source) << 8) - 128 * (int64_t)helpers::fp16_one;
+            // coeffs*65536: 1.164=76284 1.596=104595 0.392=25690 0.813=53281 2.017=132187
+            const int64_t cR = (helpers::fp16_smul(chY, 76284) + helpers::fp16_smul(chV, 104595)) / 255;
+            const int64_t cG = (helpers::fp16_smul(chY, 76284) - helpers::fp16_smul(chU, 25690) - helpers::fp16_smul(chV, 53281)) / 255;
+            const int64_t cB = (helpers::fp16_smul(chY, 76284) + helpers::fp16_smul(chU, 132187)) / 255;
 
-            auto cR = (1.164 * chY + 1.596 * chV) / 255.0;
-            auto cG = (1.164 * chY - 0.392 * chU - 0.813 * chV) / 255.0;
-            auto cB = (1.164 * chY + 2.017 * chU) / 255.0;
-
-            auto r = typename trchR::int_type(cR * trchR::scale + .5);
+            const auto r = helpers::fp16_to_channel<trchR>(helpers::fp16_clampu(cR));
             helpers::set_channel_direct_unchecked<PixelTypeRhs, trindexR::value>(native_value, r);
-            auto g = typename trchG::int_type(cG * trchG::scale + .5);
+            const auto g = helpers::fp16_to_channel<trchG>(helpers::fp16_clampu(cG));
             helpers::set_channel_direct_unchecked<PixelTypeRhs, trindexG::value>(native_value, g);
-            auto b = typename trchB::int_type(cB * trchB::scale + .5);
+            const auto b = helpers::fp16_to_channel<trchB>(helpers::fp16_clampu(cB));
             helpers::set_channel_direct_unchecked<PixelTypeRhs, trindexB::value>(native_value, b);
 
             good = true;
@@ -1645,20 +1692,22 @@ constexpr static inline gfx_result convert(PixelTypeLhs source, PixelTypeRhs* re
             using trindexB = typename PixelTypeRhs::template channel_index_by_name<channel_name::B>;
             using trchB = typename PixelTypeRhs::template channel_by_index_unchecked<trindexB::value>;
 
-            const auto chY = uint8_t(source.template channelr_unchecked<chiY>() * 255);
-            const auto chCb = uint8_t(source.template channelr_unchecked<chiCb>() * 255);
-            const auto chCr = uint8_t(source.template channelr_unchecked<chiCr>() * 255);
+            // read the three channels into 0..255 without floating point
+            const int chY = (int)(((uint64_t)helpers::channel_fp16<PixelTypeLhs, chiY>(source) * 255u + (uint64_t)helpers::fp16_half) >> 16);
+            const int chCb = (int)(((uint64_t)helpers::channel_fp16<PixelTypeLhs, chiCb>(source) * 255u + (uint64_t)helpers::fp16_half) >> 16);
+            const int chCr = (int)(((uint64_t)helpers::channel_fp16<PixelTypeLhs, chiCr>(source) * 255u + (uint64_t)helpers::fp16_half) >> 16);
             const int cBA = chCb - 128;
             const int cRA = chCr - 128;
-            const auto cnR = (uint8_t)helpers::clamp((int)(chY + ((int)(1.402 * CVACC) * cRA) / (float)CVACC), 0, 255);
-            const auto cnG = (uint8_t)helpers::clamp((int)(chY - ((int)(0.344 * CVACC) * cBA + (int)(0.714 * CVACC) * cRA) / (float)CVACC), 0, 255);
-            const auto cnB = (uint8_t)helpers::clamp((int)(chY + ((int)(1.772 * CVACC) * cBA) / (float)CVACC), 0, 255);
+            // (int)(coef*CVACC) are compile-time integer constants (no runtime FP); divisor is now integer
+            const int cnR = helpers::clamp((int)(chY + ((int)(1.402 * CVACC) * cRA) / CVACC), 0, 255);
+            const int cnG = helpers::clamp((int)(chY - ((int)(0.344 * CVACC) * cBA + (int)(0.714 * CVACC) * cRA) / CVACC), 0, 255);
+            const int cnB = helpers::clamp((int)(chY + ((int)(1.772 * CVACC) * cBA) / CVACC), 0, 255);
 
-            const auto r = typename trchR::int_type(cnR * (trchR::scale / 255.0));
+            const auto r = helpers::fp16_to_channel<trchR>(helpers::channel_to_fp16((uint64_t)cnR, 8, 255));
             helpers::set_channel_direct_unchecked<PixelTypeRhs, trindexR::value>(native_value, r);
-            const auto g = typename trchG::int_type(cnG * (trchG::scale / 255.0));
+            const auto g = helpers::fp16_to_channel<trchG>(helpers::channel_to_fp16((uint64_t)cnG, 8, 255));
             helpers::set_channel_direct_unchecked<PixelTypeRhs, trindexG::value>(native_value, g);
-            const auto b = typename trchB::int_type(cnB * (trchB::scale / 255.0));
+            const auto b = helpers::fp16_to_channel<trchB>(helpers::channel_to_fp16((uint64_t)cnB, 8, 255));
             helpers::set_channel_direct_unchecked<PixelTypeRhs, trindexB::value>(native_value, b);
             good = true;
         }
@@ -1681,16 +1730,18 @@ constexpr static inline gfx_result convert(PixelTypeLhs source, PixelTypeRhs* re
             using trindexB = typename PixelTypeRhs::template channel_index_by_name<channel_name::B>;
             using trchB = typename PixelTypeRhs::template channel_by_index_unchecked<trindexB::value>;
 
-            const auto chH = source.template channelr_unchecked<chiH>();
-            const auto chS = source.template channelr_unchecked<chiS>();
-            const auto chV = source.template channelr_unchecked<chiV>();
+            const uint32_t chH = helpers::channel_fp16<PixelTypeLhs, chiH>(source);
+            const uint32_t chS = helpers::channel_fp16<PixelTypeLhs, chiS>(source);
+            const uint32_t chV = helpers::channel_fp16<PixelTypeLhs, chiV>(source);
 
-            int i = floor(chH * 6);
-            double f = chH * 6 - i;
-            double p = chV * (1 - chS);
-            double q = chV * (1 - f * chS);
-            double t = chV * (1 - (1 - f) * chS);
-            double r = 0, g = 0, b = 0;
+            // h*6 in Q16: integer sextant i and Q16 fraction f (floor is just the high bits)
+            const uint64_t h6 = (uint64_t)chH * 6;
+            const int i = (int)(h6 >> 16);
+            const uint32_t f = (uint32_t)(h6 & 0xFFFFu);
+            const uint32_t p = helpers::fp16_mul(chV, helpers::fp16_one - chS);
+            const uint32_t q = helpers::fp16_mul(chV, helpers::fp16_one - helpers::fp16_mul(f, chS));
+            const uint32_t t = helpers::fp16_mul(chV, helpers::fp16_one - helpers::fp16_mul(helpers::fp16_one - f, chS));
+            uint32_t r = 0, g = 0, b = 0;
             switch (i % 6) {
                 case 0:
                     r = chV;
@@ -1722,11 +1773,11 @@ constexpr static inline gfx_result convert(PixelTypeLhs source, PixelTypeRhs* re
                     b = q;
                     break;
             }
-            const auto sr = typename trchR::int_type(r * trchR::scale);
+            const auto sr = helpers::fp16_to_channel<trchR>(r);
             helpers::set_channel_direct_unchecked<PixelTypeRhs, trindexR::value>(native_value, sr);
-            const auto sg = typename trchG::int_type(g * trchG::scale);
+            const auto sg = helpers::fp16_to_channel<trchG>(g);
             helpers::set_channel_direct_unchecked<PixelTypeRhs, trindexG::value>(native_value, sg);
-            const auto sb = typename trchB::int_type(b * trchB::scale);
+            const auto sb = helpers::fp16_to_channel<trchB>(b);
             helpers::set_channel_direct_unchecked<PixelTypeRhs, trindexB::value>(native_value, sb);
             good = true;
         }
@@ -1748,26 +1799,28 @@ constexpr static inline gfx_result convert(PixelTypeLhs source, PixelTypeRhs* re
             using trindexB = typename PixelTypeRhs::template channel_index_by_name<channel_name::B>;
             using trchB = typename PixelTypeRhs::template channel_by_index_unchecked<trindexB::value>;
 
-            const auto chH = source.template channelr_unchecked<chiH>();
-            const auto chS = source.template channelr_unchecked<chiS>();
-            const auto chL = source.template channelr_unchecked<chiL>();
-            double r = 0, g = 0, b = 0;
+            const uint32_t chH = helpers::channel_fp16<PixelTypeLhs, chiH>(source);
+            const uint32_t chS = helpers::channel_fp16<PixelTypeLhs, chiS>(source);
+            const uint32_t chL = helpers::channel_fp16<PixelTypeLhs, chiL>(source);
+            uint32_t r = 0, g = 0, b = 0;
             if (chS == 0) {
                 r = g = b = chL;  // achromatic
             } else {
-                double q = chL < 0.5 ? chL * (1 + chS) : chL + chS - chL * chS;
-                double p = 2 * chL - q;
-                r = helpers::hue2rgb(p, q, chH + 1.0 / 3.0);
-                g = helpers::hue2rgb(p, q, chH);
-                b = helpers::hue2rgb(p, q, chH - 1.0 / 3.0);
+                const int64_t q = (chL < helpers::fp16_half)
+                                      ? (int64_t)helpers::fp16_mul(chL, helpers::fp16_one + chS)
+                                      : ((int64_t)chL + chS - helpers::fp16_smul(chL, chS));
+                const int64_t p = 2 * (int64_t)chL - q;
+                const int64_t third = (int64_t)helpers::fp16_one / 3;  // 1/3 in Q16
+                r = helpers::fp16_hue2rgb(p, q, (int64_t)chH + third);
+                g = helpers::fp16_hue2rgb(p, q, (int64_t)chH);
+                b = helpers::fp16_hue2rgb(p, q, (int64_t)chH - third);
             }
 
-            // printf("r: %f, g: %f, b: %f\n",r,g,b);
-            const auto sr = typename trchR::int_type(r * trchR::scale);
+            const auto sr = helpers::fp16_to_channel<trchR>(r);
             helpers::set_channel_direct_unchecked<PixelTypeRhs, trindexR::value>(native_value, sr);
-            const auto sg = typename trchG::int_type(g * trchG::scale);
+            const auto sg = helpers::fp16_to_channel<trchG>(g);
             helpers::set_channel_direct_unchecked<PixelTypeRhs, trindexG::value>(native_value, sg);
-            const auto sb = typename trchB::int_type(b * trchB::scale);
+            const auto sb = helpers::fp16_to_channel<trchB>(b);
             helpers::set_channel_direct_unchecked<PixelTypeRhs, trindexB::value>(native_value, sb);
             good = true;
         } else if (is_rhs_rgbw::value) {
@@ -1848,19 +1901,20 @@ constexpr static inline gfx_result convert(PixelTypeLhs source, PixelTypeRhs* re
             using trindexB = typename PixelTypeRhs::template channel_index_by_name<channel_name::B>;
             using trchB = typename PixelTypeRhs::template channel_by_index_unchecked<trindexB::value>;
 
-            const double chC = source.template channelr_unchecked<chiC>();
-            const double chM = source.template channelr_unchecked<chiM>();
-            const double chY = source.template channelr_unchecked<chiY>();
-            const double chK = source.template channelr_unchecked<chiK>();
+            const uint32_t chC = helpers::channel_fp16<PixelTypeLhs, chiC>(source);
+            const uint32_t chM = helpers::channel_fp16<PixelTypeLhs, chiM>(source);
+            const uint32_t chY = helpers::channel_fp16<PixelTypeLhs, chiY>(source);
+            const uint32_t chK = helpers::channel_fp16<PixelTypeLhs, chiK>(source);
 
-            double r = (1.0 - chC) * (1.0 - chK);
-            double g = (1.0 - chM) * (1.0 - chK);
-            double b = (1.0 - chY) * (1.0 - chK);
-            const auto sr = typename trchR::int_type(r * trchR::scale);
+            const uint32_t ik = helpers::fp16_one - chK;
+            const uint32_t r = helpers::fp16_mul(helpers::fp16_one - chC, ik);
+            const uint32_t g = helpers::fp16_mul(helpers::fp16_one - chM, ik);
+            const uint32_t b = helpers::fp16_mul(helpers::fp16_one - chY, ik);
+            const auto sr = helpers::fp16_to_channel<trchR>(r);
             helpers::set_channel_direct_unchecked<PixelTypeRhs, trindexR::value>(native_value, sr);
-            const auto sg = typename trchG::int_type(g * trchG::scale);
+            const auto sg = helpers::fp16_to_channel<trchG>(g);
             helpers::set_channel_direct_unchecked<PixelTypeRhs, trindexG::value>(native_value, sg);
-            const auto sb = typename trchB::int_type(b * trchB::scale);
+            const auto sb = helpers::fp16_to_channel<trchB>(b);
             helpers::set_channel_direct_unchecked<PixelTypeRhs, trindexB::value>(native_value, sb);
             good = true;
         }
@@ -1892,14 +1946,15 @@ constexpr static inline gfx_result convert(PixelTypeLhs source, PixelTypeRhs* re
 
             using trindexB = typename PixelTypeRhs::template channel_index_by_name<channel_name::B>;
             using trchB = typename PixelTypeRhs::template channel_by_index_unchecked<trindexB::value>;
-            float br = .333333f;
-            const auto chR = source.template channelr_unchecked<chiR>();
-            const auto chG = source.template channelr_unchecked<chiG>();
-            const auto chB = source.template channelr_unchecked<chiB>();
-            const auto chW = source.template channelr_unchecked<chiW>();
-            helpers::set_channel_direct_unchecked<PixelTypeRhs, trindexR::value>(native_value, helpers::clamp((typename trchR::real_type)(chR + (chW * br)) * trchR::scale, (typename trchR::real_type)trchR::min, (typename trchR::real_type)trchR::max));
-            helpers::set_channel_direct_unchecked<PixelTypeRhs, trindexG::value>(native_value, helpers::clamp((typename trchG::real_type)(chG + (chW * br)) * trchG::scale, (typename trchG::real_type)trchG::min, (typename trchG::real_type)trchG::max));
-            helpers::set_channel_direct_unchecked<PixelTypeRhs, trindexB::value>(native_value, helpers::clamp((typename trchB::real_type)(chB + (chW * br)) * trchB::scale, (typename trchB::real_type)trchB::min, (typename trchB::real_type)trchB::max));
+            // white contributes 1/3 to each of R,G,B ; 1/3 in Q16 == 21845
+            const uint32_t chR = helpers::channel_fp16<PixelTypeLhs, chiR>(source);
+            const uint32_t chG = helpers::channel_fp16<PixelTypeLhs, chiG>(source);
+            const uint32_t chB = helpers::channel_fp16<PixelTypeLhs, chiB>(source);
+            const uint32_t chW = helpers::channel_fp16<PixelTypeLhs, chiW>(source);
+            const uint32_t wAdd = helpers::fp16_mul(chW, 21845);
+            helpers::set_channel_direct_unchecked<PixelTypeRhs, trindexR::value>(native_value, helpers::fp16_to_channel<trchR>(helpers::fp16_clampu((int64_t)chR + wAdd)));
+            helpers::set_channel_direct_unchecked<PixelTypeRhs, trindexG::value>(native_value, helpers::fp16_to_channel<trchG>(helpers::fp16_clampu((int64_t)chG + wAdd)));
+            helpers::set_channel_direct_unchecked<PixelTypeRhs, trindexB::value>(native_value, helpers::fp16_to_channel<trchB>(helpers::fp16_clampu((int64_t)chB + wAdd)));
             good = true;
         }
     }

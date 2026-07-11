@@ -6,7 +6,6 @@ Draw on anything
 
 Documentation: https://honeythecodewitch.com/gfx/wiki/index.md
 
-General Guide: https://www.codeproject.com/Articles/5302085/GFX-Forever-The-Complete-Guide-to-GFX-for-IoT
 
 ```
            @@@@@@@@@@                                                                                                           

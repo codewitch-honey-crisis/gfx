@@ -105,7 +105,7 @@ static void plutovg_state_destroy(plutovg_state_t* state,void(*deallocator)(void
     plutovg_paint_destroy(state->paint,deallocator);
     plutovg_array_destroy(state->stroke.dash.array);
     //plutovg_span_buffer_destroy(&state->clip_spans);
-    //deallocator(state);
+    deallocator(state);
 }
 
 plutovg_canvas* plutovg_canvas_create(int width, int height, void*(*allocator)(size_t), void*(*reallocator)(void*,size_t), void(*deallocator)(void*))

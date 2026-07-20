@@ -357,7 +357,8 @@ namespace gfx {
                     ii=i;
                 }
             }
-            pixel->template channel<channel_name::index>((pixel_type::channel_by_index_unchecked<pixel_type::channel_index_by_name<channel_name::index>::value>::int_type)ii);
+            using chit = pixel_type::template channel_by_index_unchecked<pixel_type::template channel_index_by_name<channel_name::index>::value>::int_type;
+            pixel->template channel<channel_name::index>((chit)ii);
             //printf("nearest was %d\r\n",ii);
             return gfx_result::success;
         }

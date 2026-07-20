@@ -65,7 +65,7 @@ class xdraw_aa_arc {
         }
         const bool full = sweep >= 360; // full ring: skip the angular test, no caps
 
-        const uint8_t opacity = helpers::pixel_get_alpha_255<PixelType,PixelType::has_alpha>::value(color);
+        const uint8_t opacity = color.opacity8();
         if (0 == opacity) {
             return gfx_result::success; // fully transparent: nothing to draw
         }

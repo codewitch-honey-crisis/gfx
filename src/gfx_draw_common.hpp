@@ -53,7 +53,7 @@ struct blender<Destination, Source, true> {
     static gfx_result point(Destination &destination, point16 pt,
                             Source &source, point16 spt,
                             typename Source::pixel_type pixel) {
-        auto alpha = helpers::pixel_get_alpha_255<Source::pixel_type,Source::pixel_type::has_alpha>::value(pixel);
+        auto alpha = pixel.opacity8();
         if (0 == alpha) return gfx_result::success;
         if (255 == alpha)
             return blender<Destination, Source, false>::point(

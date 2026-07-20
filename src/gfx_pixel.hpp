@@ -287,7 +287,7 @@ template <typename PixelType>
 struct pixel_get_alpha_255<PixelType, true> {
     constexpr inline static uint8_t value(PixelType px) {
         //constexpr static const 
-        using ch = PixelType::template channel_by_index_unchecked<PixelType::channel_index_by_name<channel_name::A>::value>;
+        using ch = PixelType::template channel_by_index_unchecked<PixelType::template channel_index_by_name<channel_name::A>::value>;
         return px.template channel_unchecked<PixelType::template channel_index_by_name<channel_name::A>::value>()*255/ch::scale;
     }
 };
@@ -326,7 +326,7 @@ template <typename PixelType>
 struct pixel_set_alpha_255<PixelType, true> {
     using type = uint8_t;
     constexpr inline static void value(PixelType& px, type value) {
-        using ch = PixelType::template channel_by_index_unchecked<PixelType::channel_index_by_name<channel_name::A>::value>;
+        using ch = PixelType::template channel_by_index_unchecked<PixelType::template channel_index_by_name<channel_name::A>::value>;
         px.template channel_unchecked<PixelType::template channel_index_by_name<channel_name::A>::value>(value * ch::scale / 255);
     }
 };

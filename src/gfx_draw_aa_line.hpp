@@ -28,7 +28,7 @@ class xdraw_aa_line {
         if (width == 0) {
             return gfx_result::success; // nothing to draw
         }
-        const uint8_t opacity = helpers::pixel_get_alpha_255<PixelType,PixelType::has_alpha>::value(color);
+        const uint8_t opacity = color.opacity8();
         // clip region = (caller clip, or the whole surface) cropped to the surface bounds
         ssize16 ss;
         draw_translate(destination.dimensions(), &ss);
@@ -100,7 +100,7 @@ class xdraw_aa_line {
         }
 
         typename Destination::pixel_type fgpx;
-        typename rgba_pixel<32> cfgpx;
+        rgba_pixel<32> cfgpx;
         convert_palette_from(destination,color,&fgpx,nullptr);
         convert_palette_to<Destination,rgba_pixel<32>>(destination,fgpx,&cfgpx);
         cfgpx.template channel<channel_name::A>(255);

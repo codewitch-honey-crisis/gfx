@@ -219,7 +219,7 @@ class xdraw_aa_polyline {
         const size_t np = path.size();
         if (np == 0) return gfx_result::success;
 
-        const uint8_t opacity = helpers::pixel_get_alpha_255<PixelType, PixelType::has_alpha>::value(color);
+        const uint8_t opacity = color.opacity8();
 
         ssize16 ss;
         draw_translate(destination.dimensions(), &ss);
@@ -266,7 +266,7 @@ class xdraw_aa_polyline {
         if (nullptr == dist) return gfx_result::out_of_memory;
 
         typename Destination::pixel_type fgpx;
-        typename rgba_pixel<32> cfgpx;
+        rgba_pixel<32> cfgpx;
         convert_palette_from(destination, color, &fgpx, nullptr);
         convert_palette_to<Destination, rgba_pixel<32>>(destination, fgpx, &cfgpx);
         cfgpx.template channel<channel_name::A>(255);

@@ -55,7 +55,7 @@ class xdraw_aa_rounded_rectangle {
         if (width == 0) {
             return gfx_result::success; // zero-thickness border: nothing to draw
         }
-        const uint8_t opacity = helpers::pixel_get_alpha_255<PixelType,PixelType::has_alpha>::value(color);
+        const uint8_t opacity = color.opacity8();
         if (0 == opacity) {
             return gfx_result::success; // fully transparent: nothing to draw
         }

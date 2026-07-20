@@ -2,6 +2,7 @@
 #define HTCW_GFX_DRAW_AA_FILLED_ROUNDED_RECTANGLE_HPP
 #include "gfx_draw_common.hpp"
 #include "gfx_mask_draw_cache.hpp"
+#include "gfx_draw_filled_rectangle.hpp"
 #include "gfx_math.hpp"
 namespace gfx {
 namespace helpers {
@@ -66,7 +67,7 @@ class xdraw_aa_filled_rounded_rectangle {
             return destination.fill(rr, fgpx);                    // fast opaque overwrite
         }
         // translucent: same round-tripped RGB as the corners, alpha-blended in one call
-        return draw::filled_rectangle(destination, rr, fill_fg);
+        return xdraw_filled_rectangle::filled_rectangle(destination, rr, fill_fg);
     }
 
     template <typename Destination, typename PixelType>

@@ -1,4 +1,4 @@
-version: "2.3.3"
+version: "2.4.0"
 dependencies:
   idf: ">=5.0.0"
   codewitch-honey-crisis/htcw_data: "^1.4.5"

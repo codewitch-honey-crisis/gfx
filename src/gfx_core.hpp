@@ -79,6 +79,22 @@ namespace gfx {
         const uint8_t* cdata;
         size_t length;
     };
+    enum struct line_cap {
+        butt = 0, ///< Flat edge at the end of the stroke.
+        round, ///< Rounded ends at the end of the stroke.
+        square ///< Square ends at the end of the stroke.
+    };
+    enum struct line_join {
+        miter=0, ///< Miter join with sharp corners.
+        round, ///< Rounded join.
+        bevel ///< Beveled join with a flattened corner.
+    };
+    struct stroke_style {
+        float width;
+        line_cap cap;
+        line_join join;
+        float miter_limit;
+    };
     namespace helpers {
         template<typename T, typename U>
         struct is_same  {

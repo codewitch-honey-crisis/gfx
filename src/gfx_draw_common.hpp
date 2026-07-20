@@ -39,6 +39,7 @@ struct blender {
     static gfx_result point(Destination &destination, point16 pt,
                             Source &source, point16 spt,
                             typename Source::pixel_type pixel) {
+        (void)spt;
         typename Destination::pixel_type px;
         gfx_result r = convert_palette(destination, source, pixel, &px);
         if (gfx_result::success != r) {
@@ -52,9 +53,9 @@ struct blender<Destination, Source, true> {
     static gfx_result point(Destination &destination, point16 pt,
                             Source &source, point16 spt,
                             typename Source::pixel_type pixel) {
-        auto alpha = pixel.template channelr<channel_name::A>();
-        if (0.0 == alpha) return gfx_result::success;
-        if (1.0 == alpha)
+        auto alpha = helpers::pixel_get_alpha_255<Source::pixel_type,Source::pixel_type::has_alpha>::value(pixel);
+        if (0 == alpha) return gfx_result::success;
+        if (255 == alpha)
             return blender<Destination, Source, false>::point(
                 destination, pt, source, spt, pixel);
         typename Source::pixel_type spx;
@@ -72,7 +73,7 @@ struct blender<Destination, Source, true> {
         if (gfx_result::success != r) {
             return r;
         }
-        r = fg.blend(bg, alpha, &fg);
+        r = fg.blend8(bg, alpha, &fg);
         if (gfx_result::success != r) {
             return r;
         }
@@ -179,18 +180,18 @@ gfx_result sample_bilinear(const Source &source, const rect16 &src_rect,
     // image from shifting down and left half a pixel
     float x = (u * src_rect.width()) - 0.5f + src_rect.left();
     int xint = int(x);
-    float xfract = x - floor(x);
+    float xfract = x - floorf(x);
 
     float y = (v * src_rect.height()) - 0.5f + src_rect.top();
     int yint = int(y);
-    float yfract = y - floor(y);
+    float yfract = y - floorf(y);
     gfx_result r;
     // get pixels
 
-    point16 pt00(xint + 0, yint + 0);
-    point16 pt10(xint + 1, yint + 0);
-    point16 pt01(xint + 0, yint + 1);
-    point16 pt11(xint + 1, yint + 1);
+    point16 pt00(uint16_t(xint + 0), uint16_t(yint + 0));
+    point16 pt10(uint16_t(xint + 1), uint16_t(yint + 0));
+    point16 pt01(uint16_t(xint + 0), uint16_t(yint + 1));
+    point16 pt11(uint16_t(xint + 1), uint16_t(yint + 1));
     pixel_type px00, px10, px01, px11;
     rgba_type cpx00, cpx10, cpx01, cpx11;
     clamp_point16(pt00, src_rect);
@@ -255,24 +256,24 @@ gfx_result sample_bicubic(const Source &source, const rect16 &src_rect, float u,
     using rgba_type = rgba_pixel<HTCW_MAX_WORD>;
     // calculate coordinates -> also need to offset by half a pixel to keep
     // image from shifting down and left half a pixel
-    float x = (u * src_rect.width()) - 0.5 + src_rect.left();
+    float x = (u * src_rect.width()) - 0.5f + src_rect.left();
     int xint = int(x);
-    float xfract = x - floor(x);
+    float xfract = x - floorf(x);
 
-    float y = (v * src_rect.height()) - 0.5 + src_rect.top();
+    float y = (v * src_rect.height()) - 0.5f + src_rect.top();
     int yint = int(y);
-    float yfract = y - floor(y);
+    float yfract = y - floorf(y);
 
     gfx_result r;
 
-    point16 pt00(xint - 1, yint - 1), pt10(xint + 0, yint - 1),
-        pt20(xint + 1, yint - 1), pt30(xint + 2, yint - 1),
-        pt01(xint - 1, yint + 0), pt11(xint + 0, yint + 0),
-        pt21(xint + 1, yint + 0), pt31(xint + 2, yint + 0),
-        pt02(xint - 1, yint + 1), pt12(xint + 0, yint + 1),
-        pt22(xint + 1, yint + 1), pt32(xint + 2, yint + 1),
-        pt03(xint - 1, yint + 2), pt13(xint + 0, yint + 2),
-        pt23(xint + 1, yint + 2), pt33(xint + 2, yint + 2);
+    point16 pt00(uint16_t(xint - 1), uint16_t(yint - 1)), pt10(uint16_t(xint + 0), uint16_t(yint - 1)),
+        pt20(uint16_t(xint + 1), uint16_t(yint - 1)), pt30(uint16_t(xint + 2), uint16_t(yint - 1)),
+        pt01(uint16_t(xint - 1), uint16_t(yint + 0)), pt11(uint16_t(xint + 0), uint16_t(yint + 0)),
+        pt21(uint16_t(xint + 1), uint16_t(yint + 0)), pt31(uint16_t(xint + 2), uint16_t(yint + 0)),
+        pt02(uint16_t(xint - 1), uint16_t(yint + 1)), pt12(uint16_t(xint + 0), uint16_t(yint + 1)),
+        pt22(uint16_t(xint + 1), uint16_t(yint + 1)), pt32(uint16_t(xint + 2), uint16_t(yint + 1)),
+        pt03(uint16_t(xint - 1), uint16_t(yint + 2)), pt13(uint16_t(xint + 0), uint16_t(yint + 2)),
+        pt23(uint16_t(xint + 1), uint16_t(yint + 2)), pt33(uint16_t(xint + 2), uint16_t(yint + 2));
 
     pixel_type px00, px10, px20, px30, px01, px11, px21, px31, px02, px12, px22,
         px32, px03, px13, px23, px33;
@@ -376,70 +377,68 @@ gfx_result sample_bicubic(const Source &source, const rect16 &src_rect, float u,
 
     // Clamp the values since the curve can put the value below 0 or above 1
     const int chiR = rgba_type::channel_index_by_name<channel_name::R>::value;
-    d0 = cubic_hermite(cpx00.template channelr_unchecked<chiR>(),
-                       cpx10.template channelr_unchecked<chiR>(),
-                       cpx20.template channelr_unchecked<chiR>(),
-                       cpx30.template channelr_unchecked<chiR>(), xfract);
-    d1 = cubic_hermite(cpx01.template channelr_unchecked<chiR>(),
-                       cpx11.template channelr_unchecked<chiR>(),
-                       cpx21.template channelr_unchecked<chiR>(),
-                       cpx31.template channelr_unchecked<chiR>(), xfract);
-    d2 = cubic_hermite(cpx02.template channelr_unchecked<chiR>(),
-                       cpx12.template channelr_unchecked<chiR>(),
-                       cpx22.template channelr_unchecked<chiR>(),
-                       cpx32.template channelr_unchecked<chiR>(), xfract);
-    d3 = cubic_hermite(cpx03.template channelr_unchecked<chiR>(),
-                       cpx13.template channelr_unchecked<chiR>(),
-                       cpx23.template channelr_unchecked<chiR>(),
-                       cpx33.template channelr_unchecked<chiR>(), xfract);
+    d0 = cubic_hermite((float)cpx00.template channelr_unchecked<chiR>(),
+                       (float)cpx10.template channelr_unchecked<chiR>(),
+                       (float)cpx20.template channelr_unchecked<chiR>(),
+                       (float)cpx30.template channelr_unchecked<chiR>(), xfract);
+    d1 = cubic_hermite((float)cpx01.template channelr_unchecked<chiR>(),
+                       (float)cpx11.template channelr_unchecked<chiR>(),
+                       (float)cpx21.template channelr_unchecked<chiR>(),
+                       (float)cpx31.template channelr_unchecked<chiR>(), xfract);
+    d2 = cubic_hermite((float)cpx02.template channelr_unchecked<chiR>(),
+                       (float)cpx12.template channelr_unchecked<chiR>(),
+                       (float)cpx22.template channelr_unchecked<chiR>(),
+                       (float)cpx32.template channelr_unchecked<chiR>(), xfract);
+    d3 = cubic_hermite((float)cpx03.template channelr_unchecked<chiR>(),
+                       (float)cpx13.template channelr_unchecked<chiR>(),
+                       (float)cpx23.template channelr_unchecked<chiR>(),
+                       (float)cpx33.template channelr_unchecked<chiR>(), xfract);
     rpx.channelr<channel_name::R>(helpers::clamp(
         cubic_hermite(d0, d1, d2, d3, yfract), 0.0f, 1.0f));
 
     const size_t chiG =
         rgba_type::channel_index_by_name<channel_name::G>::value;
-    d0 = cubic_hermite(cpx00.template channelr_unchecked<chiG>(),
-                       cpx10.template channelr_unchecked<chiG>(),
-                       cpx20.template channelr_unchecked<chiG>(),
-                       cpx30.template channelr_unchecked<chiG>(), xfract);
-    d1 = cubic_hermite(cpx01.template channelr_unchecked<chiG>(),
-                       cpx11.template channelr_unchecked<chiG>(),
-                       cpx21.template channelr_unchecked<chiG>(),
-                       cpx31.template channelr_unchecked<chiG>(), xfract);
-    d2 = cubic_hermite(cpx02.template channelr_unchecked<chiG>(),
-                       cpx12.template channelr_unchecked<chiG>(),
-                       cpx22.template channelr_unchecked<chiG>(),
-                       cpx32.template channelr_unchecked<chiG>(), xfract);
-    d3 = cubic_hermite(cpx03.template channelr_unchecked<chiG>(),
-                       cpx13.template channelr_unchecked<chiG>(),
-                       cpx23.template channelr_unchecked<chiG>(),
-                       cpx33.template channelr_unchecked<chiG>(), xfract);
+    d0 = cubic_hermite((float)cpx00.template channelr_unchecked<chiG>(),
+                       (float)cpx10.template channelr_unchecked<chiG>(),
+                       (float)cpx20.template channelr_unchecked<chiG>(),
+                       (float)cpx30.template channelr_unchecked<chiG>(), xfract);
+    d1 = cubic_hermite((float)cpx01.template channelr_unchecked<chiG>(),
+                       (float)cpx11.template channelr_unchecked<chiG>(),
+                       (float)cpx21.template channelr_unchecked<chiG>(),
+                       (float)cpx31.template channelr_unchecked<chiG>(), xfract);
+    d2 = cubic_hermite((float)cpx02.template channelr_unchecked<chiG>(),
+                       (float)cpx12.template channelr_unchecked<chiG>(),
+                       (float)cpx22.template channelr_unchecked<chiG>(),
+                       (float)cpx32.template channelr_unchecked<chiG>(), xfract);
+    d3 = cubic_hermite((float)cpx03.template channelr_unchecked<chiG>(),
+                       (float)cpx13.template channelr_unchecked<chiG>(),
+                       (float)cpx23.template channelr_unchecked<chiG>(),
+                       (float)cpx33.template channelr_unchecked<chiG>(), xfract);
     rpx.channelr<channel_name::G>(helpers::clamp(
         cubic_hermite(d0, d1, d2, d3, yfract), 0.0f, 1.0f));
 
     const int chiB = rgba_type::channel_index_by_name<channel_name::B>::value;
-    d0 = cubic_hermite(cpx00.template channelr_unchecked<chiB>(),
-                       cpx10.template channelr_unchecked<chiB>(),
-                       cpx20.template channelr_unchecked<chiB>(),
-                       cpx30.template channelr_unchecked<chiB>(), xfract);
-    d1 = cubic_hermite(cpx01.template channelr_unchecked<chiB>(),
-                       cpx11.template channelr_unchecked<chiB>(),
-                       cpx21.template channelr_unchecked<chiB>(),
-                       cpx31.template channelr_unchecked<chiB>(), xfract);
-    d2 = cubic_hermite(cpx02.template channelr_unchecked<chiB>(),
-                       cpx12.template channelr_unchecked<chiB>(),
-                       cpx22.template channelr_unchecked<chiB>(),
-                       cpx32.template channelr_unchecked<chiB>(), xfract);
-    d3 = cubic_hermite(cpx03.template channelr_unchecked<chiB>(),
-                       cpx13.template channelr_unchecked<chiB>(),
-                       cpx23.template channelr_unchecked<chiB>(),
-                       cpx33.template channelr_unchecked<chiB>(), xfract);
+    d0 = cubic_hermite((float)cpx00.template channelr_unchecked<chiB>(),
+                       (float)cpx10.template channelr_unchecked<chiB>(),
+                       (float)cpx20.template channelr_unchecked<chiB>(),
+                       (float)cpx30.template channelr_unchecked<chiB>(), xfract);
+    d1 = cubic_hermite((float)cpx01.template channelr_unchecked<chiB>(),
+                       (float)cpx11.template channelr_unchecked<chiB>(),
+                       (float)cpx21.template channelr_unchecked<chiB>(),
+                       (float)cpx31.template channelr_unchecked<chiB>(), xfract);
+    d2 = cubic_hermite((float)cpx02.template channelr_unchecked<chiB>(),
+                       (float)cpx12.template channelr_unchecked<chiB>(),
+                       (float)cpx22.template channelr_unchecked<chiB>(),
+                       (float)cpx32.template channelr_unchecked<chiB>(), xfract);
+    d3 = cubic_hermite((float)cpx03.template channelr_unchecked<chiB>(),
+                       (float)cpx13.template channelr_unchecked<chiB>(),
+                       (float)cpx23.template channelr_unchecked<chiB>(),
+                       (float)cpx33.template channelr_unchecked<chiB>(), xfract);
     rpx.channelr<channel_name::B>(helpers::clamp(
         cubic_hermite(d0, d1, d2, d3, yfract), 0.0f, 1.0f));
 
-    const int chiA = rgba_type::channel_index_by_name<channel_name::A>::value;
-    if (-1 < chiA) {
-        const size_t chiA =
-            rgba_type::channel_index_by_name<channel_name::A>::value;
+    const size_t chiA = rgba_type::channel_index_by_name<channel_name::A>::value;
+    if constexpr(-1 < chiA) {
         d0 = cubic_hermite(cpx00.template channelr_unchecked<chiA>(),
                            cpx10.template channelr_unchecked<chiA>(),
                            cpx20.template channelr_unchecked<chiA>(),

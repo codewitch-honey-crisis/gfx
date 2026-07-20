@@ -6,24 +6,24 @@ namespace helpers {
 class xdraw_filled_rectangle {
         template <typename Destination, bool Indexed>
     struct rect_blend_helper {
-        static inline gfx_result do_blend(const Destination& dst, typename Destination::pixel_type px, float ratio, typename Destination::pixel_type bpx, typename Destination::pixel_type* out_px) {
-            return px.blend(bpx, ratio, out_px);
+        static inline gfx_result do_blend(const Destination& dst, typename Destination::pixel_type px, uint8_t ratio, typename Destination::pixel_type bpx, typename Destination::pixel_type* out_px) {
+            return px.blend8(bpx, ratio, out_px);
         }
     };
     template <typename Destination>
     struct rect_blend_helper<Destination, true> {
-        static inline gfx_result do_blend(const Destination& dst, typename Destination::pixel_type px, float ratio, typename Destination::pixel_type bpx, typename Destination::pixel_type* out_px) {
-            rgb_pixel<HTCW_MAX_WORD> tmp;
+        static inline gfx_result do_blend(const Destination& dst, typename Destination::pixel_type px, uint8_t ratio, typename Destination::pixel_type bpx, typename Destination::pixel_type* out_px) {
+            rgb_pixel<24> tmp;
             gfx_result r = convert_palette_to(dst, px, &tmp);
             if (r != gfx_result::success) {
                 return r;
             }
-            rgb_pixel<HTCW_MAX_WORD> btmp;
+            rgb_pixel<24> btmp;
             r = convert_palette_to(dst, bpx, &btmp);
             if (r != gfx_result::success) {
                 return r;
             }
-            r = tmp.blend(btmp, ratio, &tmp);
+            r = tmp.blend8(btmp, ratio, &tmp);
             if (r != gfx_result::success) {
                 return r;
             }
@@ -34,22 +34,13 @@ class xdraw_filled_rectangle {
     static gfx_result do_draw_complex_no_copy_to(Destination& destination, const rect16& rect, PixelType color) {
         gfx_result r;
         typename Destination::pixel_type dpx;
-        // TODO: recode to use an async read when finally implemented
-        using thas_alpha = typename PixelType::template has_channel_names<channel_name::A>;
-        using tdhas_alpha = typename Destination::pixel_type::template has_channel_names<channel_name::A>;
-        const bool has_alpha = thas_alpha::value;
-        const bool dhas_alpha = tdhas_alpha::value;
-        if (has_alpha && !dhas_alpha) {
-            using tindexA = typename PixelType::template channel_index_by_name<channel_name::A>;
-            const int chiA = tindexA::value;
-            using tchA = typename PixelType::template channel_by_index_unchecked<chiA>;
-            auto alp = color.template channel_unchecked<chiA>();
-            const float ar = alp * tchA::scaler;
+        if (PixelType::has_alpha && !Destination::pixel_type::has_alpha) {
+            auto alp = color.opacity8();
             typename Destination::pixel_type cpx;
             typename Destination::pixel_type bpx, obpx, bbpx;
             bool first = true;
-            if (alp != tchA::max) {
-                if (alp == tchA::min) {
+            if (alp != 255) {
+                if (alp == 0) {
                     return gfx_result::success;
                 }
 
@@ -64,7 +55,7 @@ class xdraw_filled_rectangle {
                         }
                         if (first || bpx.native_value != obpx.native_value) {
                             first = false;
-                            r = rect_blend_helper<Destination, Destination::pixel_type::template has_channel_names<channel_name::index>::value>::do_blend(destination, cpx, ar, bpx, &bbpx);
+                            r = rect_blend_helper<Destination, Destination::pixel_type::template has_channel_names<channel_name::index>::value>::do_blend(destination, cpx, alp, bpx, &bbpx);
                             if (gfx_result::success != r) {
                                 return r;
                             }
@@ -90,14 +81,10 @@ class xdraw_filled_rectangle {
     static gfx_result do_draw_complex_copy_to(Destination& destination, const rect16& rect, PixelType color) {
         gfx_result r;
         typename Destination::pixel_type dpx;
-        using tindexA = typename PixelType::template channel_index_by_name<channel_name::A>;
-        const int chiA = tindexA::value;
-        using tchA = typename PixelType::template channel_by_index_unchecked<chiA>;
-        auto alp = color.template channel_unchecked<chiA>();
-        const float ar = alp * tchA::scaler;
+        auto alp = helpers::pixel_get_alpha_255<PixelType,PixelType::has_alpha>::value(color);
         bool first = true;
-        if (alp != tchA::max) {
-            if (alp == tchA::min) {
+        if (alp != 255) {
+            if (alp == 0) {
                 return gfx_result::success;
             }
             typename Destination::pixel_type cpx;
@@ -138,13 +125,13 @@ class xdraw_filled_rectangle {
                 typename Destination::pixel_type bpx, obpx, bbpx;
                 for (int y = rr.y1; y <= rr.y2; ++y) {
                     for (int x = rr.x1; x <= rr.x2; ++x) {
-                        r = destination.point(point16(x,y), &bpx);
+                        r = destination.point(point16(uint16_t(x),uint16_t(y)), &bpx);
                         if (gfx_result::success != r) {
                             return r;
                         }
                         if (first || bpx.native_value != obpx.native_value) {
                             first = false;
-                            r = rect_blend_helper<Destination, Destination::pixel_type::template has_channel_names<channel_name::index>::value>::do_blend(destination, cpx, ar, bpx, &bbpx);
+                            r = rect_blend_helper<Destination, Destination::pixel_type::template has_channel_names<channel_name::index>::value>::do_blend(destination, cpx, alp, bpx, &bbpx);
                             if (gfx_result::success != r) {
                                 return r;
                             }
@@ -175,7 +162,7 @@ class xdraw_filled_rectangle {
                             bmp.point(pt, &bpx);
                             if (first || bpx.native_value != obpx.native_value) {
                                 first = false;
-                                r = rect_blend_helper<Destination, Destination::pixel_type::template has_channel_names<channel_name::index>::value>::do_blend(destination, cpx, ar, bpx, &bbpx);
+                                r = rect_blend_helper<Destination, Destination::pixel_type::template has_channel_names<channel_name::index>::value>::do_blend(destination, cpx, alp, bpx, &bbpx);
                                 if (gfx_result::success != r) {
                                     free(buf);
                                     return r;
@@ -212,7 +199,7 @@ class xdraw_filled_rectangle {
                                 bmp.point({uint16_t(x), uint16_t(yy)}, &bpx);
                                 if (first || bpx.native_value != obpx.native_value) {
                                     first = false;
-                                    r = rect_blend_helper<Destination, Destination::pixel_type::template has_channel_names<channel_name::index>::value>::do_blend(destination, cpx, ar, bpx, &bbpx);
+                                    r = rect_blend_helper<Destination, Destination::pixel_type::template has_channel_names<channel_name::index>::value>::do_blend(destination, cpx, alp, bpx, &bbpx);
                                     if (gfx_result::success != r) {
                                         free(buf);
                                         return r;

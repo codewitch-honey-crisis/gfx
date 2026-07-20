@@ -66,12 +66,12 @@ namespace gfx {
                     
                     while(dx<dxe) {
                         typename Source::pixel_type spx;
-                        r=src.point(point16(sox+dx,soy+dy),&spx);
+                        r=src.point(point16(uint16_t(sox+dx),uint16_t(soy+dy)),&spx);
                         if(gfx_result::success!=r)
                             return r;
                         typename Destination::pixel_type dpx;
                         if(Source::pixel_type::template has_channel_names<channel_name::A>::value) {
-                            r=blend_helper<Source,Destination>::do_blend(src,spx,dst,point16(dox+dx,doy+dy),&dpx);
+                            r=blend_helper<Source,Destination>::do_blend(src,spx,dst,point16(uint16_t(dox+dx),uint16_t(doy+dy)),&dpx);
                             if(gfx_result::success!=r) {
                                 return r;
                             }
@@ -82,7 +82,7 @@ namespace gfx {
                             }
                              
                         }
-                        r=dst.point(point16(dox+dx,doy+dy),dpx);
+                        r=dst.point(point16(uint16_t(dox+dx),uint16_t(doy+dy)),dpx);
                         if(gfx_result::success!=r)
                             return r;
                         ++dx;
@@ -175,13 +175,13 @@ namespace gfx {
                 switch(bit_depth) {
                     case 8: {
                         uint8_t* p = ((uint8_t*)begin())+offs;
-                        *p=rhs.native_value;
+                        *p=(uint8_t)rhs.native_value;
                         break;
                     }
                     case 16: {
                         uint16_t *p = ((uint16_t*)begin())+offs;
 #ifndef HTCW_GFX_NO_SWAP
-                        *p=rhs.swapped();    
+                        *p=(uint16_t) rhs.swapped();    
 #else
                         *p=rhs.native_value;    
 #endif
@@ -203,7 +203,7 @@ namespace gfx {
 #endif
                         offs *= bit_depth;
                         if(pixel_type::byte_aligned) {
-                            memcpy(begin()+offs/8,&v,sizeof(typename pixel_type::int_type));                              
+                            memcpy(begin()+offs/8,&v,pixel_type::bit_depth/8);                              
                             break;
                         }
                         const size_t offs_bits = offs % 8;
@@ -398,9 +398,9 @@ namespace gfx {
 #endif
                 rect16 dstr = dst.crop(bounds());
                 size_t dy = 0, dye=dstr.height();
-                if(pixel_type::byte_alignment!=0) {
+                if constexpr(pixel_type::byte_alignment!=0) {
                     
-                    if(pixel_type::byte_alignment==2) {
+                    if constexpr(pixel_type::byte_alignment==2) {
                         const size_t line_len = dstr.width();
                         while(dy<dye) {
                             uint16_t* pdst =(uint16_t*)(begin()+(((dstr.top()+dy)*dimensions().width+dstr.left())*pixel_type::byte_alignment)); 
@@ -409,7 +409,7 @@ namespace gfx {
                             }
                             ++dy;
                         }
-                    } else if(pixel_type::byte_alignment==4) {
+                    } else if constexpr(pixel_type::byte_alignment==4) {
                         const size_t line_len = dstr.width();
                         while(dy<dye) {
                             uint32_t* pdst =(uint32_t*)(begin()+(((dstr.top()+dy)*dimensions().width+dstr.left())*pixel_type::byte_alignment)); 
@@ -418,7 +418,7 @@ namespace gfx {
                             }
                             ++dy;
                         }
-                    } else if(pixel_type::byte_alignment==1) {
+                    } else if constexpr(pixel_type::byte_alignment==1) {
                         const size_t line_len = dstr.width();
                         while(dy<dye) {
                             uint8_t* pdst =(begin()+(((dstr.top()+dy)*dimensions().width+dstr.left())*pixel_type::byte_alignment)); 
@@ -437,7 +437,7 @@ namespace gfx {
                         }
                     }
                     
-                } else if(pixel_type::bit_depth!=1) {
+                } else if constexpr(pixel_type::bit_depth!=1) {
                     // unaligned version
                     uint8_t buf[pixel_type::packed_size+1];
                     // set this to 9 to ensure no match on first iteration:
@@ -784,6 +784,7 @@ namespace gfx {
         template<typename Source,bool HasPalette> struct bitmap_from_helper {
             using type = bitmap<typename Source::pixel_type>;
             static type create_from(const Source& source,size16 size,void* buffer)  {
+                (void)source;
                 return type(size,buffer);
             }
         };

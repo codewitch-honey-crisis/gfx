@@ -39,10 +39,10 @@ struct canvas_text_info final {
         this->ttf_font_face = 0;
         this->encoding = &encoding;
     }
-    inline void text_sz(const char* text) {
-        this->text = (text_handle)text;
+    inline void text_sz(const char* txt) {
+        this->text = (text_handle)txt;
         if(text!=nullptr) {
-            this->text_byte_count=strlen(text);
+            this->text_byte_count=strlen(txt);
         } else {
             this->text_byte_count = 0;
         }

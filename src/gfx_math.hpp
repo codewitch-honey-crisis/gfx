@@ -115,6 +115,21 @@ struct math {
     static int32_t vector_length_ft16_16(int32_t x,int32_t y);
     static void vector_polarize_ft16_16(int32_t x,int32_t y, int32_t* out_length, int32_t* out_angle);
     static void vector_from_polar_ft16_16(int32_t length,int32_t angle, int32_t* out_x,int32_t* out_y);
+    // floor(sqrt(v) * 2^Frac). General-purpose fixed-point sqrt, digit-by-digit.
+    // Uses only 32-bit arithmetic (no 64-bit words required). Valid for
+    // v with v's value and the running remainder within uint32 (v up to ~2^31).
+    template<unsigned Frac>
+    static uint32_t sqrt_ft32(uint32_t v) {
+        uint32_t rem = 0, root = 0;
+        for (int i = (int)(16u + Frac) - 1; i >= 0; --i) {
+            uint32_t two = (i >= (int)Frac) ? ((v >> (2 * (i - (int)Frac))) & 0x3u) : 0u;
+            rem = (rem << 2) | two;
+            uint32_t test = (root << 2) | 1u;
+            root <<= 1;
+            if (rem >= test) { rem -= test; root |= 1u; }
+        }
+        return root;
+    }
 };
 }
 #endif

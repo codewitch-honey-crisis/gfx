@@ -111,7 +111,7 @@ namespace gfx {
         text_handle text;
         size_t text_byte_count;
         const font* text_font;
-        unsigned int tab_width;
+        uint16_t tab_width;
         const text_encoder* encoding;
         font_measure_cache* measure_cache;
         font_draw_cache* draw_cache;
@@ -123,7 +123,7 @@ namespace gfx {
             measure_cache = nullptr;
             draw_cache = nullptr;
         }
-        inline text_info(const text_handle text, size_t text_byte_count, const ::gfx::font& font, int tab_width = 4, const text_encoder& encoding = text_encoding::utf8,font_measure_cache* measure_cache = nullptr, font_draw_cache* draw_cache =nullptr ) {
+        inline text_info(const text_handle text, size_t text_byte_count, const ::gfx::font& font, uint16_t tab_width = 4, const text_encoder& encoding = text_encoding::utf8,font_measure_cache* measure_cache = nullptr, font_draw_cache* draw_cache =nullptr ) {
             this->text = text;
             this->text_byte_count = text_byte_count;
             this->text_font = &font;
@@ -132,7 +132,7 @@ namespace gfx {
             this->measure_cache = measure_cache;
             this->draw_cache = draw_cache;
         }
-        inline text_info(const char* text, const ::gfx::font& font, int tab_width = 4, const text_encoder& encoding = text_encoding::utf8,font_measure_cache* measure_cache = nullptr, font_draw_cache* draw_cache =nullptr ) {
+        inline text_info(const char* text, const ::gfx::font& font, uint16_t tab_width = 4, const text_encoder& encoding = text_encoding::utf8,font_measure_cache* measure_cache = nullptr, font_draw_cache* draw_cache =nullptr ) {
             this->text = (text_handle)text;
             this->text_byte_count = strlen(text);
             this->text_byte_count = text_byte_count;
@@ -142,10 +142,10 @@ namespace gfx {
             this->measure_cache = measure_cache;
             this->draw_cache = draw_cache;
         }
-        inline void text_sz(const char* text) {
-            this->text = (text_handle)text;
-            if(text!=nullptr) {
-                this->text_byte_count=strlen(text);
+        inline void text_sz(const char* txt) {
+            this->text = (text_handle)txt;
+            if(txt!=nullptr) {
+                this->text_byte_count=strlen(txt);
             } else {
                 this->text_byte_count = 0;
             }

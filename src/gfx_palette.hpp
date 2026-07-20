@@ -128,6 +128,7 @@ namespace gfx {
         struct palette_mapper_impl<Target,PixelType,false> {
             inline static gfx_result pixel_to_indexed(const Target& target,PixelType pixel,const typename Target::pixel_type* background,  typename Target::pixel_type* indexed) {
                 static_assert(!PixelType::template has_channel_names<channel_name::index>::value,"PixelType must not be indexed");
+                (void)target;
                 typename Target::pixel_type px;
                 gfx_result r = convert(pixel, &px,background);
                 if(gfx_result::success!=r) {
@@ -138,6 +139,7 @@ namespace gfx {
             }
             inline static gfx_result indexed_to_pixel(const Target& target,typename Target::pixel_type pixel,const PixelType* background, PixelType* mapped) {
                 static_assert(!PixelType::template has_channel_names<channel_name::index>::value,"PixelType must not be indexed");
+                (void)target;
                 PixelType px;
                 gfx_result r = convert(pixel,&px,background);
                 if(gfx_result::success!=r) {
@@ -208,6 +210,7 @@ namespace gfx {
             }
             inline static gfx_result indexed_to_pixel(const Target& target,typename Target::pixel_type pixel, const PixelType* background, PixelType* mapped) {
                 static_assert(!PixelType::template has_channel_names<channel_name::index>::value,"PixelType must not be indexed");
+                (void)background;
                 const typename Target::palette_type* pal=target.palette();
                 if(nullptr==pal) {
                     return gfx_result::no_palette;
@@ -235,6 +238,8 @@ namespace gfx {
         template<typename Destination,typename Source,bool IsDestinationIndexed,bool IsSourceIndexed>
         struct palette_converter {
             inline static gfx_result convert(Destination& destination, const Source& source, typename Source::pixel_type pixel, typename Destination::pixel_type* result,const typename Destination::pixel_type* background = nullptr) {
+                (void)destination;
+                (void)source;
                 return gfx::convert(pixel,result,background);
             }
         };
@@ -242,6 +247,7 @@ namespace gfx {
         struct palette_converter<Destination,Source,true,false> {
             inline static gfx_result convert(Destination& destination, const Source& source, typename Source::pixel_type pixel, typename Destination::pixel_type* result,const typename Destination::pixel_type* background = nullptr) {
                 static_assert(!Source::pixel_type::template has_channel_names<channel_name::index>::value,"Source pixel type must not be indexed");
+                (void)source;
                 return palette_mapper<Destination,typename Source::pixel_type>::pixel_to_indexed(destination,pixel,result,background);
             }
         };
@@ -249,6 +255,7 @@ namespace gfx {
         struct palette_converter<Destination,Source,false,true> {
             inline static gfx_result convert(Destination& destination, const Source& source, typename Source::pixel_type pixel, typename Destination::pixel_type* result,const typename Destination::pixel_type* background = nullptr) {
                 static_assert(!Destination::pixel_type::template has_channel_names<channel_name::index>::value,"Destination pixel type must not be indexed");
+                (void)destination;
                 return palette_mapper<Source,typename Destination::pixel_type>::indexed_to_pixel(source,pixel,result,background);
             }
         };
@@ -302,10 +309,10 @@ namespace gfx {
             if(!FullEga) {
                 idx = helpers::ega_color_table[idx];
             }
-            const uint8_t red   = 85 * (((idx >> 1) & 2) | ((idx >> 5) & 1));
-            const uint8_t green = 85 * (( idx       & 2) | ((idx >> 4) & 1));
-            const uint8_t blue  = 85 * (((idx << 1) & 2) | ((idx >> 3) & 1));
-            return convert(rgb_pixel<24>(red,green,blue),result);
+            const uint8_t rred   = (uint8_t)(85 * (((idx >> 1) & 2) | ((idx >> 5) & 1)));
+            const uint8_t rgreen = (uint8_t)(85 * (( idx       & 2) | ((idx >> 4) & 1)));
+            const uint8_t rblue  = (uint8_t)(85 * (((idx << 1) & 2) | ((idx >> 3) & 1)));
+            return convert(rgb_pixel<24>(rred,rgreen,rblue),result);
         }
     public:
         using type = ega_palette;
@@ -350,7 +357,7 @@ namespace gfx {
                     ii=i;
                 }
             }
-            pixel->template channel<channel_name::index>(ii);
+            pixel->template channel<channel_name::index>((pixel_type::channel_by_index_unchecked<pixel_type::channel_index_by_name<channel_name::index>::value>::int_type)ii);
             //printf("nearest was %d\r\n",ii);
             return gfx_result::success;
         }

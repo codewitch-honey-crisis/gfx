@@ -495,7 +495,7 @@ namespace gfx {
         using point_type = pointx<T>;
         class accessor final {
             friend pathx;
-            point_type* const pt;
+            point_type* pt;
             constexpr inline accessor(point_type* pt) : pt(pt) {
             }
             accessor(const accessor& rhs)=delete;

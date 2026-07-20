@@ -277,7 +277,20 @@ struct pixel_init_impl<PixelType, Count> {
     constexpr static inline void initf(PixelType& pixel) {
     }
 };
-
+template <typename PixelType, bool HasAlpha>
+struct pixel_get_alpha_255 {
+    constexpr inline static uint8_t value(PixelType px) {
+        return 255;
+    }
+};
+template <typename PixelType>
+struct pixel_get_alpha_255<PixelType, true> {
+    constexpr inline static uint8_t value(PixelType px) {
+        //constexpr static const 
+        using ch = PixelType::template channel_by_index_unchecked<PixelType::channel_index_by_name<channel_name::A>::value>;
+        return px.template channel_unchecked<PixelType::template channel_index_by_name<channel_name::A>::value>()*255/ch::scale;
+    }
+};
 template <typename PixelType, bool HasAlpha>
 struct pixel_get_alpha {
     constexpr inline static float valuer(PixelType px) {
@@ -301,6 +314,20 @@ struct pixel_set_alpha<PixelType, true> {
     using type = float;
     constexpr inline static void valuer(PixelType& px, type value) {
         px.template channelr_unchecked<PixelType::template channel_index_by_name<channel_name::A>::value>(value);
+    }
+};
+template <typename PixelType, bool HasAlpha>
+struct pixel_set_alpha_255 {
+    using type = uint8_t;
+    constexpr inline static void value(PixelType& px, type dummy) {
+    }
+};
+template <typename PixelType>
+struct pixel_set_alpha_255<PixelType, true> {
+    using type = uint8_t;
+    constexpr inline static void value(PixelType& px, type value) {
+        using ch = PixelType::template channel_by_index_unchecked<PixelType::channel_index_by_name<channel_name::A>::value>;
+        px.template channel_unchecked<PixelType::template channel_index_by_name<channel_name::A>::value>(value * ch::scale / 255);
     }
 };
 template <typename PixelType, int Count, typename... ChannelTraits>
@@ -351,10 +378,20 @@ struct pixel_blend_impl<PixelType, Count, ChannelTrait, ChannelTraits...> {
         out_pixel->template channel<index>(l + r);
         next::blend_val(lhs, rhs, amount, out_pixel);
     }
+    constexpr static inline void blend_val255(PixelType lhs, PixelType rhs, uint8_t amount, PixelType* out_pixel) {
+        constexpr const size_t index = Count;
+        if (ChannelTrait::bit_depth == 0) return;
+        bits::uintx<HTCW_MAX_WORD> l = lhs.template channel<index>();
+        bits::uintx<HTCW_MAX_WORD> r = rhs.template channel<index>();
+        out_pixel->template channel<index>((l * amount + r * (255 - amount)) / 255);
+        next::blend_val255(lhs, rhs, amount, out_pixel);
+    }
 };
 template <typename PixelType, int Count>
 struct pixel_blend_impl<PixelType, Count> {
     constexpr static inline void blend_val(PixelType lhs, PixelType rhs, double amount, PixelType* out_pixel) {
+    }
+    constexpr static inline void blend_val255(PixelType lhs, PixelType rhs, uint8_t amount, PixelType* out_pixel) {
     }
 };
 
@@ -950,10 +987,47 @@ struct pixel {
         helpers::pixel_blend_impl<type, 0, ChannelTraits...>::blend_val(*this, rhs, ratio, out_pixel);
         return gfx_result::success;
     }
+    // blends two pixels. ratio is between zero and 255. larger ratio numbers favor this pixel
+    constexpr gfx_result blend8(const type rhs, uint8_t ratio, type* out_pixel) const {
+        if (out_pixel == nullptr) {
+            return gfx_result::invalid_argument;
+        }
+        static_assert(!has_channel_names<channel_name::index>::value, "pixel must not be indexed");
+        if (ratio == 255) {
+            out_pixel->native_value = native_value;
+            return gfx_result::success;
+        } else if (ratio == 0) {
+            out_pixel->native_value = rhs.native_value;
+            return gfx_result::success;
+        }
+        if (type::template has_channel_names<channel_name::A>::value) {
+            constexpr const int ai = type::channel_index_by_name<channel_name::A>::value;
+            // raw integer alpha; both are the same channel/scale, so the scale cancels in a1/a2
+            const int a1 = (int)this->template channel_unchecked<ai>();
+            const int a2 = (int)rhs.template channel_unchecked<ai>();
+            int rr;
+            if (a2 == 0) {
+                rr = (a1 != 0) ? 255 : ratio;   // a1/a2 -> +inf clamps to full; 0/0 -> leave ratio be
+            } else {
+                rr = (int)ratio * a1 / a2;      // = ratio * (a1/a2); 254*max/1 still fits int
+                if (rr > 255) rr = 255;
+            }
+            ratio = (uint8_t)rr;
+        }
+        helpers::pixel_blend_impl<type, 0, ChannelTraits...>::blend_val255(*this, rhs, ratio, out_pixel);
+        return gfx_result::success;
+    }
+   
     // blends two pixels. ratio is between zero and one. larger ratio numbers favor this pixel
     constexpr type blend(const type rhs, double ratio) const {
         type result;
         blend(rhs, ratio, &result);
+        return result;
+    }
+    // blends two pixels. ratio is between zero and 255. larger ratio numbers favor this pixel
+    constexpr type blend8(const type rhs, uint8_t ratio) const {
+        type result;
+        blend8(rhs, ratio, &result);
         return result;
     }
     // premultiply pixels. amount is between zero and the channel scale.
@@ -980,7 +1054,24 @@ struct pixel {
     // sets the opacity of the pixel (for those with an alpha channel)
     constexpr pixel opacity(typename helpers::pixel_set_alpha<type, has_alpha>::type value) const {
         pixel px = *this;
-        return px.opacity_inplace(value);
+        px.opacity_inplace(value);
+        return px;
+    }
+
+    // indicates the opacity of the pixel
+    constexpr uint8_t opacity8() const {
+        return helpers::pixel_get_alpha_255<type, has_alpha>::value(*this);
+    }
+    // sets the opacity of the pixel (for those with an alpha channel)
+    constexpr pixel& opacity8_inplace(uint8_t value) {
+        helpers::pixel_set_alpha_255<type, has_alpha>::value(*this, value);
+        return *this;
+    }
+    // sets the opacity of the pixel (for those with an alpha channel)
+    constexpr pixel opacity8(uint8_t value) const {
+        pixel px = *this;
+        px.opacity8_inplace(value);
+        return px;
     }
     static_assert(sizeof...(ChannelTraits) > 0, "A pixel must have at least one channel trait");
     static_assert(bit_depth <= HTCW_MAX_WORD, "Bit depth must be less than or equal to the maximum machine word size");

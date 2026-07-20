@@ -49,8 +49,7 @@ class xdraw_icon {
             rect16 dstr = (rect16)bounds;
             gfx_result r;
             if(opaque) {
-                gfx_result r;
-
+                
                 typename Destination::pixel_type dpx, fgpx, bgpx;
                 r = convert_palette_from(destination, forecolor, &fgpx);
                 if (r != gfx_result::success) {
@@ -64,7 +63,7 @@ class xdraw_icon {
                 int w = srcr.x2 - srcr.x1 + 1, h = srcr.y2 - srcr.y1 + 1;
                 for (int y = 0; y < h; ++y) {
                     for (int x = 0; x < w; ++x) {
-                        point16 pt(x + srcr.x1, y + srcr.y1);
+                        point16 pt(uint16_t(x + srcr.x1), uint16_t(y + srcr.y1));
                         typename Source::pixel_type rpx;
                         r = source.point(pt, &rpx);
                         if (r != gfx_result::success) {
@@ -79,7 +78,7 @@ class xdraw_icon {
                             dpx = fgpx.blend(bgpx, a);
                         }
 
-                        r = destination.point(point16(dstr.x1 + x, dstr.y1 + y), dpx);
+                        r = destination.point(point16(uint16_t(dstr.x1 + x), uint16_t(dstr.y1 + y)), dpx);
                         if (r != gfx_result::success) {
                             return r;
                         }
@@ -96,7 +95,7 @@ class xdraw_icon {
             }
             constexpr static const auto a_idx = PixelType::template channel_index_by_name<channel_name::A>::value;
             auto alpha_factor = 1.0;
-            if (a_idx != -1) {
+            if constexpr(a_idx != -1) {
                 alpha_factor = forecolor.template channelr_unchecked<a_idx>();
             }
             typename Destination::pixel_type dpx, fgpx, bgpx, obgpx;
@@ -110,7 +109,7 @@ class xdraw_icon {
                 return r;
             }
             int w = srcr.x2 - srcr.x1 + 1, h = srcr.y2 - srcr.y1 + 1;
-            if (!Destination::caps::blt && !Destination::caps::blt_spans) {
+            if constexpr(!Destination::caps::blt && !Destination::caps::blt_spans) {
                 auto full_bmp = create_bitmap_from(destination, dstr.dimensions());
                 if (full_bmp.begin() != nullptr) {
                     r = copy_to_fast<decltype(full_bmp), Destination, Destination::caps::copy_to>::do_copy(full_bmp, destination, dstr, {0, 0});
@@ -168,8 +167,8 @@ class xdraw_icon {
 
             for (int y = 0; y < h; ++y) {
                 for (int x = 0; x < w; ++x) {
-                    point16 pt(x + srcr.x1, y + srcr.y1);
-                    point16 dpt(dstr.x1 + x, dstr.y1 + y);
+                    point16 pt(uint16_t(x + srcr.x1), uint16_t(y + srcr.y1));
+                    point16 dpt(uint16_t(dstr.x1 + x), uint16_t(dstr.y1 + y));
                     typename Source::pixel_type rpx;
                     r = source.point(pt, &rpx);
                     if (r != gfx_result::success) {

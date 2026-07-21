@@ -209,7 +209,7 @@ class xdraw_aa_polyline {
         return hw16 + (int32_t)maxd * 256;
     }
 
-    template <typename Destination, typename PixelType>
+   template <typename Destination, typename PixelType>
     static gfx_result aa_polyline_impl(Destination& destination, const spath16& path,
                                        PixelType color, int16_t width, line_cap cap,
                                        line_join join, int16_t miter_limit,
@@ -277,6 +277,8 @@ class xdraw_aa_polyline {
 
         for (int py = miny; py <= maxy; ++py) {
             for (int i = 0; i < row_w; ++i) dist[i] = k_far;
+            int rlo = row_w;   // lowest covered index this scanline (inclusive)
+            int rhi = -1;      // highest covered index (rhi < rlo => empty row)
 
             if (np == 1) {
                 if (cap != line_cap::butt) {
@@ -287,8 +289,10 @@ class xdraw_aa_polyline {
                     if (xe > maxx) xe = maxx;
                     for (int px = xs; px <= xe; ++px) {
                         const int32_t d16 = point_dist16(px, py, cxp, cyp, cap, hw16, hw_q8, cap_cut2);
-                        int32_t& acc = dist[px - minx];
+                        const int idx = px - minx;
+                        int32_t& acc = dist[idx];
                         if (d16 < acc) acc = d16;
+                        if (d16 < band16) { if (idx < rlo) rlo = idx; if (idx > rhi) rhi = idx; }
                     }
                 }
             } else {
@@ -321,8 +325,10 @@ class xdraw_aa_polyline {
                         const int32_t d16 = seg_dist16(px, py, ax, ay, bx, by, dx, dy, len2,
                                                        len_q8, len_int, thresh, capA, capB,
                                                        hw16, hw_q8, cap_cut2);
-                        int32_t& acc = dist[px - minx];
+                        const int idx = px - minx;
+                        int32_t& acc = dist[idx];
                         if (d16 < acc) acc = d16;
+                        if (d16 < band16) { if (idx < rlo) rlo = idx; if (idx > rhi) rhi = idx; }
                     }
                 }
                 // bevel / miter join fills
@@ -344,14 +350,31 @@ class xdraw_aa_polyline {
                         for (int px = xs; px <= xe; ++px) {
                             const int32_t plx_q8 = (px - Vx) << 8;
                             const int32_t d16 = poly_dist16(plx_q8, ply_q8, edges, ne, hw16);
-                            int32_t& acc = dist[px - minx];
+                            const int idx = px - minx;
+                            int32_t& acc = dist[idx];
                             if (d16 < acc) acc = d16;
+                            if (d16 < band16) { if (idx < rlo) rlo = idx; if (idx > rhi) rhi = idx; }
                         }
                     }
                 }
             }
 
-           aa_rasterize_row(destination,{(int16_t)minx,(int16_t)py},cov,row_w,fgpx);
+            // dist[] holds signed distance (16.16); convert the covered span to
+            // coverage bytes in place, then blit only that span. In-place is safe
+            // L->R: cov byte at offset i only lands on a dist entry already read.
+            if (rhi >= rlo) {
+                uint8_t* cov = reinterpret_cast<uint8_t*>(dist);
+                for (int i = rlo; i <= rhi; ++i) {
+                    const int32_t cov16 = band16 - dist[i];   // 0.5 - SDF, in 16.16
+                    uint8_t c8;
+                    if (cov16 <= 0)              c8 = 0;      // outside / gaps left at k_far
+                    else if (cov16 >= (1 << 16)) c8 = 255;   // solid interior
+                    else                         c8 = (uint8_t)(cov16 >> 8);
+                    cov[i] = (uint8_t)(c8 * opacity / 255);   // fold opacity
+                }
+                aa_rasterize_row(destination, {(int16_t)(minx + rlo), (int16_t)py},
+                                 cov + rlo, (size_t)(rhi - rlo + 1), fgpx);
+            }
         }
         return gfx_result::success;
     }

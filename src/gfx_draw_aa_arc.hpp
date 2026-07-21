@@ -218,20 +218,7 @@ class xdraw_aa_arc {
             }
 
             // pass 2: blend the covered pixels, each touched exactly once
-            for (int i = 0; i < row_w; ++i) {
-                const uint8_t c8 = cov[i];
-                if (0 == c8) continue;
-                const point16 p((uint16_t)(minx + i), (uint16_t)py);
-                if (c8 < 255) {
-                    r_res = destination.point(p, &bgpx);
-                    if (gfx_result::success != r_res) return r_res;
-                    dpx = fgpx.blend8(bgpx, c8);
-                } else {
-                    dpx = fgpx;
-                }
-                r_res = destination.point(p, dpx);   // write result
-                if (gfx_result::success != r_res) return r_res;
-            }
+            aa_rasterize_row(destination,{(int16_t)minx,(int16_t)py},cov,row_w,fgpx);
         }
         return gfx_result::success;
     }

@@ -351,24 +351,7 @@ class xdraw_aa_polyline {
                 }
             }
 
-            // resolve the combined distance field to coverage and blend once
-            for (int i = 0; i < row_w; ++i) {
-                const int32_t cov16 = band16 - dist[i];
-                if (cov16 <= 0) continue;
-                uint8_t g = (cov16 >= (1 << 16)) ? 255 : (uint8_t)(cov16 >> 8);
-                const uint8_t a = (uint8_t)((uint16_t)g * opacity / 255);
-                if (0 == a) continue;
-                const point16 p((uint16_t)(minx + i), (uint16_t)py);
-                if(a<255) {
-                    r = destination.point(p, &bgpx);
-                    if (gfx_result::success != r) return r;
-                    dpx = fgpx.blend8(bgpx, a);
-                } else {
-                    dpx = fgpx;
-                }
-                r = destination.point(p, dpx);
-                if (gfx_result::success != r) return r;
-            }
+           aa_rasterize_row(destination,{(int16_t)minx,(int16_t)py},cov,row_w,fgpx);
         }
         return gfx_result::success;
     }

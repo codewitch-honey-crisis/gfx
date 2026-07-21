@@ -6,10 +6,10 @@
 #include <gfx_positioning.hpp>
 namespace gfx {
 namespace helpers {
-bool draw_translate(spoint16 in, point16 *out);
-bool draw_translate(size16 in, ssize16 *out);
-bool draw_translate(const srect16 &in, rect16 *out);
-bool draw_translate_adjust(const srect16 &in, rect16 *out);
+bool draw_translate(spoint16 in, point16* out);
+bool draw_translate(size16 in, ssize16* out);
+bool draw_translate(const srect16& in, rect16* out);
+bool draw_translate_adjust(const srect16& in, rect16* out);
 }
 }
 #include <gfx_draw_point.hpp>
@@ -19,8 +19,8 @@ namespace helpers {
 template <typename Source, typename Destination>
 struct blend_helper {
     static constexpr gfx_result do_blend(
-        const Source &src, typename Source::pixel_type spx, Destination &dst,
-        point16 dstpnt, typename Destination::pixel_type *out_px) {
+        const Source& src, typename Source::pixel_type spx, Destination& dst,
+        point16 dstpnt, typename Destination::pixel_type* out_px) {
         gfx_result r = gfx_result::success;
         typename Destination::pixel_type bgpx;
         r = dst.point(point16(dstpnt), &bgpx);
@@ -36,8 +36,8 @@ struct blend_helper {
 };
 template <typename Destination, typename Source, bool HasAlpha>
 struct blender {
-    static gfx_result point(Destination &destination, point16 pt,
-                            Source &source, point16 spt,
+    static gfx_result point(Destination& destination, point16 pt,
+                            Source& source, point16 spt,
                             typename Source::pixel_type pixel) {
         (void)spt;
         typename Destination::pixel_type px;
@@ -50,8 +50,8 @@ struct blender {
 };
 template <typename Destination, typename Source>
 struct blender<Destination, Source, true> {
-    static gfx_result point(Destination &destination, point16 pt,
-                            Source &source, point16 spt,
+    static gfx_result point(Destination& destination, point16 pt,
+                            Source& source, point16 spt,
                             typename Source::pixel_type pixel) {
         auto alpha = pixel.opacity8();
         if (0 == alpha) return gfx_result::success;
@@ -89,23 +89,23 @@ template <typename Destination, typename Source, bool Async>
 struct copy_to_helper {};
 template <typename Destination, typename Source>
 struct copy_to_helper<Destination, Source, false> {
-    static gfx_result do_draw(const Source &src, const rect16 &rct,
-                              Destination &dst, point16 loc) {
+    static gfx_result do_draw(const Source& src, const rect16& rct,
+                              Destination& dst, point16 loc) {
         return src.copy_to(rct, dst, loc);
     }
 };
 template <typename Destination, typename Source>
 struct copy_to_helper<Destination, Source, true> {
-    static gfx_result do_draw(const Source &src, const rect16 &rct,
-                              Destination &dst, point16 loc) {
+    static gfx_result do_draw(const Source& src, const rect16& rct,
+                              Destination& dst, point16 loc) {
         return src.copy_to_async(rct, dst, loc);
     }
 };
 
 template <typename Destination, typename Source>
 struct copy_from_impl_helper {
-    static gfx_result do_draw(Destination &destination, const rect16 &src_rect,
-                              const Source &src, point16 location) {
+    static gfx_result do_draw(Destination& destination, const rect16& src_rect,
+                              const Source& src, point16 location) {
         gfx_result r;
         rect16 srcr = src_rect.normalize().crop(src.bounds());
         rect16 dstr(location, src_rect.dimensions());
@@ -141,26 +141,26 @@ template <typename Destination, typename Source, bool CopyTo>
 struct copy_to_fast {};
 template <typename Destination, typename Source>
 struct copy_to_fast<Destination, Source, false> {
-    static gfx_result do_copy(Destination &dst, const Source &src,
-                              const rect16 &src_rect, point16 location) {
+    static gfx_result do_copy(Destination& dst, const Source& src,
+                              const rect16& src_rect, point16 location) {
         return copy_from_impl_helper<Destination, Source>::do_draw(
             dst, src_rect, src, location);
     }
 };
 template <typename Destination, typename Source>
 struct copy_to_fast<Destination, Source, true> {
-    static gfx_result do_copy(Destination &dst, const Source &src,
-                              const rect16 &src_rect, point16 location) {
+    static gfx_result do_copy(Destination& dst, const Source& src,
+                              const rect16& src_rect, point16 location) {
         return src.copy_to(src_rect, dst, location);
     }
 };
 float cubic_hermite(float A, float B, float C, float D, float t);
 
-bool clamp_point16(point16 &pt, const rect16 &bounds);
+bool clamp_point16(point16& pt, const rect16& bounds);
 
 template <typename Source>
-gfx_result sample_nearest(const Source &source, const rect16 &src_rect, float u,
-                          float v, typename Source::pixel_type *out_pixel) {
+gfx_result sample_nearest(const Source& source, const rect16& src_rect, float u,
+                          float v, typename Source::pixel_type* out_pixel) {
     // calculate coordinates
 
     point16 pt(uint16_t(u * src_rect.width() + src_rect.left()),
@@ -171,9 +171,9 @@ gfx_result sample_nearest(const Source &source, const rect16 &src_rect, float u,
     return source.point(pt, out_pixel);
 }
 template <typename Source>
-gfx_result sample_bilinear(const Source &source, const rect16 &src_rect,
+gfx_result sample_bilinear(const Source& source, const rect16& src_rect,
                            float u, float v,
-                           typename Source::pixel_type *out_pixel) {
+                           typename Source::pixel_type* out_pixel) {
     using pixel_type = typename Source::pixel_type;
     using rgba_type = rgba_pixel<HTCW_MAX_WORD>;
     // calculate coordinates -> also need to offset by half a pixel to keep
@@ -250,8 +250,8 @@ gfx_result sample_bilinear(const Source &source, const rect16 &src_rect,
     return gfx_result::success;
 }
 template <typename Source>
-gfx_result sample_bicubic(const Source &source, const rect16 &src_rect, float u,
-                          float v, typename Source::pixel_type *out_pixel) {
+gfx_result sample_bicubic(const Source& source, const rect16& src_rect, float u,
+                          float v, typename Source::pixel_type* out_pixel) {
     using pixel_type = typename Source::pixel_type;
     using rgba_type = rgba_pixel<HTCW_MAX_WORD>;
     // calculate coordinates -> also need to offset by half a pixel to keep
@@ -438,7 +438,7 @@ gfx_result sample_bicubic(const Source &source, const rect16 &src_rect, float u,
         cubic_hermite(d0, d1, d2, d3, yfract), 0.0f, 1.0f));
 
     const size_t chiA = rgba_type::channel_index_by_name<channel_name::A>::value;
-    if constexpr(-1 < chiA) {
+    if constexpr (-1 < chiA) {
         d0 = cubic_hermite(cpx00.template channelr_unchecked<chiA>(),
                            cpx10.template channelr_unchecked<chiA>(),
                            cpx20.template channelr_unchecked<chiA>(),
@@ -465,7 +465,7 @@ gfx_result sample_bicubic(const Source &source, const rect16 &src_rect, float u,
 // changes the target's pixel type to an intermediary pixel type and back again.
 // Useful for downsampling or converting to grayscale
 template <typename TargetType, typename PixelType>
-gfx_result resample(TargetType &target) {
+gfx_result resample(TargetType& target) {
     size16 dim = target.dimensions();
     point16 pt;
     gfx_result r;
@@ -493,5 +493,212 @@ gfx_result resample(TargetType &target) {
     }
     return gfx_result::success;
 }
+static inline uint32_t pixel_byte_mul32(uint32_t x, uint32_t a) {
+    uint32_t t = (x & 0xff00ff) * a;
+    t = (t + ((t >> 8) & 0xff00ff) + 0x800080) >> 8;
+    t &= 0xff00ff;
+    x = ((x >> 8) & 0xff00ff) * a;
+    x = (x + ((x >> 8) & 0xff00ff) + 0x800080);
+    x &= 0xff00ff00;
+    x |= t;
+    return x;
+}
+
+namespace helpers {
+
+// one empty tag type per fast path, plus a generic fallback tag
+struct aa_row_565 {};
+struct aa_row_rgb24 {};
+struct aa_row_rgba32 {};
+struct aa_row_indexed {};
+struct aa_row_generic {};
+
+// default now categorizes: indexed pixels -> indexed tag, everything else -> generic
+template <typename PixelType,
+          bool Indexed = PixelType::template has_channel_names<channel_name::index>::value>
+struct aa_row_tag { typedef aa_row_generic type; };
+
+template <typename PixelType>
+struct aa_row_tag<PixelType, true> { typedef aa_row_indexed type; };
+
+// fast-path overrides — all non-indexed, so the bool defaults to false
+template <> struct aa_row_tag<rgb_pixel<16>,  false> { typedef aa_row_565    type; };
+template <> struct aa_row_tag<rgb_pixel<24>,  false> { typedef aa_row_rgb24  type; };
+template <> struct aa_row_tag<rgba_pixel<32>, false> { typedef aa_row_rgba32 type; };
+
+// --- one overload per tag; each sees only its own code ---
+
+template <typename Destination>
+gfx_result aa_row_impl(aa_row_565, Destination& destination, spoint16 location,
+                       const uint8_t* cov, size_t width,
+                       typename Destination::pixel_type color) {
+    const int16_t minx = location.x, py = location.y;
+    const int16_t row_w = (int16_t)width;
+    rgb_pixel<16> rgb = color;
+    const uint16_t fg = rgb.native_value;
+    const uint32_t fg_s = (uint32_t)(fg & 0xF81F) | ((uint32_t)(fg & 0x07E0) << 16);
+    gfx_span span = destination.span(point16(minx, py));
+    uint8_t* d = span.data;
+    for (int i = 0; i < row_w; ++i) {
+        const uint8_t a = cov[i];
+        if (0 == a) continue;
+        const int j = i << 1;
+        if (a >= 255) {
+#ifndef HTCW_GFX_NO_SWAP
+            d[j] = (uint8_t)(fg >> 8); d[j+1] = (uint8_t)fg;
+#else
+            d[j] = (uint8_t)fg;        d[j+1] = (uint8_t)(fg >> 8);
+#endif
+            continue;
+        }
+#ifndef HTCW_GFX_NO_SWAP
+        const uint16_t bg = ((uint16_t)d[j] << 8) | (uint16_t)d[j+1];
+#else
+        const uint16_t bg = (uint16_t)d[j] | ((uint16_t)d[j+1] << 8);
+#endif
+        const uint32_t bg_s = (uint32_t)(bg & 0xF81F) | ((uint32_t)(bg & 0x07E0) << 16);
+        uint32_t a5 = (uint32_t)(a + 4) >> 3; if (a5 > 31) a5 = 31;
+        const uint32_t bl = (bg_s + (((fg_s - bg_s) * a5) >> 5)) & 0x07E0F81F;
+        const uint16_t out = (uint16_t)((bl & 0xFFFF) | (bl >> 16));
+#ifndef HTCW_GFX_NO_SWAP
+        d[j] = (uint8_t)(out >> 8); d[j+1] = (uint8_t)out;
+#else
+        d[j] = (uint8_t)out;        d[j+1] = (uint8_t)(out >> 8);
+#endif
+    }
+    return gfx_result::success;
+}
+
+template <typename Destination>
+gfx_result aa_row_impl(aa_row_rgb24, Destination& destination, spoint16 location,
+                       const uint8_t* cov, size_t width,
+                       typename Destination::pixel_type color) {
+    const int16_t minx = location.x, py = location.y;
+    const int16_t row_w = (int16_t)width;
+    rgb_pixel<24> rgb = color;
+    const uint32_t fg = rgb.native_value;
+    gfx_span span = destination.span(point16(minx, py));
+    uint8_t* d = span.data;
+    for (int i = 0; i < row_w; ++i) {
+        const uint8_t a = cov[i];
+        if (0 == a) continue;
+        const int j = i * 3;
+        uint32_t out;
+        if (a >= 255) out = fg;
+        else {
+#ifndef HTCW_GFX_NO_SWAP
+            const uint32_t bg = ((uint32_t)d[j] << 24) | ((uint32_t)d[j+1] << 16) | ((uint32_t)d[j+2] << 8);
+#else
+            const uint32_t bg = ((uint32_t)d[j] << 8) | ((uint32_t)d[j+1] << 16) | ((uint32_t)d[j+2] << 24);
+#endif
+            out = pixel_byte_mul32(bg, 255 - a) + pixel_byte_mul32(fg, a);
+        }
+#ifndef HTCW_GFX_NO_SWAP
+        d[j] = (uint8_t)(out >> 24); d[j+1] = (uint8_t)(out >> 16); d[j+2] = (uint8_t)(out >> 8);
+#else
+        d[j] = (uint8_t)(out >> 8);  d[j+1] = (uint8_t)(out >> 16); d[j+2] = (uint8_t)(out >> 24);
+#endif
+    }
+    return gfx_result::success;
+}
+
+template <typename Destination>
+gfx_result aa_row_impl(aa_row_rgba32, Destination& destination, spoint16 location,
+                       const uint8_t* cov, size_t width,
+                       typename Destination::pixel_type color) {
+    const int16_t minx = location.x, py = location.y;
+    const int16_t row_w = (int16_t)width;
+    rgba_pixel<32> rgba = color;
+    rgba.template channel<channel_name::A>(255);
+    const uint32_t fg = rgba.native_value;
+    gfx_span span = destination.span(point16(minx, py));
+    uint8_t* d = span.data;
+    for (int i = 0; i < row_w; ++i) {
+        const uint8_t a = cov[i];
+        if (0 == a) continue;
+        const int j = i << 2;
+        uint32_t out;
+        if (a >= 255) out = fg;
+        else {
+#ifndef HTCW_GFX_NO_SWAP
+            const uint32_t bg = ((uint32_t)d[j] << 24) | ((uint32_t)d[j+1] << 16) | ((uint32_t)d[j+2] << 8) | d[j+3];
+#else
+            const uint32_t bg = (uint32_t)d[j] | ((uint32_t)d[j+1] << 8) | ((uint32_t)d[j+2] << 16) | ((uint32_t)d[j+3] << 24);
+#endif
+            out = pixel_byte_mul32(bg, 255 - a) + pixel_byte_mul32(fg, a);
+        }
+#ifndef HTCW_GFX_NO_SWAP
+        d[j] = (uint8_t)(out >> 24); d[j+1] = (uint8_t)(out >> 16); d[j+2] = (uint8_t)(out >> 8); d[j+3] = (uint8_t)out;
+#else
+        d[j] = (uint8_t)out; d[j+1] = (uint8_t)(out >> 8); d[j+2] = (uint8_t)(out >> 16); d[j+3] = (uint8_t)(out >> 24);
+#endif
+    }
+    return gfx_result::success;
+}
+template <typename Destination>
+gfx_result aa_row_impl(aa_row_generic, Destination& destination, spoint16 location,
+                       const uint8_t* cov, size_t width,
+                       typename Destination::pixel_type color) {
+    const int16_t minx = location.x, py = location.y;
+    const int16_t row_w = (int16_t)width;
+    typename Destination::pixel_type bgpx, dpx;
+    gfx_result r;
+    for (int i = 0; i < row_w; ++i) {
+        const uint8_t c8 = cov[i];
+        if (0 == c8) continue;
+        const point16 p((uint16_t)(minx + i), (uint16_t)py);
+        if (c8 < 255) {
+            r = destination.point(p, &bgpx);
+            if (gfx_result::success != r) return r;
+            dpx = color.blend8(bgpx, c8);
+        } else {
+            dpx = color;
+        }
+        r = destination.point(p, dpx);
+        if (gfx_result::success != r) return r;
+    }
+    return gfx_result::success;
+}
+
+template <typename Destination>
+gfx_result aa_row_impl(aa_row_indexed, Destination& destination, spoint16 location,
+                       const uint8_t* cov, size_t width,
+                       typename Destination::pixel_type color) {
+    const int16_t minx = location.x, py = location.y;
+    const int16_t row_w = (int16_t)width;
+    rgba_pixel<32> fgcol, bgcol;
+    convert_palette_to(destination, color, &fgcol);   // resolve fg once
+    typename Destination::pixel_type bgpx, dpx;
+    gfx_result r;
+    for (int i = 0; i < row_w; ++i) {
+        const uint8_t c8 = cov[i];
+        if (0 == c8) continue;
+        const point16 p((uint16_t)(minx + i), (uint16_t)py);
+        if (c8 < 255) {
+            r = destination.point(p, &bgpx);
+            if (gfx_result::success != r) return r;
+            convert_palette_to(destination, bgpx, &bgcol);   // palette -> rgba
+            bgcol = fgcol.blend8(bgcol, c8);                 // blend in rgba space
+            convert_palette_from(destination, bgcol, &dpx);  // rgba -> nearest index
+        } else {
+            dpx = color;
+        }
+        r = destination.point(p, dpx);
+        if (gfx_result::success != r) return r;
+    }
+    return gfx_result::success;
+}
+
+} // namespace helpers
+
+// public entry: picks the tag at compile time, dispatches to the one live overload
+template <typename Destination>
+gfx_result aa_rasterize_row(Destination& destination, spoint16 location,
+                            const uint8_t* cov, size_t width,
+                            typename Destination::pixel_type color) {
+    typename helpers::aa_row_tag<typename Destination::pixel_type>::type tag;
+    return helpers::aa_row_impl(tag, destination, location, cov, width, color);
+}
+
 }  // namespace gfx
 #endif

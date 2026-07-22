@@ -533,11 +533,16 @@ gfx_result aa_row_impl(aa_row_565, Destination& destination, spoint16 location,
                        const uint8_t* cov, size_t width,
                        typename Destination::pixel_type color) {
     const int16_t minx = location.x, py = location.y;
-    const int16_t row_w = (int16_t)width;
+    int16_t row_w = (int16_t)width;
     rgb_pixel<16> rgb = color;
     const uint16_t fg = rgb.native_value;
     const uint32_t fg_s = (uint32_t)(fg & 0xF81F) | ((uint32_t)(fg & 0x07E0) << 16);
     gfx_span span = destination.span(point16(minx, py));
+    if(span.length==0) return gfx_result::success;
+    int16_t max_width = span.length>>1;
+    if(row_w>max_width) {
+        row_w = max_width;
+    }
     uint8_t* d = span.data;
     for (int i = 0; i < row_w; ++i) {
         const uint8_t a = cov[i];
@@ -574,10 +579,15 @@ gfx_result aa_row_impl(aa_row_rgb24, Destination& destination, spoint16 location
                        const uint8_t* cov, size_t width,
                        typename Destination::pixel_type color) {
     const int16_t minx = location.x, py = location.y;
-    const int16_t row_w = (int16_t)width;
+    int16_t row_w = (int16_t)width;
     rgb_pixel<24> rgb = color;
     const uint32_t fg = rgb.native_value;
     gfx_span span = destination.span(point16(minx, py));
+    if(span.length==0) return gfx_result::success;
+    int16_t max_width = span.length/3;
+    if(row_w>max_width) {
+        row_w = max_width;
+    }
     uint8_t* d = span.data;
     for (int i = 0; i < row_w; ++i) {
         const uint8_t a = cov[i];
@@ -607,11 +617,16 @@ gfx_result aa_row_impl(aa_row_rgba32, Destination& destination, spoint16 locatio
                        const uint8_t* cov, size_t width,
                        typename Destination::pixel_type color) {
     const int16_t minx = location.x, py = location.y;
-    const int16_t row_w = (int16_t)width;
+    int16_t row_w = (int16_t)width;
     rgba_pixel<32> rgba = color;
     rgba.template channel<channel_name::A>(255);
     const uint32_t fg = rgba.native_value;
     gfx_span span = destination.span(point16(minx, py));
+    if(span.length==0) return gfx_result::success;
+    int16_t max_width = span.length>>2;
+    if(row_w>max_width) {
+        row_w = max_width;
+    }
     uint8_t* d = span.data;
     for (int i = 0; i < row_w; ++i) {
         const uint8_t a = cov[i];

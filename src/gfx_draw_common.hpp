@@ -544,6 +544,10 @@ gfx_result aa_row_impl(aa_row_565, Destination& destination, spoint16 location,
         row_w = max_width;
     }
     uint8_t* d = span.data;
+    // run cache: (bg, a5) -> out. a5 is the 5-bit quantized alpha actually used
+    // by the blend, so runs of nearby coverage values collapse to one blend.
+    uint16_t cache_bg = 0, cache_out = 0;
+    uint32_t cache_a5 = 0xFFFFFFFFu;  // impossible a5 (max 31) => first hit misses
     for (int i = 0; i < row_w; ++i) {
         const uint8_t a = cov[i];
         if (0 == a) continue;
@@ -561,10 +565,16 @@ gfx_result aa_row_impl(aa_row_565, Destination& destination, spoint16 location,
 #else
         const uint16_t bg = (uint16_t)d[j] | ((uint16_t)d[j+1] << 8);
 #endif
-        const uint32_t bg_s = (uint32_t)(bg & 0xF81F) | ((uint32_t)(bg & 0x07E0) << 16);
         uint32_t a5 = (uint32_t)(a + 4) >> 3; if (a5 > 31) a5 = 31;
-        const uint32_t bl = (bg_s + (((fg_s - bg_s) * a5) >> 5)) & 0x07E0F81F;
-        const uint16_t out = (uint16_t)((bl & 0xFFFF) | (bl >> 16));
+        uint16_t out;
+        if (bg == cache_bg && a5 == cache_a5) {
+            out = cache_out;
+        } else {
+            const uint32_t bg_s = (uint32_t)(bg & 0xF81F) | ((uint32_t)(bg & 0x07E0) << 16);
+            const uint32_t bl = (bg_s + (((fg_s - bg_s) * a5) >> 5)) & 0x07E0F81F;
+            out = (uint16_t)((bl & 0xFFFF) | (bl >> 16));
+            cache_bg = bg; cache_a5 = a5; cache_out = out;
+        }
 #ifndef HTCW_GFX_NO_SWAP
         d[j] = (uint8_t)(out >> 8); d[j+1] = (uint8_t)out;
 #else
@@ -589,6 +599,9 @@ gfx_result aa_row_impl(aa_row_rgb24, Destination& destination, spoint16 location
         row_w = max_width;
     }
     uint8_t* d = span.data;
+    // run cache: (bg, a) -> blended out
+    uint32_t cache_bg = 0, cache_out = 0;
+    uint32_t cache_a = 0x100u;  // impossible alpha here (a is always < 255)
     for (int i = 0; i < row_w; ++i) {
         const uint8_t a = cov[i];
         if (0 == a) continue;
@@ -601,7 +614,12 @@ gfx_result aa_row_impl(aa_row_rgb24, Destination& destination, spoint16 location
 #else
             const uint32_t bg = ((uint32_t)d[j] << 8) | ((uint32_t)d[j+1] << 16) | ((uint32_t)d[j+2] << 24);
 #endif
-            out = pixel_byte_mul32(bg, 255 - a) + pixel_byte_mul32(fg, a);
+            if (bg == cache_bg && (uint32_t)a == cache_a) {
+                out = cache_out;
+            } else {
+                out = pixel_byte_mul32(bg, 255 - a) + pixel_byte_mul32(fg, a);
+                cache_bg = bg; cache_a = (uint32_t)a; cache_out = out;
+            }
         }
 #ifndef HTCW_GFX_NO_SWAP
         d[j] = (uint8_t)(out >> 24); d[j+1] = (uint8_t)(out >> 16); d[j+2] = (uint8_t)(out >> 8);
@@ -628,6 +646,9 @@ gfx_result aa_row_impl(aa_row_rgba32, Destination& destination, spoint16 locatio
         row_w = max_width;
     }
     uint8_t* d = span.data;
+    // run cache: (bg, a) -> blended out
+    uint32_t cache_bg = 0, cache_out = 0;
+    uint32_t cache_a = 0x100u;  // impossible alpha here (a is always < 255)
     for (int i = 0; i < row_w; ++i) {
         const uint8_t a = cov[i];
         if (0 == a) continue;
@@ -640,7 +661,12 @@ gfx_result aa_row_impl(aa_row_rgba32, Destination& destination, spoint16 locatio
 #else
             const uint32_t bg = (uint32_t)d[j] | ((uint32_t)d[j+1] << 8) | ((uint32_t)d[j+2] << 16) | ((uint32_t)d[j+3] << 24);
 #endif
-            out = pixel_byte_mul32(bg, 255 - a) + pixel_byte_mul32(fg, a);
+            if (bg == cache_bg && (uint32_t)a == cache_a) {
+                out = cache_out;
+            } else {
+                out = pixel_byte_mul32(bg, 255 - a) + pixel_byte_mul32(fg, a);
+                cache_bg = bg; cache_a = (uint32_t)a; cache_out = out;
+            }
         }
 #ifndef HTCW_GFX_NO_SWAP
         d[j] = (uint8_t)(out >> 24); d[j+1] = (uint8_t)(out >> 16); d[j+2] = (uint8_t)(out >> 8); d[j+3] = (uint8_t)out;
@@ -658,6 +684,13 @@ gfx_result aa_row_impl(aa_row_generic, Destination& destination, spoint16 locati
     const int16_t row_w = (int16_t)width;
     typename Destination::pixel_type bgpx, dpx;
     gfx_result r;
+    // run cache: (bg, cov) -> blended pixel. The read still has to happen, but
+    // blend8() on wide/odd formats is the expensive part and this skips it.
+    // native_value is left-packed, so the unused low bits of a pixel read back
+    // from the destination are undefined -- mask before using it as a key.
+    const auto px_mask = Destination::pixel_type::mask;
+    typename Destination::pixel_type cache_bg, cache_out;
+    uint16_t cache_c8 = 256;  // impossible coverage here (c8 is always < 255)
     for (int i = 0; i < row_w; ++i) {
         const uint8_t c8 = cov[i];
         if (0 == c8) continue;
@@ -665,7 +698,14 @@ gfx_result aa_row_impl(aa_row_generic, Destination& destination, spoint16 locati
         if (c8 < 255) {
             r = destination.point(p, &bgpx);
             if (gfx_result::success != r) return r;
-            dpx = color.blend8(bgpx, c8);
+            if ((uint16_t)c8 == cache_c8 &&
+                (bgpx.native_value & px_mask) == cache_bg.native_value) {
+                dpx = cache_out;
+            } else {
+                dpx = color.blend8(bgpx, c8);
+                cache_bg.native_value = bgpx.native_value & px_mask;
+                cache_c8 = (uint16_t)c8; cache_out = dpx;
+            }
         } else {
             dpx = color;
         }
@@ -685,6 +725,13 @@ gfx_result aa_row_impl(aa_row_indexed, Destination& destination, spoint16 locati
     convert_palette_to(destination, color, &fgcol);   // resolve fg once
     typename Destination::pixel_type bgpx, dpx;
     gfx_result r;
+    // run cache: (bg index, cov) -> resulting index. This is the big one --
+    // a hit skips two palette conversions and a nearest-color search.
+    // native_value is left-packed, so the unused low bits of a pixel read back
+    // from the destination are undefined -- mask before using it as a key.
+    const auto px_mask = Destination::pixel_type::mask;
+    typename Destination::pixel_type cache_bg, cache_out;
+    uint16_t cache_c8 = 256;  // impossible coverage here (c8 is always < 255)
     for (int i = 0; i < row_w; ++i) {
         const uint8_t c8 = cov[i];
         if (0 == c8) continue;
@@ -692,9 +739,16 @@ gfx_result aa_row_impl(aa_row_indexed, Destination& destination, spoint16 locati
         if (c8 < 255) {
             r = destination.point(p, &bgpx);
             if (gfx_result::success != r) return r;
-            convert_palette_to(destination, bgpx, &bgcol);   // palette -> rgba
-            bgcol = fgcol.blend8(bgcol, c8);                 // blend in rgba space
-            convert_palette_from(destination, bgcol, &dpx);  // rgba -> nearest index
+            if ((uint16_t)c8 == cache_c8 &&
+                (bgpx.native_value & px_mask) == cache_bg.native_value) {
+                dpx = cache_out;
+            } else {
+                convert_palette_to(destination, bgpx, &bgcol);   // palette -> rgba
+                bgcol = fgcol.blend8(bgcol, c8);                 // blend in rgba space
+                convert_palette_from(destination, bgcol, &dpx);  // rgba -> nearest index
+                cache_bg.native_value = bgpx.native_value & px_mask;
+                cache_c8 = (uint16_t)c8; cache_out = dpx;
+            }
         } else {
             dpx = color;
         }

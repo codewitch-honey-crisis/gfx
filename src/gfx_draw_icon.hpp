@@ -168,7 +168,7 @@ class xdraw_icon {
                     gfx_cspan sspan = helpers::get_span<Source,Source::caps::blt_spans>::cspan(source,spt);
                     gfx_span span = helpers::get_span<Destination,Destination::caps::blt_spans>::span(destination,dpt);
                     if(span.data!=nullptr) {
-                        r= aa_rasterize_row(destination,(spoint16)dpt,sspan.cdata,gfx::math::min_(span.length,sspan.length),fgpx);
+                        r= aa_rasterize_row(destination,(spoint16)dpt,sspan.cdata,gfx::math::min_(span.length,sspan.length),fgpx,alpha_factor);
                         if(r!=gfx_result::success) {
                             return r;
                         }

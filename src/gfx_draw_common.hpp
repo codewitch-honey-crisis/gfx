@@ -531,7 +531,8 @@ template <> struct aa_row_tag<rgba_pixel<32>, false> { typedef aa_row_rgba32 typ
 template <typename Destination>
 gfx_result aa_row_impl(aa_row_565, Destination& destination, spoint16 location,
                        const uint8_t* cov, size_t width,
-                       typename Destination::pixel_type color) {
+                       typename Destination::pixel_type color, uint8_t alpha = 255) {
+    if(alpha==0) return gfx_result::success;
     const int16_t minx = location.x, py = location.y;
     int16_t row_w = (int16_t)width;
     rgb_pixel<16> rgb = color;
@@ -549,7 +550,8 @@ gfx_result aa_row_impl(aa_row_565, Destination& destination, spoint16 location,
     uint16_t cache_bg = 0, cache_out = 0;
     uint32_t cache_a5 = 0xFFFFFFFFu;  // impossible a5 (max 31) => first hit misses
     for (int i = 0; i < row_w; ++i) {
-        const uint8_t a = cov[i];
+        uint8_t a = cov[i];
+        if(alpha<255) a = a * alpha / 255;
         if (0 == a) continue;
         const int j = i << 1;
         if (a >= 255) {
@@ -587,7 +589,8 @@ gfx_result aa_row_impl(aa_row_565, Destination& destination, spoint16 location,
 template <typename Destination>
 gfx_result aa_row_impl(aa_row_rgb24, Destination& destination, spoint16 location,
                        const uint8_t* cov, size_t width,
-                       typename Destination::pixel_type color) {
+                       typename Destination::pixel_type color, uint8_t alpha = 255) {
+    if(alpha==0) return gfx_result::success;
     const int16_t minx = location.x, py = location.y;
     int16_t row_w = (int16_t)width;
     rgb_pixel<24> rgb = color;
@@ -603,7 +606,8 @@ gfx_result aa_row_impl(aa_row_rgb24, Destination& destination, spoint16 location
     uint32_t cache_bg = 0, cache_out = 0;
     uint32_t cache_a = 0x100u;  // impossible alpha here (a is always < 255)
     for (int i = 0; i < row_w; ++i) {
-        const uint8_t a = cov[i];
+        uint8_t a = cov[i];
+        if(alpha<255) a = a * alpha / 255;
         if (0 == a) continue;
         const int j = i * 3;
         uint32_t out;
@@ -633,7 +637,8 @@ gfx_result aa_row_impl(aa_row_rgb24, Destination& destination, spoint16 location
 template <typename Destination>
 gfx_result aa_row_impl(aa_row_rgba32, Destination& destination, spoint16 location,
                        const uint8_t* cov, size_t width,
-                       typename Destination::pixel_type color) {
+                       typename Destination::pixel_type color, uint8_t alpha = 255) {
+    if(alpha==0) return gfx_result::success;
     const int16_t minx = location.x, py = location.y;
     int16_t row_w = (int16_t)width;
     rgba_pixel<32> rgba = color;
@@ -650,7 +655,8 @@ gfx_result aa_row_impl(aa_row_rgba32, Destination& destination, spoint16 locatio
     uint32_t cache_bg = 0, cache_out = 0;
     uint32_t cache_a = 0x100u;  // impossible alpha here (a is always < 255)
     for (int i = 0; i < row_w; ++i) {
-        const uint8_t a = cov[i];
+        uint8_t a = cov[i];
+        if(alpha<255) a = a * alpha / 255;
         if (0 == a) continue;
         const int j = i << 2;
         uint32_t out;
@@ -679,7 +685,8 @@ gfx_result aa_row_impl(aa_row_rgba32, Destination& destination, spoint16 locatio
 template <typename Destination>
 gfx_result aa_row_impl(aa_row_generic, Destination& destination, spoint16 location,
                        const uint8_t* cov, size_t width,
-                       typename Destination::pixel_type color) {
+                       typename Destination::pixel_type color, uint8_t alpha = 255) {
+    if(alpha==0) return gfx_result::success;
     const int16_t minx = location.x, py = location.y;
     const int16_t row_w = (int16_t)width;
     typename Destination::pixel_type bgpx, dpx;
@@ -692,7 +699,8 @@ gfx_result aa_row_impl(aa_row_generic, Destination& destination, spoint16 locati
     typename Destination::pixel_type cache_bg, cache_out;
     uint16_t cache_c8 = 256;  // impossible coverage here (c8 is always < 255)
     for (int i = 0; i < row_w; ++i) {
-        const uint8_t c8 = cov[i];
+        uint8_t c8 = cov[i];
+        if(alpha<255) c8 = c8 * alpha / 255;
         if (0 == c8) continue;
         const point16 p((uint16_t)(minx + i), (uint16_t)py);
         if (c8 < 255) {
@@ -718,7 +726,8 @@ gfx_result aa_row_impl(aa_row_generic, Destination& destination, spoint16 locati
 template <typename Destination>
 gfx_result aa_row_impl(aa_row_indexed, Destination& destination, spoint16 location,
                        const uint8_t* cov, size_t width,
-                       typename Destination::pixel_type color) {
+                       typename Destination::pixel_type color, uint8_t alpha = 255) {
+    if(alpha==0) return gfx_result::success;
     const int16_t minx = location.x, py = location.y;
     const int16_t row_w = (int16_t)width;
     rgba_pixel<32> fgcol, bgcol;
@@ -733,7 +742,8 @@ gfx_result aa_row_impl(aa_row_indexed, Destination& destination, spoint16 locati
     typename Destination::pixel_type cache_bg, cache_out;
     uint16_t cache_c8 = 256;  // impossible coverage here (c8 is always < 255)
     for (int i = 0; i < row_w; ++i) {
-        const uint8_t c8 = cov[i];
+        uint8_t c8 = cov[i];
+        if(alpha<255) c8 = c8 * alpha / 255;
         if (0 == c8) continue;
         const point16 p((uint16_t)(minx + i), (uint16_t)py);
         if (c8 < 255) {
@@ -764,9 +774,9 @@ gfx_result aa_row_impl(aa_row_indexed, Destination& destination, spoint16 locati
 template <typename Destination>
 gfx_result aa_rasterize_row(Destination& destination, spoint16 location,
                             const uint8_t* cov, size_t width,
-                            typename Destination::pixel_type color) {
+                            typename Destination::pixel_type color, uint8_t alpha = 255) {
     typename helpers::aa_row_tag<typename Destination::pixel_type>::type tag;
-    return helpers::aa_row_impl(tag, destination, location, cov, width, color);
+    return helpers::aa_row_impl(tag, destination, location, cov, width, color, alpha);
 }
 
 }  // namespace gfx

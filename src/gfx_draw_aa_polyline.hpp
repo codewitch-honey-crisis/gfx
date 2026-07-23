@@ -271,7 +271,6 @@ class xdraw_aa_polyline {
         convert_palette_to<Destination, rgba_pixel<32>>(destination, fgpx, &cfgpx);
         cfgpx.template channel<channel_name::A>(255);
         typename Destination::pixel_type bgpx, dpx;
-        gfx_result r;
 
         const size_t nseg = (np >= 2) ? (np - 1) : 0;
 

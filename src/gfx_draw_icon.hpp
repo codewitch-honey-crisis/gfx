@@ -14,9 +14,8 @@ class xdraw_icon {
             if (transparent_background == false) {
                 opaque=true;
                 if (PixelType::template has_channel_names<channel_name::A>::value) {
-                    constexpr static const auto i = PixelType::template channel_index_by_name<channel_name::A>::value;
-                    if (forecolor.template channelr_unchecked<i>() != 1.0 ||
-                        backcolor.template channelr_unchecked<i>() != 1.0) {
+                    if (forecolor.opacity8() != 255 ||
+                        backcolor.opacity8() != 255) {
                         opaque = false;
                     }
                 }
@@ -49,7 +48,8 @@ class xdraw_icon {
             rect16 dstr = (rect16)bounds;
             gfx_result r;
             if(opaque) {
-                
+                gfx_result r;
+
                 typename Destination::pixel_type dpx, fgpx, bgpx;
                 r = convert_palette_from(destination, forecolor, &fgpx);
                 if (r != gfx_result::success) {
@@ -59,26 +59,26 @@ class xdraw_icon {
                 if (r != gfx_result::success) {
                     return r;
                 }
-                double a = NAN, oa = NAN;
+                int a = -1, oa = -1;
                 int w = srcr.x2 - srcr.x1 + 1, h = srcr.y2 - srcr.y1 + 1;
                 for (int y = 0; y < h; ++y) {
                     for (int x = 0; x < w; ++x) {
-                        point16 pt(uint16_t(x + srcr.x1), uint16_t(y + srcr.y1));
+                        point16 pt(x + srcr.x1, y + srcr.y1);
                         typename Source::pixel_type rpx;
                         r = source.point(pt, &rpx);
                         if (r != gfx_result::success) {
                             return r;
                         }
-                        a = rpx.template channelr<channel_name::A>();
+                        a = rpx.opacity8();
                         if (invert) {
-                            a = 1.0 - a;
+                            a = 255 - a;
                         }
 
                         if (a != oa) {
-                            dpx = fgpx.blend(bgpx, a);
+                            dpx = fgpx.blend8(bgpx, a);
                         }
 
-                        r = destination.point(point16(uint16_t(dstr.x1 + x), uint16_t(dstr.y1 + y)), dpx);
+                        r = destination.point(point16(dstr.x1 + x, dstr.y1 + y), dpx);
                         if (r != gfx_result::success) {
                             return r;
                         }
@@ -93,23 +93,19 @@ class xdraw_icon {
                     return r;
                 }
             }
-            constexpr static const auto a_idx = PixelType::template channel_index_by_name<channel_name::A>::value;
-            auto alpha_factor = 1.0;
-            if constexpr(a_idx != -1) {
-                alpha_factor = forecolor.template channelr_unchecked<a_idx>();
-            }
+            int alpha_factor = forecolor.opacity8();
             typename Destination::pixel_type dpx, fgpx, bgpx, obgpx;
             r = convert_palette_from(destination, forecolor, &fgpx);
             if (r != gfx_result::success) {
                 return r;
             }
-            double a = NAN, oa = NAN;
+            int a = -1, oa = -1;
 
             if (r != gfx_result::success) {
                 return r;
             }
             int w = srcr.x2 - srcr.x1 + 1, h = srcr.y2 - srcr.y1 + 1;
-            if constexpr(!Destination::caps::blt && !Destination::caps::blt_spans) {
+            if (!Destination::caps::blt && !Destination::caps::blt_spans) {
                 auto full_bmp = create_bitmap_from(destination, dstr.dimensions());
                 if (full_bmp.begin() != nullptr) {
                     r = copy_to_fast<decltype(full_bmp), Destination, Destination::caps::copy_to>::do_copy(full_bmp, destination, dstr, {0, 0});
@@ -125,20 +121,20 @@ class xdraw_icon {
                             if (r != gfx_result::success) {
                                 return r;
                             }
-                            a = rpx.template channelr<channel_name::A>();
+                            a = rpx.opacity8();
                             if (invert) {
-                                a = 1.0 - a;
+                                a = 255 - a;
                             }
-                            float af = alpha_factor * a;
-                            if(af==0.0) {
+                            int af = alpha_factor * a / 255;
+                            if(af==0) {
                                 dpx=bgpx;
-                            } else if(af<1.0f) { 
+                            } else if(af<255) { 
                                 r = full_bmp.point(dpt, &bgpx);
                                 if (r != gfx_result::success) {
                                     return r;
                                 }
                                 if (a != oa || obgpx.native_value != bgpx.native_value) {
-                                    dpx = fgpx.blend(bgpx, af);
+                                    dpx = fgpx.blend8(bgpx, af);
                                 }
 
                                 //r=xdraw_point::point(full_bmp,(spoint16)dpt,dpx);
@@ -164,11 +160,27 @@ class xdraw_icon {
                     return r;
                 }
             }
-
-            for (int y = 0; y < h; ++y) {
+            if(Source::pixel_type::bit_depth==8 && Source::caps::blt_spans && Destination::caps::blt_spans) {
+                // fast 8-bit blends
+                for (int y = 0; y < h; ++y) {    
+                    point16 spt(srcr.x1, srcr.y1 + y);
+                    point16 dpt(dstr.x1, dstr.y1 + y);
+                    gfx_cspan sspan = helpers::get_span<Source,Source::caps::blt_spans>::cspan(source,spt);
+                    gfx_span span = helpers::get_span<Destination,Destination::caps::blt_spans>::span(destination,dpt);
+                    if(span.data!=nullptr) {
+                        r= aa_rasterize_row(destination,(spoint16)dpt,sspan.cdata,gfx::math::min_(span.length,sspan.length),fgpx);
+                        if(r!=gfx_result::success) {
+                            return r;
+                        }
+                    }
+                }
+                return gfx_result::success;
+            }
+            
+            for (int y = 0; y < h; ++y) {    
                 for (int x = 0; x < w; ++x) {
-                    point16 pt(uint16_t(x + srcr.x1), uint16_t(y + srcr.y1));
-                    point16 dpt(uint16_t(dstr.x1 + x), uint16_t(dstr.y1 + y));
+                    point16 pt(x + srcr.x1, y + srcr.y1);
+                    point16 dpt(dstr.x1 + x, dstr.y1 + y);
                     typename Source::pixel_type rpx;
                     r = source.point(pt, &rpx);
                     if (r != gfx_result::success) {
@@ -179,12 +191,12 @@ class xdraw_icon {
                         return r;
                     }
 
-                    a = rpx.template channelr<channel_name::A>();
+                    a = rpx.opacity8();
                     if (invert) {
                         a = 1.0 - a;
                     }
                     if (a != oa || obgpx.native_value != bgpx.native_value) {
-                        dpx = fgpx.blend(bgpx, a * alpha_factor);
+                        dpx = fgpx.blend8(bgpx, a * alpha_factor/255);
                     }
                     //r=xdraw_point::point(destination,(spoint16)dpt,dpx);
                     r=destination.point(dpt,dpx);

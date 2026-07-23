@@ -1016,5 +1016,34 @@ namespace gfx {
         }                      
     }
 }
+namespace helpers {
+    template <typename Source, bool HasSpans>
+    struct get_span {
+        constexpr inline static gfx_span span(Source& source, point16 location) {
+            (void)source;
+            (void)location;
+            gfx_span s;
+            s.data = nullptr;
+            s.length = 0;
+            return s;
+        }
+        constexpr inline static gfx_cspan cspan(const Source& source, point16 location) {
+            (void)source;
+            (void)location;
+            gfx_cspan s={nullptr,0};
+            return s;
+        }
+    };
+    template <typename Source>
+    struct get_span<Source,true> {
+        constexpr inline static gfx_span span(Source& source, point16 location) {
+            return source.span(location);
+        }
+        constexpr inline static gfx_cspan cspan(const Source& source, point16 location) {
+            return source.cspan(location);
+        }
+    };
+    
+}
 }
 #endif

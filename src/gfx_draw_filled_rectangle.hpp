@@ -81,143 +81,27 @@ class xdraw_filled_rectangle {
     static gfx_result do_draw_complex_copy_to(Destination& destination, const rect16& rect, PixelType color) {
         gfx_result r;
         typename Destination::pixel_type dpx;
-        auto alp = helpers::pixel_get_alpha_255<PixelType,PixelType::has_alpha>::value(color);
+        uint8_t alp = color.opacity8();
         bool first = true;
         if (alp != 255) {
             if (alp == 0) {
                 return gfx_result::success;
             }
             typename Destination::pixel_type cpx;
+            color.opacity8_inplace(255);
             r = convert_palette_from(destination, color, &cpx);
             if (r != gfx_result::success) {
                 return r;
             }
             rect16 rr = rect.normalize();
 
-            uint8_t* buf = nullptr;
             size16 sz = rr.dimensions();
-            using bmp_type = gfx::bitmap_type_from<Destination>;
-            size_t buflen = bmp_type::sizeof_buffer(sz);
-            size_t linelen = bmp_type::sizeof_buffer({sz.width, uint16_t(1)});
-            size_t lines = sz.height;
-            bool odd = lines & 1;
-            lines += odd;
-            bool entire = true;
-            if (sz.width > 2 && !Destination::caps::blt &&!Destination::caps::blt_spans) {
-                size_t len = buflen;
-                while (lines) {
-                    buf = (uint8_t*)malloc(len);
-                    if (buf != nullptr) {
-                        break;
-                    }
-                    lines >>= 1;
-                    len = bmp_type::sizeof_buffer({sz.width, uint16_t(lines)});
-                }
-                if (len < buflen) {
-                    entire = false;
-                    lines = len / linelen;
-                }
+            
+            typename Destination::pixel_type bpx, obpx, bbpx;
+            for (int y = rr.y1; y <= rr.y2; ++y) {
+                aa_rasterize_row(destination,spoint16(int16_t(rr.x1),int16_t(y)),nullptr,rr.x2-rr.x1+1,cpx,alp);
             }
-            if (odd) {
-                lines -= 1;
-            }
-            if (buf == nullptr) {
-                typename Destination::pixel_type bpx, obpx, bbpx;
-                for (int y = rr.y1; y <= rr.y2; ++y) {
-                    for (int x = rr.x1; x <= rr.x2; ++x) {
-                        r = destination.point(point16(uint16_t(x),uint16_t(y)), &bpx);
-                        if (gfx_result::success != r) {
-                            return r;
-                        }
-                        if (first || bpx.native_value != obpx.native_value) {
-                            first = false;
-                            r = rect_blend_helper<Destination, Destination::pixel_type::template has_channel_names<channel_name::index>::value>::do_blend(destination, cpx, alp, bpx, &bbpx);
-                            if (gfx_result::success != r) {
-                                return r;
-                            }
-                        }
-                        obpx = bpx;
-                        r = destination.point({uint16_t(x), uint16_t(y)}, bbpx);
-                        if (gfx_result::success != r) {
-                            return r;
-                        }
-                    }
-                }
-            } else {
-                bmp_type bmp = helpers::bitmap_from_helper<Destination, Destination::pixel_type::template has_channel_names<channel_name::index>::value>::create_from(destination, sz, buf);
-                if (r != gfx_result::success) {
-                    free(buf);
-                    return r;
-                }
-                if (entire) {
-                    typename Destination::pixel_type bpx, obpx, bbpx;
-                    r = destination.copy_to(rr, bmp, {0, 0});
-                    if (gfx_result::success != r) {
-                        free(buf);
-                        return r;
-                    }
-                    for (int y = rr.y1; y <= rr.y2; ++y) {
-                        for (int x = 0; x < bmp.dimensions().width; ++x) {
-                            point16 pt = {uint16_t(x), uint16_t(y - rr.y1)};
-                            bmp.point(pt, &bpx);
-                            if (first || bpx.native_value != obpx.native_value) {
-                                first = false;
-                                r = rect_blend_helper<Destination, Destination::pixel_type::template has_channel_names<channel_name::index>::value>::do_blend(destination, cpx, alp, bpx, &bbpx);
-                                if (gfx_result::success != r) {
-                                    free(buf);
-                                    return r;
-                                }
-                            }
-                            obpx = bpx;
-                            r = bmp.point(pt, bbpx);
-                            if (gfx_result::success != r) {
-                                free(buf);
-                                return r;
-                            }
-                        }
-                    }
-                    r = copy_to_fast<Destination, bmp_type, true>::do_copy(destination, bmp, bmp.bounds(), rr.top_left());
-                    if (gfx_result::success != r) {
-                        free(buf);
-                        return r;
-                    }
-                } else {
-                    typename bmp_type::pixel_type bpx, obpx, bbpx;
-                    for (int y = rr.y1; y <= rr.y2; y += lines) {
-                        first = true;
-                        int l = lines - 1;
-                        if (lines + y > rr.y2) {
-                            l = rr.y2 - y;
-                        }
-                        r = destination.copy_to({rr.x1, uint16_t(y), rr.x2, uint16_t(y + l)}, bmp, {0, 0});
-                        if (gfx_result::success != r) {
-                            free(buf);
-                            return r;
-                        }
-                        for (int yy = 0; yy <= l; ++yy) {
-                            for (int x = 0; x < bmp.dimensions().width; ++x) {
-                                bmp.point({uint16_t(x), uint16_t(yy)}, &bpx);
-                                if (first || bpx.native_value != obpx.native_value) {
-                                    first = false;
-                                    r = rect_blend_helper<Destination, Destination::pixel_type::template has_channel_names<channel_name::index>::value>::do_blend(destination, cpx, alp, bpx, &bbpx);
-                                    if (gfx_result::success != r) {
-                                        free(buf);
-                                        return r;
-                                    }
-                                }
-                                obpx = bpx;
-                                bmp.point({uint16_t(x), uint16_t(yy)}, bbpx);
-                            }
-                        }
-                        r = copy_to_fast<Destination, bmp_type, true>::do_copy(destination, bmp, {0, 0, uint16_t(rr.x2 - rr.x1), uint16_t(l)}, {rr.x1, uint16_t(y)});
-                        if (gfx_result::success != r) {
-                            free(buf);
-                            return r;
-                        }
-                    }
-                }
-                free(buf);
-            }
+        
             return gfx_result::success;
         }
         r = convert_palette_from(destination, color, &dpx);

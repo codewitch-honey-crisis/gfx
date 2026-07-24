@@ -183,10 +183,7 @@ struct dash {
     float* values;
     size_t values_size;
 };
-enum struct fill_rule {
-    non_zero = 0,
-    even_odd
-};
+
 enum compositing_mode {
     source = 0,
     source_over,

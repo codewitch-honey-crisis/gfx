@@ -89,6 +89,10 @@ namespace gfx {
         round, ///< Rounded join.
         bevel ///< Beveled join with a flattened corner.
     };
+    enum struct fill_rule {
+        non_zero = 0,
+        even_odd
+    };
     struct stroke_style {
         float width;
         line_cap cap;

@@ -550,7 +550,7 @@ gfx_result aa_row_impl(aa_row_565, Destination& destination, spoint16 location,
     uint16_t cache_bg = 0, cache_out = 0;
     uint32_t cache_a5 = 0xFFFFFFFFu;  // impossible a5 (max 31) => first hit misses
     for (int i = 0; i < row_w; ++i) {
-        uint8_t a = cov[i];
+        uint8_t a = cov!=nullptr?cov[i]:255;
         if(alpha<255) a = a * alpha / 255;
         if (0 == a) continue;
         const int j = i << 1;
@@ -606,7 +606,7 @@ gfx_result aa_row_impl(aa_row_rgb24, Destination& destination, spoint16 location
     uint32_t cache_bg = 0, cache_out = 0;
     uint32_t cache_a = 0x100u;  // impossible alpha here (a is always < 255)
     for (int i = 0; i < row_w; ++i) {
-        uint8_t a = cov[i];
+        uint8_t a = cov!=nullptr?cov[i]:255;
         if(alpha<255) a = a * alpha / 255;
         if (0 == a) continue;
         const int j = i * 3;
@@ -655,7 +655,7 @@ gfx_result aa_row_impl(aa_row_rgba32, Destination& destination, spoint16 locatio
     uint32_t cache_bg = 0, cache_out = 0;
     uint32_t cache_a = 0x100u;  // impossible alpha here (a is always < 255)
     for (int i = 0; i < row_w; ++i) {
-        uint8_t a = cov[i];
+        uint8_t a = cov!=nullptr?cov[i]:255;
         if(alpha<255) a = a * alpha / 255;
         if (0 == a) continue;
         const int j = i << 2;
@@ -699,7 +699,7 @@ gfx_result aa_row_impl(aa_row_generic, Destination& destination, spoint16 locati
     typename Destination::pixel_type cache_bg, cache_out;
     uint16_t cache_c8 = 256;  // impossible coverage here (c8 is always < 255)
     for (int i = 0; i < row_w; ++i) {
-        uint8_t c8 = cov[i];
+        uint8_t c8 = cov!=nullptr?cov[i]:255;
         if(alpha<255) c8 = c8 * alpha / 255;
         if (0 == c8) continue;
         const point16 p((uint16_t)(minx + i), (uint16_t)py);
@@ -742,7 +742,7 @@ gfx_result aa_row_impl(aa_row_indexed, Destination& destination, spoint16 locati
     typename Destination::pixel_type cache_bg, cache_out;
     uint16_t cache_c8 = 256;  // impossible coverage here (c8 is always < 255)
     for (int i = 0; i < row_w; ++i) {
-        uint8_t c8 = cov[i];
+        uint8_t c8 = cov!=nullptr?cov[i]:255;
         if(alpha<255) c8 = c8 * alpha / 255;
         if (0 == c8) continue;
         const point16 p((uint16_t)(minx + i), (uint16_t)py);

@@ -208,9 +208,12 @@ class xdraw_aa_line {
                 else
                     c8 = (uint8_t)(cov16 >> 8);  // 16.16 -> 0..255
 
-                cov[px - minx] = c8 * opacity / 255;
+                cov[px - minx] = c8 ;
             }
-            aa_rasterize_row(destination,{(int16_t)minx,(int16_t)py},cov,row_w,fgpx);
+            r=aa_rasterize_row(destination,{(int16_t)minx,(int16_t)py},cov,row_w,fgpx,opacity);
+            if(r!=gfx_result::success) {
+                return r;
+            }
         }
         return gfx_result::success;
     }

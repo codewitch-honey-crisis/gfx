@@ -33,6 +33,11 @@ public:
     inline static gfx_result polygon(Destination& destination, const spath16& path, PixelType color, const srect16* clip = nullptr) {
         return polygon_impl(destination, path, color, clip);
     }
+    // draws a polygon with the specified path and color, with an optional clipping rectangle
+    template <typename Destination, typename PixelType>
+    inline static gfx_result polygon(Destination& destination, const path16& path, PixelType color, const srect16* clip = nullptr) {
+        return polygon_impl(destination, (spath16)path, color, clip);
+    }
 };
 }
 }

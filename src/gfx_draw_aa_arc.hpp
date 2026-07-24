@@ -3,6 +3,17 @@
 #include "gfx_draw_common.hpp"
 #include "gfx_mask_draw_cache.hpp"
 #include "gfx_math.hpp"
+
+// 64-bit intermediates are used only to widen products. Where the platform has
+// no 64-bit word we use an exact 32-bit form for the squared radii and a
+// split-divide approximation for the angular test (see plane_dist below). The
+// routine is fully functional either way; nothing is compiled out.
+#if !defined(HTCW_MAX_WORD) || (HTCW_MAX_WORD >= 64)
+#define GFX_AA_ARC_HAS64 1
+#else
+#define GFX_AA_ARC_HAS64 0
+#endif
+
 namespace gfx {
 namespace helpers {
 class xdraw_aa_arc {
@@ -15,10 +26,11 @@ class xdraw_aa_arc {
     // GEOMETRY
     //   The circle is the largest square that fits in the UPPER-LEFT of the
     //   bounding rect: side S = min(box_w, box_h), so the OUTER radius sits right
-    //   at that square's edge (R_out = S/2). The border is stroked INWARD by
-    //   'width', giving inner radius R_in = R_out - width (exactly like the inward
-    //   border of the rounded-rectangle routine). A width that reaches the center
-    //   leaves no hole and yields a filled disc sector.
+    //   at that square's edge (R_out = S/2), less a fractional-pixel inset (see
+    //   EDGE INSET). The border is stroked INWARD by 'width', giving inner radius
+    //   R_in = R_out - width (exactly like the inward border of the
+    //   rounded-rectangle routine). A width that reaches the center leaves no
+    //   hole and yields a filled disc sector.
     //
     // ANGLES (degrees, LVGL convention)
     //   0 deg = east (3 o'clock); angle increases CLOCKWISE on screen (y down).
@@ -27,7 +39,9 @@ class xdraw_aa_arc {
     //     sweep <= 0   -> nothing (empty/inverted span)
     //     sweep >= 360 -> full ring (caps are irrelevant)
     //     else         -> the [start, start+sweep] segment, with end caps.
-    //   Negative / out-of-range start angles are normalized (e.g. -30 -> 330).
+    //   Negative / out-of-range start angles are normalized (e.g. -30 -> 330),
+    //   and so is the end angle, so a sweep that crosses 360 (start=300,end=400)
+    //   never hands an out-of-table argument to math::sin/cos.
     //
     // SDF DECOMPOSITION (all in Q8 pixels)
     //   Let Rc = centerline radius = R_out - hw, hw = width/2, and for a pixel let
@@ -48,9 +62,84 @@ class xdraw_aa_arc {
     //   side of a convex one) the two caps are combined with min(): the nearest
     //   cap face is the true boundary there.
     //
+    // EDGE INSET (uniform softness)
+    //   With R_out exactly S/2 the ring is tangent to the box on all four sides,
+    //   so at N/S/E/W the outer boundary lands exactly on the pixel grid: the
+    //   outermost pixel is 255 and its neighbour 0, a hard step, while every
+    //   off-axis pixel gets a proper ramp. Pulling R_out in a fraction of a pixel
+    //   puts the boundary strictly inside the outer pixel in every direction:
+    //     0 = exact tangency (crisp, four flat spots), 64 = 1/4 px (default),
+    //     128 = 1/2 px (uniformly soft, visibly smaller).
+    //   hw and Rc derive from R_out, so the whole ring shifts inward by the inset
+    //   with its width preserved; the inner edge is unaffected in character.
+    //   Keep this value identical to xdraw_filled_arc's so the two agree.
+    //
+    // PARITY (odd vs even S)
+    //   The center is tracked at HALF-pixel resolution: ux_q8 = (2*px - cx2)<<7
+    //   where cx2 = sx1+sx2 is twice the center x. For even S the center falls on
+    //   a pixel boundary, for odd S on a pixel center; both are represented
+    //   exactly and neither is rounded to an integer pixel. There is no
+    //   parity-dependent distortion -- unlike a midpoint/Bresenham ellipse, which
+    //   must pick an integer center pixel and goes out of round on odd diameters.
+    //
+    // WORD SIZE
+    //   With a 64-bit word available the angular test is computed at full width.
+    //   Without one it divides each product by 32767 before subtracting, which
+    //   costs up to 2 units of Q8 (~1/128 px) of error on the two end planes --
+    //   at most 2/255 of a coverage step, i.e. below the output's own resolution.
+    //   The radial terms are exact in both cases. See plane_dist().
+    //
     // Precondition: at the working radius, dist*dist must fit in 32 bits, i.e.
     // R_out up to ~180 px (diameter S up to ~360). Every real display satisfies
     // this with a wide margin, matching the sibling routines' preconditions.
+    // NOTE: the ROUND cap measures from a centerline endpoint, not from the
+    // center, so its squared distance can reach (R_out+Rc)^2 -- four times the
+    // body's worst case -- for pixels diametrically opposite the cap, which the
+    // convex-sweep branch does evaluate. rad_sq_sat() saturates instead of
+    // wrapping there, so large S stays correct rather than producing a stray
+    // bright pixel on the far rim.
+
+    // how far inside the bounding square the outer edge sits, in Q8 pixels.
+    static constexpr const int32_t edge_inset_q8 = 64;
+
+    // squared distance, Q16. Exact and 32-bit-only on every platform: the
+    // magnitudes are taken first so the products are unsigned, which both avoids
+    // signed overflow and buys the extra bit that lets the sum reach the stated
+    // S ~360 precondition. Callers must respect that precondition.
+    static inline uint32_t rad_sq(int32_t ux_q8, int32_t uy_q8) {
+        const uint32_t ax = (uint32_t)(ux_q8 < 0 ? -ux_q8 : ux_q8);
+        const uint32_t ay = (uint32_t)(uy_q8 < 0 ? -uy_q8 : uy_q8);
+        return ax * ax + ay * ay;
+    }
+
+    // as rad_sq, but for the round-cap term, whose operands are unbounded by the
+    // body precondition. Each magnitude is clamped so the sum cannot wrap; a
+    // clamped component means the pixel is >=180 px from the cap center, far
+    // outside any cap, so saturating there is indistinguishable from exact.
+    static inline uint32_t rad_sq_sat(int32_t ux_q8, int32_t uy_q8) {
+        const uint32_t lim = 46000u; // 2*46000^2 < 2^32
+        uint32_t ax = (uint32_t)(ux_q8 < 0 ? -ux_q8 : ux_q8);
+        uint32_t ay = (uint32_t)(uy_q8 < 0 ? -uy_q8 : uy_q8);
+        if (ax > lim) ax = lim;
+        if (ay > lim) ay = lim;
+        return ax * ax + ay * ay;
+    }
+
+    // signed perpendicular distance (Q8) from the pixel offset (ux,uy) to the
+    // radial line at angle (sn,cs) -- positive on the clockwise side. That is
+    // (ux*sn - uy*cs)/32767.
+    static inline int32_t plane_dist(int32_t ux_q8, int32_t uy_q8, int32_t sn, int32_t cs) {
+#if GFX_AA_ARC_HAS64
+        return (int32_t)(((int64_t)ux_q8 * sn - (int64_t)uy_q8 * cs) / 32767);
+#else
+        // each product alone fits a signed 32-bit word for any S up to ~510; only
+        // their difference can overflow, so divide first and subtract after. Both
+        // divisions truncate toward zero, so the error is bounded by 2 Q8 units
+        // and is symmetric about the line.
+        return (ux_q8 * sn) / 32767 - (uy_q8 * cs) / 32767;
+#endif
+    }
+
     template <typename Destination, typename PixelType>
     static gfx_result aa_arc_impl(Destination& destination, const srect16& rect, PixelType color, int16_t start_angle, int16_t end_angle, int16_t width, line_cap cap, mask_draw_cache* cache, const srect16* clip) {
         if (width < 0) {
@@ -101,24 +190,27 @@ class xdraw_aa_arc {
 
         // fixed point 16.16 / Q8 constants
         const int32_t half16   = 1 << 15;          // 0.5 in 16.16
-        const int32_t R_out_q8 = S << 7;           // outer radius (S/2) in Q8
+        int32_t R_out_q8 = (S << 7) - edge_inset_q8; // outer radius (S/2) Q8, inset
+        if (R_out_q8 <= 0) R_out_q8 = S << 7;      // 1px box: keep it visible
         const int32_t hw_q8    = w << 7;           // half border (w/2) in Q8
         const int32_t Rc_q8    = R_out_q8 - hw_q8; // band centerline radius (Q8)
         const int32_t cx2      = sx1 + sx2;        // 2 * center x
         const int32_t cy2      = sy1 + sy2;        // 2 * center y
 
         // endpoint trig (0deg=east, clockwise, y down); sin/cos scaled by 32767.
+        // both angles are reduced to [0,360) before the table lookup.
         int32_t s = start_angle % 360; if (s < 0) s += 360;
-        const int32_t e = s + (full ? 0 : sweep);
+        const int32_t e = full ? s : ((s + sweep) % 360);
         const bool reflex = (!full) && (sweep > 180);
         const int32_t sin_s = math::sin((int16_t)s), cos_s = math::cos((int16_t)s);
         const int32_t sin_e = math::sin((int16_t)e), cos_e = math::cos((int16_t)e);
 
         // centerline endpoints as Q8 offsets from center (for round caps).
-        const int32_t Psx_q8 = (int32_t)(((int64_t)Rc_q8 * cos_s) / 32767);
-        const int32_t Psy_q8 = (int32_t)(((int64_t)Rc_q8 * sin_s) / 32767);
-        const int32_t Pex_q8 = (int32_t)(((int64_t)Rc_q8 * cos_e) / 32767);
-        const int32_t Pey_q8 = (int32_t)(((int64_t)Rc_q8 * sin_e) / 32767);
+        // no widening needed: Rc_q8 * 32767 stays inside a signed 32-bit word.
+        const int32_t Psx_q8 = (Rc_q8 * cos_s) / 32767;
+        const int32_t Psy_q8 = (Rc_q8 * sin_s) / 32767;
+        const int32_t Pex_q8 = (Rc_q8 * cos_e) / 32767;
+        const int32_t Pey_q8 = (Rc_q8 * sin_e) / 32767;
 
         // AA work area: the square padded by 1px (round/square caps stay within the
         // outer circle, so no extra pad is needed), clamped to the clip region.
@@ -147,8 +239,6 @@ class xdraw_aa_arc {
         rgba_pixel<32> cfgpx;
         convert_palette_to<Destination, rgba_pixel<32>>(destination, fgpx, &cfgpx);
         cfgpx.opacity8_inplace(255);
-        typename Destination::pixel_type bgpx, dpx;
-        gfx_result r_res;
 
         for (int py = miny; py <= maxy; ++py) {
             const int32_t uy_q8 = (2 * py - cy2) << 7;      // (py - cy) in Q8
@@ -158,8 +248,8 @@ class xdraw_aa_arc {
                 const int32_t ux_q8 = (2 * px - cx2) << 7;  // (px - cx) in Q8
 
                 // radial distance from center, and the ring (body) SDF.
-                const uint32_t V = (uint32_t)((int64_t)ux_q8 * ux_q8 + (int64_t)uy_q8 * uy_q8);
-                const int32_t dist_q8 = (int32_t)((int64_t)math::sqrt_ft32<8>(V) >> 8);
+                const uint32_t V = rad_sq(ux_q8, uy_q8);
+                const int32_t dist_q8 = (int32_t)(math::sqrt_ft32<8>(V) >> 8);
                 const int32_t dr_q8  = dist_q8 - Rc_q8;
                 const int32_t adr_q8 = dr_q8 < 0 ? -dr_q8 : dr_q8;   // |radial offset|
                 const int32_t band   = adr_q8 - hw_q8;               // body SDF (Q8)
@@ -169,8 +259,8 @@ class xdraw_aa_arc {
                     sdf_q8 = band;
                 } else {
                     // signed tangential distance past each end plane (>0 = outside)
-                    const int32_t os = (int32_t)(( (int64_t)ux_q8 * sin_s - (int64_t)uy_q8 * cos_s) / 32767);
-                    const int32_t oe = (int32_t)((-(int64_t)ux_q8 * sin_e + (int64_t)uy_q8 * cos_e) / 32767);
+                    const int32_t os =  plane_dist(ux_q8, uy_q8, sin_s, cos_s);
+                    const int32_t oe = -plane_dist(ux_q8, uy_q8, sin_e, cos_e);
                     // convex sweep = intersection of half-planes; reflex = union.
                     const bool in_body = reflex ? (os <= 0 || oe <= 0) : (os <= 0 && oe <= 0);
                     if (in_body) {
@@ -182,8 +272,8 @@ class xdraw_aa_arc {
                             int32_t cand;
                             if (cap == line_cap::round) {
                                 const int32_t gx = ux_q8 - Psx_q8, gy = uy_q8 - Psy_q8;
-                                const uint32_t Vc = (uint32_t)((int64_t)gx * gx + (int64_t)gy * gy);
-                                cand = (int32_t)((int64_t)math::sqrt_ft32<8>(Vc) >> 8) - hw_q8;
+                                const uint32_t Vc = rad_sq_sat(gx, gy);
+                                cand = (int32_t)(math::sqrt_ft32<8>(Vc) >> 8) - hw_q8;
                             } else if (cap == line_cap::square) {
                                 cand = (os > adr_q8 ? os : adr_q8) - hw_q8;
                             } else { // butt
@@ -195,8 +285,8 @@ class xdraw_aa_arc {
                             int32_t cand;
                             if (cap == line_cap::round) {
                                 const int32_t gx = ux_q8 - Pex_q8, gy = uy_q8 - Pey_q8;
-                                const uint32_t Vc = (uint32_t)((int64_t)gx * gx + (int64_t)gy * gy);
-                                cand = (int32_t)((int64_t)math::sqrt_ft32<8>(Vc) >> 8) - hw_q8;
+                                const uint32_t Vc = rad_sq_sat(gx, gy);
+                                cand = (int32_t)(math::sqrt_ft32<8>(Vc) >> 8) - hw_q8;
                             } else if (cap == line_cap::square) {
                                 cand = (oe > adr_q8 ? oe : adr_q8) - hw_q8;
                             } else { // butt
@@ -209,12 +299,12 @@ class xdraw_aa_arc {
                 }
 
                 const int32_t cov16 = half16 - (sdf_q8 << 8); // 0.5 - SDF, in 16.16
-                uint8_t c8;
+                uint32_t c8;
                 if (cov16 <= 0) c8 = 0;
                 else if (cov16 >= (1 << 16)) c8 = 255;        // solid part of the border
-                else c8 = (uint8_t)(cov16 >> 8);              // 16.16 -> 0..255
+                else c8 = (uint32_t)(cov16 >> 8);             // 16.16 -> 0..255
 
-                cov[px - minx] = (uint8_t)(c8 * opacity / 255);
+                cov[px - minx] = (uint8_t)((c8 * (uint32_t)opacity) / 255u);
             }
 
             // pass 2: blend the covered pixels, each touched exactly once
@@ -247,4 +337,5 @@ public:
 };
 }
 }
+#undef GFX_AA_ARC_HAS64
 #endif

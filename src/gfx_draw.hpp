@@ -18,7 +18,9 @@
 #include "gfx_draw_image.hpp"
 #include "gfx_draw_aa_line.hpp"
 #include "gfx_draw_aa_arc.hpp"
+#include "gfx_draw_aa_filled_arc.hpp"
 #include "gfx_draw_aa_polyline.hpp"
+#include "gfx_draw_aa_polygon.hpp"
 #include "gfx_draw_aa_rounded_rectangle.hpp"
 #include "gfx_draw_aa_filled_rounded_rectangle.hpp"
 #include "gfx_draw_canvas.hpp"
@@ -40,7 +42,9 @@ struct draw : public helpers::xdraw_point,
             public helpers::xdraw_image,
             public helpers::xdraw_aa_line,
             public helpers::xdraw_aa_arc,
+            public helpers::xdraw_aa_filled_arc,
             public helpers::xdraw_aa_polyline,
+            public helpers::xdraw_aa_polygon,
             public helpers::xdraw_aa_rounded_rectangle,
             public helpers::xdraw_aa_filled_rounded_rectangle,
             public helpers::xdraw_canvas

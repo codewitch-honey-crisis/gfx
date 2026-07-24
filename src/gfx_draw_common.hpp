@@ -648,7 +648,7 @@ gfx_result aa_row_impl(aa_row_rgba32, Destination& destination, spoint16 locatio
     if(span.length==0) return gfx_result::success;
     int16_t max_width = span.length>>2;
     if(row_w>max_width) {
-        row_w = max_width;
+        row_w=max_width;
     }
     uint8_t* d = span.data;
     // run cache: (bg, a) -> blended out

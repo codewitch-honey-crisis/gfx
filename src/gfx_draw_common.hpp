@@ -534,12 +534,17 @@ gfx_result aa_row_impl(aa_row_565, Destination& destination, spoint16 location,
                        typename Destination::pixel_type color, uint8_t alpha = 255) {
     if(alpha==0) return gfx_result::success;
     const int16_t minx = location.x, py = location.y;
+    int16_t offs = 0;
     int16_t row_w = (int16_t)width;
     rgb_pixel<16> rgb = color;
     const uint16_t fg = rgb.native_value;
     const uint32_t fg_s = (uint32_t)(fg & 0xF81F) | ((uint32_t)(fg & 0x07E0) << 16);
     gfx_span span = destination.span(point16(minx, py));
-    if(span.length==0) return gfx_result::success;
+    while(span.length==0 && offs<row_w) {
+        span = destination.span(point16((++offs)+minx, py));
+    } 
+    if(offs==row_w) { return gfx_result::success; }
+    
     int16_t max_width = span.length>>1;
     if(row_w>max_width) {
         row_w = max_width;
@@ -549,7 +554,7 @@ gfx_result aa_row_impl(aa_row_565, Destination& destination, spoint16 location,
     // by the blend, so runs of nearby coverage values collapse to one blend.
     uint16_t cache_bg = 0, cache_out = 0;
     uint32_t cache_a5 = 0xFFFFFFFFu;  // impossible a5 (max 31) => first hit misses
-    for (int i = 0; i < row_w; ++i) {
+    for (int i = offs; i < row_w; ++i) {
         uint8_t a = cov!=nullptr?cov[i]:255;
         if(alpha<255) a = a * alpha / 255;
         if (0 == a) continue;

@@ -130,6 +130,24 @@ struct math {
         }
         return root;
     }
+// HTCW_MAX_WORD is always defined
+#if HTCW_MAX_WORD >= 64
+    // floor(sqrt(v) * 2^Frac). General-purpose fixed-point sqrt, digit-by-digit.
+    // Uses only 64-bit arithmetic Valid for
+    // v with v's value and the running remainder within uint64 (v up to ~2^63).
+    template<unsigned Frac>
+    static uint64_t sqrt_ft64(uint64_t v) {
+        uint64_t rem = 0, root = 0;
+        for (int i = (int)(32u + Frac) - 1; i >= 0; --i) {
+            uint64_t two = (i >= (int)Frac) ? ((v >> (2 * (i - (int)Frac))) & 0x3u) : 0u;
+            rem = (rem << 2) | two;
+            uint64_t test = (root << 2) | 1u;
+            root <<= 1;
+            if (rem >= test) { rem -= test; root |= 1u; }
+        }
+        return root;
+    }
+#endif
 };
 }
 #endif

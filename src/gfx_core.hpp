@@ -8,18 +8,18 @@
 #endif
 #endif
 //#define HTCW_GFX_NO_SWAP
-#ifdef GFX_BIG_ENDIAN
+#ifdef HTCW_GFX_BIG_ENDIAN
     #define HTCW_BIG_ENDIAN
 #endif
-#ifdef GFX_LITTLE_ENDIAN
+#ifdef HTCW_GFX_LITTLE_ENDIAN
     #define HTCW_LITTLE_ENDIAN
 #endif
 #include <htcw_bits.hpp>
-#if !defined(GFX_BIG_ENDIAN) && !defined(GFX_LITTLE_ENDIAN)
+#if !defined(HTCW_GFX_BIG_ENDIAN) && !defined(HTCW_GFX_LITTLE_ENDIAN)
     #ifdef HTCW_BIG_ENDIAN
-        #define GFX_BIG_ENDIAN
+        #define HTCW_GFX_BIG_ENDIAN
     #elif defined(HTCW_LITTLE_ENDIAN)
-        #define GFX_LITTLE_ENDIAN
+        #define HTCW_GFX_LITTLE_ENDIAN
     #endif
 #endif
 #include <io_stream.hpp>
@@ -28,7 +28,7 @@
     #define pgm_read_byte(x) (*x)
 #endif
 namespace gfx {
-    static_assert(bits::endianness()!=bits::endian_mode::none,"Please define GFX_LITTLE_ENDIAN or GFX_BIG_ENDIAN before including GFX to indicate the byte order of the platform.");
+    static_assert(bits::endianness()!=bits::endian_mode::none,"Please define HTCW_GFX_LITTLE_ENDIAN or HTCW_GFX_BIG_ENDIAN before including GFX to indicate the byte order of the platform.");
     using stream = io::stream;
     using seek_origin = io::seek_origin;
     using stream_caps = io::stream_caps;

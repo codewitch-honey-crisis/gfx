@@ -82,7 +82,6 @@ class xdraw_filled_rectangle {
         gfx_result r;
         typename Destination::pixel_type dpx;
         uint8_t alp = color.opacity8();
-        bool first = true;
         if (alp != 255) {
             if (alp == 0) {
                 return gfx_result::success;
@@ -95,9 +94,7 @@ class xdraw_filled_rectangle {
             }
             rect16 rr = rect.normalize();
 
-            size16 sz = rr.dimensions();
-            
-            typename Destination::pixel_type bpx, obpx, bbpx;
+            //typename Destination::pixel_type bpx, obpx, bbpx;
             for (int y = rr.y1; y <= rr.y2; ++y) {
                 aa_rasterize_row(destination,spoint16(int16_t(rr.x1),int16_t(y)),nullptr,rr.x2-rr.x1+1,cpx,alp);
             }

@@ -94,15 +94,19 @@ class xdraw_aa_filled_arc {
     // how far inside the bounding square the arc edge sits, in Q8 pixels.
     static constexpr const int32_t edge_inset_q8 = 64;
 
-    // squared distance from center, Q16. Exact and 32-bit-only on every platform:
-    // the magnitudes are taken first so the products are unsigned, which both
-    // avoids signed overflow and buys the extra bit that lets the sum reach the
-    // stated S ~360 precondition.
+    #if GFX_FILLED_ARC_HAS64
+    static inline uint64_t rad_sq(int32_t ux_q8, int32_t uy_q8) {
+        const uint64_t ax = (uint32_t)(ux_q8 < 0 ? -ux_q8 : ux_q8);
+        const uint64_t ay = (uint32_t)(uy_q8 < 0 ? -uy_q8 : uy_q8);
+        return ax * ax + ay * ay;
+    }
+#else
     static inline uint32_t rad_sq(int32_t ux_q8, int32_t uy_q8) {
         const uint32_t ax = (uint32_t)(ux_q8 < 0 ? -ux_q8 : ux_q8);
         const uint32_t ay = (uint32_t)(uy_q8 < 0 ? -uy_q8 : uy_q8);
         return ax * ax + ay * ay;
     }
+#endif
 
     // signed perpendicular distance (Q8) from the pixel offset (ux,uy) to the
     // radial line at angle (sn,cs) -- positive on the clockwise side. That is
@@ -178,7 +182,14 @@ class xdraw_aa_filled_arc {
         if (minx > maxx || miny > maxy) {
             return gfx_result::success; // fully clipped away
         }
-
+        // max |ux|,|uy| over the work area — the farthest evaluated pixel
+#if GFX_FILLED_ARC_HAS64
+        const int32_t lx = (2*minx - cx2) << 7, rx = (2*maxx - cx2) << 7;
+        const int32_t ty = (2*miny - cy2) << 7, by = (2*maxy - cy2) << 7;
+        const int32_t axmax = (lx<0?-lx:lx) > (rx<0?-rx:rx) ? (lx<0?-lx:lx) : (rx<0?-rx:rx);
+        const int32_t aymax = (ty<0?-ty:ty) > (by<0?-by:by) ? (ty<0?-ty:ty) : (by<0?-by:by);
+        const bool need64 = ((uint64_t)axmax*axmax + (uint64_t)aymax*aymax) > 0xFFFFFFFFu;
+#endif
         // per-scanline coverage buffer (caller cache, or a routine-local RAII one)
         mask_draw_cache local;
         mask_draw_cache* dc = (nullptr != cache) ? cache : &local;
@@ -187,7 +198,6 @@ class xdraw_aa_filled_arc {
         if (nullptr == cov) {
             return gfx_result::out_of_memory;
         }
-
         // single round-tripped foreground (dest-grid RGB, opaque; opacity applied
         // via the per-pixel blend factor). Only one draw path here, so no seam.
         typename Destination::pixel_type fgpx;
@@ -210,10 +220,17 @@ class xdraw_aa_filled_arc {
                 const int32_t ux_q8 = (2 * px - cx2) << 7;  // (px - cx) in Q8
 
                 // radial distance from center, and the disc (body) SDF.
-                const uint32_t V = rad_sq(ux_q8, uy_q8);
-                const int32_t dist_q8 = (int32_t)(math::sqrt_ft32<8>(V) >> 8);
-                const int32_t body = dist_q8 - R_q8;
+                uint32_t root;
+                if(need64) {
+                    const uint64_t V = rad_sq(ux_q8, uy_q8);
+                    root = (uint32_t)math::sqrt_ft64<8>(V);   // slow path: far corners only
+                } else {
+                    const uint32_t V = rad_sq(ux_q8, uy_q8);
+                    root = (uint32_t)math::sqrt_ft32<8>(V);   // slow path: far corners only
+                }
+                const int32_t dist_q8 = (int32_t)(root >> 8);
 
+                const int32_t body = dist_q8 - R_q8;
                 int32_t sdf_q8;
                 if (full) {
                     sdf_q8 = body;
@@ -235,11 +252,11 @@ class xdraw_aa_filled_arc {
                 else if (cov16 >= (1 << 16)) c8 = 255;        // solid interior
                 else c8 = (uint32_t)(cov16 >> 8);             // 16.16 -> 0..255
 
-                cov[px - minx] = (uint8_t)((c8 * (uint32_t)opacity) / 255u);
+                cov[px - minx] = (uint8_t)c8;
             }
 
             // pass 2: blend the covered pixels, each touched exactly once
-            aa_rasterize_row(destination, {(int16_t)minx, (int16_t)py}, cov, row_w, fgpx);
+            aa_rasterize_row(destination, {(int16_t)minx, (int16_t)py}, cov, row_w, fgpx,opacity);
         }
         return gfx_result::success;
     }

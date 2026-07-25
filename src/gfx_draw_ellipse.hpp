@@ -8,121 +8,82 @@ namespace helpers {
 class xdraw_ellipse {
     template <typename Destination, typename PixelType>
     static gfx_result ellipse_impl(Destination& destination, const srect16& rect, PixelType color, const srect16* clip, bool filled) {
-        gfx_result r;
-        using int_type = typename srect16::value_type;
-        int_type x_adj = (1 - (rect.width() & 1));
-        int_type y_adj = (1 - (rect.height() & 1));
-        int_type rx = rect.width() / 2 - x_adj;
-        int_type ry = rect.height() / 2 - y_adj;
-        if (0 == rx)
-            rx = 1;
-        if (0 == ry)
-            ry = 1;
-        int_type xc = rect.width() / 2 + rect.left() - x_adj;
-        int_type yc = rect.height() / 2 + rect.top() - y_adj;
-        float dx, dy, d1, d2, x, y;
-        x = 0;
-        y = ry;
-        // Initial decision parameter of region 1
-        d1 = (ry * ry) - (rx * rx * ry) + (0.25 * rx * rx);
-        dx = 2 * ry * ry * x;
-        dy = 2 * rx * rx * y;
-        int_type oy = -1, ox = -1;
-        // For region 1
-        while (dx < dy + y_adj) {
+        gfx_result rr;
+
+        // Draw a single outline pixel.
+        auto PT = [&](int px, int py) -> gfx_result {
+            return xdraw_point::point(destination, spoint16((int16_t)px, (int16_t)py), color, clip);
+        };
+        // Draw one horizontal span (a filled row) from xa..xb at row py.
+        auto SPAN = [&](int xa, int xb, int py) -> gfx_result {
+            return xdraw_line::line(destination, srect16((int16_t)xa, (int16_t)py, (int16_t)xb, (int16_t)py), color, clip);
+        };
+
+        // Normalized bounding box. The ellipse is fit exactly inside it: the
+        // extreme pixels land on all four edges for both odd and even sizes.
+        int L = rect.x1 < rect.x2 ? rect.x1 : rect.x2;
+        int R = rect.x1 < rect.x2 ? rect.x2 : rect.x1;
+        int T = rect.y1 < rect.y2 ? rect.y1 : rect.y2;
+        int B = rect.y1 < rect.y2 ? rect.y2 : rect.y1;
+
+        // Integer bounding-rectangle midpoint ellipse (after A. Zingl), reworked
+        // so that (1) every pixel is emitted exactly once -- required for alpha
+        // blending, since an overlapping pixel would be blended twice -- and
+        // (2) the poles are completed explicitly instead of via the original
+        // tip loop, which both double-drew and fell short on eccentric ellipses.
+        int x0 = L, y0 = T, x1 = R, y1 = B;
+        long long a = (x1 > x0) ? (x1 - x0) : (x0 - x1);
+        long long b = (y1 > y0) ? (y1 - y0) : (y0 - y1);
+        long long b1 = b & 1;
+        long long dx = 4 * (1 - a) * b * b;
+        long long dy = 4 * (b1 + 1) * a * a;
+        long long err = dx + dy + b1 * a * a, e2;
+        if (x0 > x1) { x0 = x1; x1 += (int)a; }
+        if (y0 > y1) y0 = y1;
+        y0 += (int)((b + 1) / 2);
+        y1 = y0 - (int)b1;
+        a *= 8 * a;
+        b1 = 8 * b * b;
+
+        int ly0 = T, ly1 = B, lex0 = x0, lex1 = x1;   // last drawn rows + their x-extent
+        int py0 = T - 2, py1 = B + 2;                 // last row emitted per half (fill de-dup)
+
+        do {
             if (filled) {
-                if (oy != y) {
-                    r = xdraw_line::line(destination, srect16(-x + xc, y + yc + y_adj, x + xc + x_adj, y + yc + y_adj), color, clip);
-                    if (r != gfx_result::success)
-                        return r;
-                    r = xdraw_line::line(destination, srect16(-x + xc, -y + yc, x + xc + x_adj, -y + yc), color, clip);
-                    if (r != gfx_result::success)
-                        return r;
-                }
+                // One span per row, taken at row entry (widest extent). y0 (lower
+                // half) and y1 (upper half) are each monotonic, so no row repeats;
+                // the y1 != y0 guard keeps the shared center row single.
+                if (y0 != py0) { rr = SPAN(x0, x1, y0); if (rr != gfx_result::success) return rr; py0 = y0; }
+                if (y1 != py1 && y1 != y0) { rr = SPAN(x0, x1, y1); if (rr != gfx_result::success) return rr; py1 = y1; }
             } else {
-                if (oy != y || ox != x) {
-                    // Print points based on 4-way symmetry
-                    r = xdraw_point::point(destination, spoint16(x + xc + x_adj, y + yc + y_adj), color, clip);
-                    if (r != gfx_result::success)
-                        return r;
-                    r = xdraw_point::point(destination, spoint16(-x + xc, y + yc + y_adj), color, clip);
-                    if (r != gfx_result::success)
-                        return r;
-                    r = xdraw_point::point(destination, spoint16(x + xc + x_adj, -y + yc), color, clip);
-                    if (r != gfx_result::success)
-                        return r;
-                    r = xdraw_point::point(destination, spoint16(-x + xc, -y + yc), color, clip);
-                    if (r != gfx_result::success)
-                        return r;
-                }
+                // Four-way symmetric points, de-duplicated where they coincide
+                // (left==right column, or the two center rows on an even box).
+                rr = PT(x1, y0); if (rr != gfx_result::success) return rr;
+                if (x0 != x1) { rr = PT(x0, y0); if (rr != gfx_result::success) return rr; }
+                if (y0 != y1) { rr = PT(x1, y1); if (rr != gfx_result::success) return rr; }
+                if (x0 != x1 && y0 != y1) { rr = PT(x0, y1); if (rr != gfx_result::success) return rr; }
             }
-            ox = x;
-            oy = y;
-            // Checking and updating value of
-            // decision parameter based on algorithm
-            if (d1 < 0) {
-                ++x;
-                dx = dx + (2 * ry * ry);
-                d1 = d1 + dx + (ry * ry);
-            } else {
-                ++x;
-                --y;
-                dx = dx + (2 * ry * ry);
-                dy = dy - (2 * rx * rx);
-                d1 = d1 + dx - dy + (ry * ry);
-            }
+            ly0 = y0; ly1 = y1; lex0 = x0; lex1 = x1;
+            e2 = 2 * err;
+            if (e2 <= dy) { y0++; y1--; err += dy += a; }
+            if (e2 >= dx || 2 * err > dy) { x0++; x1--; err += dx += b1; }
+        } while (x0 <= x1);
+
+        // Pole cap: the main loop converges x before y on eccentric (tall)
+        // ellipses, leaving the top/bottom tips undrawn. Extend the last row's
+        // center column(s) straight out to the box edges. On round/wide ellipses
+        // the main loop already reaches the edge, so these loops don't run.
+        int cl = lex0 < lex1 ? lex0 : lex1;
+        int cr = lex0 < lex1 ? lex1 : lex0;
+        for (int yy = ly0 + 1; yy <= B; ++yy) {
+            if (filled) { rr = SPAN(cl, cr, yy); if (rr != gfx_result::success) return rr; }
+            else { rr = PT(cl, yy); if (rr != gfx_result::success) return rr;
+                   if (cr != cl) { rr = PT(cr, yy); if (rr != gfx_result::success) return rr; } }
         }
-
-        // Decision parameter of region 2
-        d2 = ((ry * ry) * ((x + 0.5) * (x + 0.5))) + ((rx * rx) * ((y - 1) * (y - 1))) - (rx * rx * ry * ry);
-
-        // Plotting points of region 2
-        while (y >= 0.0f) {
-            // printing points based on 4-way symmetry
-            if (filled) {
-                if (oy != y) {
-                    r = xdraw_line::line(destination, srect16(-x + xc, y + yc + y_adj, x + xc + x_adj, y + yc + y_adj), color, clip);
-                    if (r != gfx_result::success)
-                        return r;
-                    if (y != 0 || 1 == y_adj) {
-                        r = xdraw_line::line(destination, srect16(-x + xc, -y + yc, x + xc + x_adj, -y + yc), color, clip);
-                        if (r != gfx_result::success)
-                            return r;
-                    }
-                }
-            } else {
-                if (oy != y || ox != x) {
-                    r = xdraw_point::point(destination, spoint16(x + xc + x_adj, y + yc + y_adj), color, clip);
-                    if (r != gfx_result::success)
-                        return r;
-                    r = xdraw_point::point(destination, spoint16(-x + xc, y + yc + y_adj), color, clip);
-                    if (r != gfx_result::success)
-                        return r;
-                    if (y != 0 || 1 == y_adj) {
-                        r = xdraw_point::point(destination, spoint16(x + xc + x_adj, -y + yc), color, clip);
-                        if (r != gfx_result::success)
-                            return r;
-                        r = xdraw_point::point(destination, spoint16(-x + xc, -y + yc), color, clip);
-                        if (r != gfx_result::success)
-                            return r;
-                    }
-                }
-            }
-            ox = x;
-            oy = y;
-            // Checking and updating parameter
-            // value based on algorithm
-            if (d2 > 0) {
-                --y;
-                dy = dy - (2 * rx * rx);
-                d2 = d2 + (rx * rx) - dy;
-            } else {
-                --y;
-                ++x;
-                dx = dx + (2 * ry * ry);
-                dy = dy - (2 * rx * rx);
-                d2 = d2 + dx - dy + (rx * rx);
-            }
+        for (int yy = ly1 - 1; yy >= T; --yy) {
+            if (filled) { rr = SPAN(cl, cr, yy); if (rr != gfx_result::success) return rr; }
+            else { rr = PT(cl, yy); if (rr != gfx_result::success) return rr;
+                   if (cr != cl) { rr = PT(cr, yy); if (rr != gfx_result::success) return rr; } }
         }
         return gfx_result::success;
     }

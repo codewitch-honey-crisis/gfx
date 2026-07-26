@@ -534,63 +534,73 @@ gfx_result aa_row_impl(aa_row_565, Destination& destination, spoint16 location,
                        typename Destination::pixel_type color, uint8_t alpha = 255) {
     if(alpha==0) return gfx_result::success;
     const int16_t minx = location.x, py = location.y;
-    int16_t offs = 0;
     int16_t row_w = (int16_t)width;
     rgb_pixel<16> rgb = color;
     const uint16_t fg = rgb.native_value;
     const uint32_t fg_s = (uint32_t)(fg & 0xF81F) | ((uint32_t)(fg & 0x07E0) << 16);
-    gfx_span span = destination.span(point16(minx, py));
-    while(span.length==0 && offs<row_w) {
-        span = destination.span(point16((++offs)+minx, py));
-    } 
-    if(offs==row_w) { return gfx_result::success; }
-    
-    int16_t max_width = span.length>>1;
-    if(row_w>max_width) {
-        row_w = max_width;
-    }
-    uint8_t* d = span.data;
+
     // run cache: (bg, a5) -> out. a5 is the 5-bit quantized alpha actually used
     // by the blend, so runs of nearby coverage values collapse to one blend.
     uint16_t cache_bg = 0, cache_out = 0;
     uint32_t cache_a5 = 0xFFFFFFFFu;  // impossible a5 (max 31) => first hit misses
-    for (int i = offs; i < row_w; ++i) {
-        uint8_t a = cov!=nullptr?cov[i]:255;
-        if(alpha<255) a = a * alpha / 255;
-        if (0 == a) continue;
-        const int j = i << 1;
-        if (a >= 255) {
-#ifndef HTCW_GFX_NO_SWAP
-            d[j] = (uint8_t)(fg >> 8); d[j+1] = (uint8_t)fg;
-#else
-            d[j] = (uint8_t)fg;        d[j+1] = (uint8_t)(fg >> 8);
-#endif
+
+    // Walk the row in span-sized chunks. A single span() only reaches the right
+    // edge of the backing bitmap, so a row wider than the remaining bitmap row
+    // spans multiple fetches. i is the column index into cov[] / the row.
+    int i = 0;
+    while (i < row_w) {
+        gfx_span span = destination.span(point16((int16_t)(minx + i), py));
+        // no pixels here (column left of / outside the bitmap): skip one column
+        // and retry. this also advances past any leading out-of-bitmap gap.
+        if (span.length == 0 || span.data == nullptr) {
+            ++i;
             continue;
         }
+        uint8_t* d = span.data;
+        const int run = (int)(span.length >> 1);     // pixels available in this span
+        int k = 0;                                   // pixel index within this span
+        for (; k < run && i < row_w; ++k, ++i) {
+            uint8_t a = cov != nullptr ? cov[i] : 255;
+            if (alpha < 255) a = a * alpha / 255;
+            if (0 == a) continue;
+            const int j = k << 1;                    // byte offset within THIS span
+            if (a >= 255) {
 #ifndef HTCW_GFX_NO_SWAP
-        const uint16_t bg = ((uint16_t)d[j] << 8) | (uint16_t)d[j+1];
+                d[j] = (uint8_t)(fg >> 8); d[j+1] = (uint8_t)fg;
 #else
-        const uint16_t bg = (uint16_t)d[j] | ((uint16_t)d[j+1] << 8);
+                d[j] = (uint8_t)fg;        d[j+1] = (uint8_t)(fg >> 8);
 #endif
-        uint32_t a5 = (uint32_t)(a + 4) >> 3; if (a5 > 31) a5 = 31;
-        uint16_t out;
-        if (bg == cache_bg && a5 == cache_a5) {
-            out = cache_out;
-        } else {
-            const uint32_t bg_s = (uint32_t)(bg & 0xF81F) | ((uint32_t)(bg & 0x07E0) << 16);
-            const uint32_t bl = (bg_s + (((fg_s - bg_s) * a5) >> 5)) & 0x07E0F81F;
-            out = (uint16_t)((bl & 0xFFFF) | (bl >> 16));
-            cache_bg = bg; cache_a5 = a5; cache_out = out;
+                continue;
+            }
+#ifndef HTCW_GFX_NO_SWAP
+            const uint16_t bg = ((uint16_t)d[j] << 8) | (uint16_t)d[j+1];
+#else
+            const uint16_t bg = (uint16_t)d[j] | ((uint16_t)d[j+1] << 8);
+#endif
+            uint32_t a5 = (uint32_t)(a + 4) >> 3; if (a5 > 31) a5 = 31;
+            uint16_t out;
+            if (bg == cache_bg && a5 == cache_a5) {
+                out = cache_out;
+            } else {
+                const uint32_t bg_s = (uint32_t)(bg & 0xF81F) | ((uint32_t)(bg & 0x07E0) << 16);
+                const uint32_t bl = (bg_s + (((fg_s - bg_s) * a5) >> 5)) & 0x07E0F81F;
+                out = (uint16_t)((bl & 0xFFFF) | (bl >> 16));
+                cache_bg = bg; cache_a5 = a5; cache_out = out;
+            }
+#ifndef HTCW_GFX_NO_SWAP
+            d[j] = (uint8_t)(out >> 8); d[j+1] = (uint8_t)out;
+#else
+            d[j] = (uint8_t)out;        d[j+1] = (uint8_t)(out >> 8);
+#endif
         }
-#ifndef HTCW_GFX_NO_SWAP
-        d[j] = (uint8_t)(out >> 8); d[j+1] = (uint8_t)out;
-#else
-        d[j] = (uint8_t)out;        d[j+1] = (uint8_t)(out >> 8);
-#endif
+        // if the span yielded no forward progress, avoid an infinite loop
+        if (k == 0) ++i;
     }
     return gfx_result::success;
 }
-
+// ============================================================================
+// aa_row_rgb24 -- multi-span corrected
+// ============================================================================
 template <typename Destination>
 gfx_result aa_row_impl(aa_row_rgb24, Destination& destination, spoint16 location,
                        const uint8_t* cov, size_t width,
@@ -600,45 +610,55 @@ gfx_result aa_row_impl(aa_row_rgb24, Destination& destination, spoint16 location
     int16_t row_w = (int16_t)width;
     rgb_pixel<24> rgb = color;
     const uint32_t fg = rgb.native_value;
-    gfx_span span = destination.span(point16(minx, py));
-    if(span.length==0) return gfx_result::success;
-    int16_t max_width = span.length/3;
-    if(row_w>max_width) {
-        row_w = max_width;
-    }
-    uint8_t* d = span.data;
+
     // run cache: (bg, a) -> blended out
     uint32_t cache_bg = 0, cache_out = 0;
     uint32_t cache_a = 0x100u;  // impossible alpha here (a is always < 255)
-    for (int i = 0; i < row_w; ++i) {
-        uint8_t a = cov!=nullptr?cov[i]:255;
-        if(alpha<255) a = a * alpha / 255;
-        if (0 == a) continue;
-        const int j = i * 3;
-        uint32_t out;
-        if (a >= 255) out = fg;
-        else {
+
+    // Walk the row in span-sized chunks. A single span() only reaches the right
+    // edge of the backing bitmap, so a row wider than the remaining bitmap row
+    // spans multiple fetches. i indexes cov[] / the row.
+    int i = 0;
+    while (i < row_w) {
+        gfx_span span = destination.span(point16((int16_t)(minx + i), py));
+        if (span.length == 0 || span.data == nullptr) { ++i; continue; }
+        uint8_t* d = span.data;
+        const int run = (int)(span.length / 3);   // pixels available in this span
+        int k = 0;                                // pixel index within this span
+        for (; k < run && i < row_w; ++k, ++i) {
+            uint8_t a = cov!=nullptr?cov[i]:255;
+            if(alpha<255) a = a * alpha / 255;
+            if (0 == a) continue;
+            const int j = k * 3;
+            uint32_t out;
+            if (a >= 255) out = fg;
+            else {
 #ifndef HTCW_GFX_NO_SWAP
-            const uint32_t bg = ((uint32_t)d[j] << 24) | ((uint32_t)d[j+1] << 16) | ((uint32_t)d[j+2] << 8);
+                const uint32_t bg = ((uint32_t)d[j] << 24) | ((uint32_t)d[j+1] << 16) | ((uint32_t)d[j+2] << 8);
 #else
-            const uint32_t bg = ((uint32_t)d[j] << 8) | ((uint32_t)d[j+1] << 16) | ((uint32_t)d[j+2] << 24);
+                const uint32_t bg = ((uint32_t)d[j] << 8) | ((uint32_t)d[j+1] << 16) | ((uint32_t)d[j+2] << 24);
 #endif
-            if (bg == cache_bg && (uint32_t)a == cache_a) {
-                out = cache_out;
-            } else {
-                out = pixel_byte_mul32(bg, 255 - a) + pixel_byte_mul32(fg, a);
-                cache_bg = bg; cache_a = (uint32_t)a; cache_out = out;
+                if (bg == cache_bg && (uint32_t)a == cache_a) {
+                    out = cache_out;
+                } else {
+                    out = pixel_byte_mul32(bg, 255 - a) + pixel_byte_mul32(fg, a);
+                    cache_bg = bg; cache_a = (uint32_t)a; cache_out = out;
+                }
             }
-        }
 #ifndef HTCW_GFX_NO_SWAP
-        d[j] = (uint8_t)(out >> 24); d[j+1] = (uint8_t)(out >> 16); d[j+2] = (uint8_t)(out >> 8);
+            d[j] = (uint8_t)(out >> 24); d[j+1] = (uint8_t)(out >> 16); d[j+2] = (uint8_t)(out >> 8);
 #else
-        d[j] = (uint8_t)(out >> 8);  d[j+1] = (uint8_t)(out >> 16); d[j+2] = (uint8_t)(out >> 24);
+            d[j] = (uint8_t)(out >> 8);  d[j+1] = (uint8_t)(out >> 16); d[j+2] = (uint8_t)(out >> 24);
 #endif
+        }
+        if (k == 0) ++i;   // no forward progress guard
     }
     return gfx_result::success;
 }
 
+// ============================================================================
+// aa_row_rgba32 -- multi-span corrected
+// ============================================================================
 template <typename Destination>
 gfx_result aa_row_impl(aa_row_rgba32, Destination& destination, spoint16 location,
                        const uint8_t* cov, size_t width,
@@ -649,41 +669,46 @@ gfx_result aa_row_impl(aa_row_rgba32, Destination& destination, spoint16 locatio
     rgba_pixel<32> rgba = color;
     rgba.template channel<channel_name::A>(255);
     const uint32_t fg = rgba.native_value;
-    gfx_span span = destination.span(point16(minx, py));
-    if(span.length==0) return gfx_result::success;
-    int16_t max_width = span.length>>2;
-    if(row_w>max_width) {
-        row_w=max_width;
-    }
-    uint8_t* d = span.data;
+
     // run cache: (bg, a) -> blended out
     uint32_t cache_bg = 0, cache_out = 0;
     uint32_t cache_a = 0x100u;  // impossible alpha here (a is always < 255)
-    for (int i = 0; i < row_w; ++i) {
-        uint8_t a = cov!=nullptr?cov[i]:255;
-        if(alpha<255) a = a * alpha / 255;
-        if (0 == a) continue;
-        const int j = i << 2;
-        uint32_t out;
-        if (a >= 255) out = fg;
-        else {
+
+    // Walk the row in span-sized chunks (see rgb24 note above).
+    int i = 0;
+    while (i < row_w) {
+        gfx_span span = destination.span(point16((int16_t)(minx + i), py));
+        if (span.length == 0 || span.data == nullptr) { ++i; continue; }
+        uint8_t* d = span.data;
+        const int run = (int)(span.length >> 2);   // pixels available in this span
+        int k = 0;                                 // pixel index within this span
+        for (; k < run && i < row_w; ++k, ++i) {
+            uint8_t a = cov!=nullptr?cov[i]:255;
+            if(alpha<255) a = a * alpha / 255;
+            if (0 == a) continue;
+            const int j = k << 2;
+            uint32_t out;
+            if (a >= 255) out = fg;
+            else {
 #ifndef HTCW_GFX_NO_SWAP
-            const uint32_t bg = ((uint32_t)d[j] << 24) | ((uint32_t)d[j+1] << 16) | ((uint32_t)d[j+2] << 8) | d[j+3];
+                const uint32_t bg = ((uint32_t)d[j] << 24) | ((uint32_t)d[j+1] << 16) | ((uint32_t)d[j+2] << 8) | d[j+3];
 #else
-            const uint32_t bg = (uint32_t)d[j] | ((uint32_t)d[j+1] << 8) | ((uint32_t)d[j+2] << 16) | ((uint32_t)d[j+3] << 24);
+                const uint32_t bg = (uint32_t)d[j] | ((uint32_t)d[j+1] << 8) | ((uint32_t)d[j+2] << 16) | ((uint32_t)d[j+3] << 24);
 #endif
-            if (bg == cache_bg && (uint32_t)a == cache_a) {
-                out = cache_out;
-            } else {
-                out = pixel_byte_mul32(bg, 255 - a) + pixel_byte_mul32(fg, a);
-                cache_bg = bg; cache_a = (uint32_t)a; cache_out = out;
+                if (bg == cache_bg && (uint32_t)a == cache_a) {
+                    out = cache_out;
+                } else {
+                    out = pixel_byte_mul32(bg, 255 - a) + pixel_byte_mul32(fg, a);
+                    cache_bg = bg; cache_a = (uint32_t)a; cache_out = out;
+                }
             }
-        }
 #ifndef HTCW_GFX_NO_SWAP
-        d[j] = (uint8_t)(out >> 24); d[j+1] = (uint8_t)(out >> 16); d[j+2] = (uint8_t)(out >> 8); d[j+3] = (uint8_t)out;
+            d[j] = (uint8_t)(out >> 24); d[j+1] = (uint8_t)(out >> 16); d[j+2] = (uint8_t)(out >> 8); d[j+3] = (uint8_t)out;
 #else
-        d[j] = (uint8_t)out; d[j+1] = (uint8_t)(out >> 8); d[j+2] = (uint8_t)(out >> 16); d[j+3] = (uint8_t)(out >> 24);
+            d[j] = (uint8_t)out; d[j+1] = (uint8_t)(out >> 8); d[j+2] = (uint8_t)(out >> 16); d[j+3] = (uint8_t)(out >> 24);
 #endif
+        }
+        if (k == 0) ++i;   // no forward progress guard
     }
     return gfx_result::success;
 }

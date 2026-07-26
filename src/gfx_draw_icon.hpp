@@ -166,12 +166,9 @@ class xdraw_icon {
                     point16 spt(srcr.x1, srcr.y1 + y);
                     point16 dpt(dstr.x1, dstr.y1 + y);
                     gfx_cspan sspan = helpers::get_span<Source,Source::caps::blt_spans>::cspan(source,spt);
-                    gfx_span span = helpers::get_span<Destination,Destination::caps::blt_spans>::span(destination,dpt);
-                    if(span.data!=nullptr) {
-                        r= aa_rasterize_row(destination,(spoint16)dpt,sspan.cdata,gfx::math::min_(span.length,sspan.length),fgpx,alpha_factor);
-                        if(r!=gfx_result::success) {
-                            return r;
-                        }
+                    r= aa_rasterize_row(destination,(spoint16)dpt,sspan.cdata,sspan.length,fgpx,alpha_factor);
+                    if(r!=gfx_result::success) {
+                        return r;
                     }
                 }
                 return gfx_result::success;

@@ -7,7 +7,7 @@ class xdraw_filled_rectangle {
         template <typename Destination, bool Indexed>
     struct rect_blend_helper {
         static inline gfx_result do_blend(const Destination& dst, typename Destination::pixel_type px, uint8_t ratio, typename Destination::pixel_type bpx, typename Destination::pixel_type* out_px) {
-            return px.blend8(bpx, ratio, out_px);
+            return px.blend8(dst,bpx, ratio, out_px);
         }
     };
     template <typename Destination>
@@ -23,7 +23,7 @@ class xdraw_filled_rectangle {
             if (r != gfx_result::success) {
                 return r;
             }
-            r = tmp.blend8(btmp, ratio, &tmp);
+            r = tmp.blend8(dst,btmp, ratio, &tmp);
             if (r != gfx_result::success) {
                 return r;
             }

@@ -395,6 +395,7 @@ struct pixel_blend_impl<PixelType, Count, ChannelTrait, ChannelTraits...> {
         out_pixel->template channel<index>((l * amount + r * (255 - amount)) / 255);
         next::blend_val255(lhs, rhs, amount, out_pixel);
     }
+    
 };
 template <typename PixelType, int Count>
 struct pixel_blend_impl<PixelType, Count> {
@@ -489,6 +490,78 @@ struct pixel_blend_helper<PixelType,true, ChannelTraits...> {
         } 
         out_pixel->native_value = rhs.native_value;
         return gfx_result::success;
+    }
+};
+
+template<typename Target, bool IsIndexed, typename ...ChannelTraits>
+struct pixel_blend_helper_pal {};
+template<typename Target,typename ...ChannelTraits>
+struct pixel_blend_helper_pal<Target,false,ChannelTraits...> {
+    // blends two pixels. ratio is between zero and one. larger ratio numbers favor this pixel
+    static constexpr gfx_result blend(const Target& target, const typename Target::pixel_type lhs, const typename Target::pixel_type rhs, double ratio, typename Target::pixel_type* out_pixel) {
+        return helpers::pixel_blend_helper<typename Target::pixel_type, false,ChannelTraits...>::blend(lhs, rhs, ratio, out_pixel);
+    }
+    // blends two pixels. ratio is between zero and 255. larger ratio numbers favor this pixel
+    static constexpr gfx_result blend8(const Target& target, const typename Target::pixel_type lhs,const typename Target::pixel_type rhs, uint8_t ratio, typename Target::pixel_type* out_pixel) {
+        return helpers::pixel_blend_helper<typename Target::pixel_type, false,ChannelTraits...>::blend8(lhs, rhs, ratio, out_pixel);
+    }
+};
+template<typename Target,typename ...ChannelTraits>
+struct pixel_blend_helper_pal<Target,true, ChannelTraits...> {
+    // blends two pixels. ratio is between zero and one. larger ratio numbers favor this pixel
+    static constexpr gfx_result blend(const Target& target, const typename Target::pixel_type lhs, const typename Target::pixel_type rhs, double ratio, typename Target::pixel_type* out_pixel) {
+        if (out_pixel == nullptr) {
+            return gfx_result::invalid_argument;
+        }
+        if (ratio >= 1.0f) {
+            out_pixel->native_value = lhs.native_value;
+            return gfx_result::success;
+        } else if(ratio<=0.f) {
+            out_pixel->native_value = rhs.native_value;
+            return gfx_result::success;
+        }
+        using pal_t = typename Target::palette_type;
+        using mpx_t = typename pal_t::mapped_pixel_type;
+        const pal_t* pal = target.palette();
+        if(pal==nullptr) {
+            return helpers::pixel_blend_helper<typename Target::pixel_type, true,ChannelTraits...>::blend(lhs, rhs, ratio, out_pixel);
+        }
+        mpx_t lpx,rpx;
+        gfx_result r;
+        pal->map(lhs,&lpx);
+        pal->map(rhs,&rpx);
+        mpx_t blended;
+        r=helpers::pixel_blend_helper<mpx_t, false,ChannelTraits...>::blend(lpx, rpx, ratio, &blended);
+        return pal->nearest(blended,out_pixel);
+    }
+    // blends two pixels. ratio is between zero and 255. larger ratio numbers favor this pixel
+    static constexpr gfx_result blend8(const Target& target, const typename Target::pixel_type lhs,const typename Target::pixel_type rhs, uint8_t ratio, typename Target::pixel_type* out_pixel) {
+        if (out_pixel == nullptr) {
+            return gfx_result::invalid_argument;
+        }
+        if (ratio == 255) {
+            out_pixel->native_value = lhs.native_value;
+            return gfx_result::success;
+        } else if(ratio==0) {
+            out_pixel->native_value = rhs.native_value;
+            return gfx_result::success;
+        }
+        using pal_t = typename Target::palette_type;
+        using mpx_t = typename pal_t::mapped_pixel_type;
+        const pal_t* pal = target.palette();
+        if(pal==nullptr) {
+            return helpers::pixel_blend_helper<typename Target::pixel_type, true,ChannelTraits...>::blend8(lhs, rhs, ratio, out_pixel);
+        }
+        mpx_t lpx,rpx;
+        gfx_result r;
+        r=pal->map(lhs,&lpx);
+        if(r!=gfx_result::success) {return r;}
+        r=pal->map(rhs,&rpx);
+        if(r!=gfx_result::success) {return r;}
+        mpx_t blended;
+        r=helpers::pixel_blend_helper<mpx_t, false,ChannelTraits...>::blend8(lpx, rpx, ratio, &blended);
+        if(r!=gfx_result::success) {return r;}
+        return pal->nearest(blended,out_pixel);
     }
 };
 
@@ -1178,6 +1251,40 @@ struct pixel {
     constexpr type blend8(const type rhs, uint8_t ratio) const {
         type result;
         blend8(rhs, ratio, &result);
+        return result;
+    }
+
+    // blends two pixels. ratio is between zero and one. larger ratio numbers favor this pixel
+    template<typename Target>
+    constexpr gfx_result blend(const Target& target, const type rhs, double ratio, type* out_pixel) const {
+        if (out_pixel == nullptr) {
+            return gfx_result::invalid_argument;
+        }
+        constexpr const bool has_indexed = has_channel_names<channel_name::index>::value;
+        return helpers::pixel_blend_helper_pal<Target,has_indexed,ChannelTraits...>::blend(target,*this,rhs,ratio,out_pixel);
+    }
+    // blends two pixels. ratio is between zero and 255. larger ratio numbers favor this pixel
+    template<typename Target>
+    constexpr gfx_result blend8(const Target& target, const type rhs, uint8_t ratio, type* out_pixel) const {
+        if (out_pixel == nullptr) {
+            return gfx_result::invalid_argument;
+        }
+        constexpr const bool has_indexed = has_channel_names<channel_name::index>::value;
+        return helpers::pixel_blend_helper_pal<Target,has_indexed,ChannelTraits...>::blend8(target,*this,rhs,ratio,out_pixel);
+    }
+   
+    // blends two pixels. ratio is between zero and one. larger ratio numbers favor this pixel
+    template<typename Target>
+    constexpr type blend(const Target& target, const type rhs, double ratio) const {
+        type result;
+        blend<Target>(target, rhs, ratio, &result);
+        return result;
+    }
+    // blends two pixels. ratio is between zero and 255. larger ratio numbers favor this pixel
+    template<typename Target>
+    constexpr type blend8(const Target& target, const type rhs, uint8_t ratio) const {
+        type result;
+        blend8<Target>(target, rhs, ratio, &result);
         return result;
     }
      // Applies signed per-channel error (native units), clamping each channel to

@@ -73,7 +73,7 @@ struct blender<Destination, Source, true> {
         if (gfx_result::success != r) {
             return r;
         }
-        r = fg.blend8(bg, alpha, &fg);
+        r = fg.blend8(destination,bg, alpha, &fg);
         if (gfx_result::success != r) {
             return r;
         }
@@ -740,7 +740,7 @@ gfx_result aa_row_impl(aa_row_generic, Destination& destination, spoint16 locati
                 (bgpx.native_value & px_mask) == cache_bg.native_value) {
                 dpx = cache_out;
             } else {
-                dpx = color.blend8(bgpx, c8);
+                dpx = color.blend8(destination,bgpx, c8);
                 cache_bg.native_value = bgpx.native_value & px_mask;
                 cache_c8 = (uint16_t)c8; cache_out = dpx;
             }

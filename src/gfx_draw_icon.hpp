@@ -75,7 +75,7 @@ class xdraw_icon {
                         }
 
                         if (a != oa) {
-                            dpx = fgpx.blend8(bgpx, a);
+                            dpx = fgpx.blend8(destination,bgpx, a);
                         }
 
                         r = destination.point(point16(dstr.x1 + x, dstr.y1 + y), dpx);
@@ -134,7 +134,7 @@ class xdraw_icon {
                                     return r;
                                 }
                                 if (a != oa || obgpx.native_value != bgpx.native_value) {
-                                    dpx = fgpx.blend8(bgpx, af);
+                                    dpx = fgpx.blend8(destination,bgpx, af);
                                 }
 
                                 //r=xdraw_point::point(full_bmp,(spoint16)dpt,dpx);
@@ -193,7 +193,7 @@ class xdraw_icon {
                         a = 1.0 - a;
                     }
                     if (a != oa || obgpx.native_value != bgpx.native_value) {
-                        dpx = fgpx.blend8(bgpx, a * alpha_factor/255);
+                        dpx = fgpx.blend8(destination,bgpx, a * alpha_factor/255);
                     }
                     //r=xdraw_point::point(destination,(spoint16)dpt,dpx);
                     r=destination.point(dpt,dpx);

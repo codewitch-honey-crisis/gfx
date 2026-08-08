@@ -45,7 +45,15 @@ public:
           m_begin(nullptr),
           m_capacity(0) {
     }
-    ~mask_draw_cache() {
+
+    mask_draw_cache(uint8_t* buffer, size_t capacity)
+        : m_allocator(nullptr),
+          m_reallocator(nullptr),
+          m_deallocator(nullptr),
+          m_begin(buffer),
+          m_capacity(capacity) {
+    }
+    virtual ~mask_draw_cache() {
         release();
     }
     mask_draw_cache(mask_draw_cache&& rhs) noexcept
@@ -74,6 +82,10 @@ public:
     // Returns the buffer, or nullptr on allocation failure. On failure the
     // previous buffer (if any) is left intact, per realloc semantics.
     uint8_t* ensure(size_t size) {
+        if(m_allocator==nullptr) {
+            if(size<=m_capacity) return m_begin;
+            return nullptr;
+        }
         if (size <= m_capacity) {
             return m_begin;
         }

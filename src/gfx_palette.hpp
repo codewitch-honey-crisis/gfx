@@ -4,7 +4,8 @@
 #include "gfx_pixel.hpp"
 #include <stdlib.h>
 namespace gfx {
-        // represents a palette/CLUT for indexed pixels
+    // represents a palette/CLUT for indexed pixels
+    // this is just a generic lookup table between colors.
     template<typename PixelType,typename MappedPixelType>
     struct palette final {
         static_assert(PixelType::template has_channel_names<channel_name::index>::value,"Pixel must be indexed");
@@ -80,6 +81,7 @@ namespace gfx {
         }
     };
     // specialization for unindexed pixels
+    // this one is so we can expose a palette type for non-indexed pixels
     template<typename PixelType>
     struct palette<PixelType,PixelType> final {
         static_assert(!PixelType::template has_channel_names<channel_name::index>::value,"Pixel must not be indexed");
@@ -301,6 +303,7 @@ namespace gfx {
     namespace helpers {
         extern const unsigned char* ega_color_table;
     }
+    // here's an actual palette for the IBM PC EGA video graphics system (retro)
     template<typename MappedPixelType, bool FullEga=false> 
     struct ega_palette {
         static_assert(!MappedPixelType::template has_channel_names<channel_name::index>::value,"Mapped pixel must not be indexed");
@@ -335,7 +338,7 @@ namespace gfx {
             if(gfx_result::success!=r) {
                 return r;
             }
-            auto least = mpx.difference_fast(mapped_pixel);
+            auto least = mpx.difference8(mapped_pixel);
             if(0==least) {
                 pixel->native_value = 0;
                 return gfx_result::success;
@@ -346,7 +349,7 @@ namespace gfx {
                 if(gfx_result::success!=r) {
                     return r;
                 }
-                auto cmp = mpx.difference_fast(mapped_pixel);
+                auto cmp = mpx.difference8(mapped_pixel);
                 if(0==cmp) {
                     ii=i;
                     least = 0;
@@ -382,226 +385,7 @@ namespace gfx {
     
     namespace helpers {
         
-        template<typename ValueType, unsigned K = 3>
-        class kd_tree
-        {
-        public:
-            
-            struct kd_point
-            {
-                double coord[K];
-
-                kd_point() { }
-
-                kd_point(double a,double b,double c)
-                {
-                    coord[0] = a; coord[1] = b; coord[2] = c;
-                }
-
-                kd_point(double v[K])
-                {
-                    for(unsigned n=0; n<K; ++n)
-                        coord[n] = v[n];
-                }
-
-                bool operator==(const kd_point& b) const
-                {
-                    for(unsigned n=0; n<K; ++n)
-                        if(coord[n] != b.coord[n]) return false;
-                    return true;
-                }
-                double sqrdist(const kd_point& b) const
-                {
-                    double result = 0;
-                    for(unsigned n=0; n<K; ++n)
-                        { double diff = coord[n] - b.coord[n];
-                        result += diff*diff; }
-                    return result;
-                }
-            };
-        private:
-            struct kd_rect
-            {
-                kd_point min, max;
-
-                kd_point bound(const kd_point& t) const
-                {
-                    kd_point p;
-                    for(unsigned i=0; i<K; ++i)
-                        if(t.coord[i] <= min.coord[i])
-                            p.coord[i] = min.coord[i];
-                        else if(t.coord[i] >= max.coord[i])
-                            p.coord[i] = max.coord[i];
-                        else
-                            p.coord[i] = t.coord[i];
-                    return p;
-                }
-                void make_infinite()
-                {
-                    for(unsigned i=0; i<K; ++i)
-                    {
-                        min.coord[i] = -INFINITY;
-                        max.coord[i] =  INFINITY;
-                    }
-                }
-            };
-            struct kd_pair {
-                ValueType first;
-                double second;
-            };
-            struct kd_node
-            {
-                kd_point k;
-                ValueType       v;
-                kd_node  *left, *right;
-            public:
-                kd_node() : k(),v(),left(0),right(0) { }
-                kd_node(const kd_point& kk, const ValueType& vv) : k(kk), v(vv), left(0), right(0) { }
-
-                virtual ~kd_node() { delete (left); delete (right); }
-
-                static kd_node* ins( const kd_point& key, const ValueType& val,
-                                    kd_node*& t, int lev)
-                {
-                    if(!t)
-                        return (t = new kd_node(key, val));
-                    else if(key == t->k)
-                        return 0; /* key duplicate */
-                    else if(key.coord[lev] > t->k.coord[lev])
-                        return ins(key, val, t->right, (lev+1)%K);
-                    else
-                        return ins(key, val, t->left,  (lev+1)%K);
-                }
-                struct nearest
-                {
-                    const kd_node* kd;
-                    double        dist_sqd;
-                };
-                // Method nearest Neighbor from Andrew Moore's thesis. Numbered
-                // comments are direct quotes from there. Step "SDL" is added to
-                // make the algorithm work correctly.
-                static void nnbr(const kd_node* kd, const kd_point& target,
-                                kd_rect& hr, // in-param and temporary; not an out-param.
-                                int lev,
-                                nearest& nearest)
-                {
-                    // 1. if kd is empty then set dist-sqd to infinity and exit.
-                    if (!kd) return;
-
-                    // 2. s := split field of kd
-                    int s = lev % K;
-
-                    // 3. pivot := dom-elt field of kd
-                    const kd_point& pivot = kd->k;
-                    double pivot_to_target = pivot.sqrdist(target);
-
-                    // 4. Cut hr into to sub-hyperrectangles left-hr and right-hr.
-                    //    The cut plane is through pivot and perpendicular to the s
-                    //    dimension.
-                    kd_rect& left_hr = hr; // optimize by not cloning
-                    kd_rect right_hr = hr;
-                    left_hr.max.coord[s]  = pivot.coord[s];
-                    right_hr.min.coord[s] = pivot.coord[s];
-
-                    // 5. target-in-left := target_s <= pivot_s
-                    bool target_in_left = target.coord[s] < pivot.coord[s];
-
-                    const kd_node* nearer_kd;
-                    const kd_node* further_kd;
-                    kd_rect nearer_hr;
-                    kd_rect further_hr;
-
-                    // 6. if target-in-left then nearer is left, further is right
-                    if (target_in_left) {
-                        nearer_kd = kd->left;
-                        nearer_hr = left_hr;
-                        further_kd = kd->right;
-                        further_hr = right_hr;
-                    }
-                    // 7. if not target-in-left then nearer is right, further is left
-                    else {
-                        nearer_kd = kd->right;
-                        nearer_hr = right_hr;
-                        further_kd = kd->left;
-                        further_hr = left_hr;
-                    }
-
-                    // 8. Recursively call nearest Neighbor with parameters
-                    //    (nearer-kd, target, nearer-hr, max-dist-sqd), storing the
-                    //    results in nearest and dist-sqd
-                    nnbr(nearer_kd, target, nearer_hr, lev + 1, nearest);
-
-                    // 10. A nearer point could only lie in further-kd if there were some
-                    //     part of further-hr within distance sqrt(max-dist-sqd) of
-                    //     target.  If this is the case then
-                    const kd_point closest = further_hr.bound(target);
-                    if (closest.sqrdist(target) < nearest.dist_sqd)
-                    {
-                        // 10.1 if (pivot-target)^2 < dist-sqd then
-                        if (pivot_to_target < nearest.dist_sqd)
-                        {
-                            // 10.1.1 nearest := (pivot, range-elt field of kd)
-                            nearest.kd = kd;
-                            // 10.1.2 dist-sqd = (pivot-target)^2
-                            nearest.dist_sqd = pivot_to_target;
-                        }
-
-                        // 10.2 Recursively call nearest Neighbor with parameters
-                        //      (further-kd, target, further-hr, max-dist_sqd)
-                        nnbr(further_kd, target, further_hr, lev + 1, nearest);
-                    }
-                    // SDL: otherwise, current point is nearest
-                    else if (pivot_to_target < nearest.dist_sqd)
-                    {
-                        nearest.kd       = kd;
-                        nearest.dist_sqd = pivot_to_target;
-                    }
-                }
-            private:
-                void operator=(const kd_node&);
-            public:
-                kd_node(const kd_node& b)
-                    : k(b.k), v(b.v),
-                    left( b.left ? new kd_node(*b.left) : 0),
-                    right( b.right ? new kd_node(*b.right) : 0 ) { }
-            };
-        private:
-            kd_node* m_root;
-        public:
-            kd_tree() : m_root(0) { }
-            virtual ~kd_tree() { delete (m_root); }
-
-            bool insert(const kd_point& key, const ValueType& val)
-            {
-                return kd_node::ins(key, val, m_root, 0);
-            }
-
-            const kd_pair nearest(const kd_point& key) const
-            {
-                kd_rect hr;
-                hr.make_infinite();
-
-                typename kd_node::nearest nn;
-                nn.kd       = 0;
-                nn.dist_sqd = INFINITY;
-                kd_node::nnbr(m_root, key, hr, 0, nn);
-                if(!nn.kd) return { ValueType(), INFINITY };
-                return { nn.kd->v, nn.dist_sqd };
-            }
-        public:
-            kd_tree& operator=(const kd_tree&b)
-            {
-                if(this != &b)
-                {
-                    if(m_root) delete (m_root);
-                    m_root = b.m_root ? new kd_node(*b.m_root) : 0;
-                }
-                return *this;
-            }
-            kd_tree(const kd_tree& b)
-                : m_root( b.m_root ? new kd_node(*b.m_root) : 0 ){ }
-        };
-        // You'll get warnings that these are unused, but they are used by driver code:
+        // Not currently used. used to be used by e-ink drivers.
         struct dither_color {
         /* 8x8 threshold map (note: the patented pattern dithering algorithm uses 4x4) */
             static const unsigned char* threshold_map;

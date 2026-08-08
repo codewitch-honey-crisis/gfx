@@ -348,6 +348,12 @@ struct pixel_diff_impl<PixelType, Count, ChannelTrait, ChannelTraits...> {
         const auto d = (lhs.template channel<index>() - rhs.template channel<index>());
         return d * d + next::diff_sum_fast(lhs, rhs);
     }
+    constexpr static inline uint32_t diff_sum8(PixelType lhs, PixelType rhs) {
+        constexpr const size_t index = Count;
+        if (ChannelTrait::bit_depth == 0) return NAN;
+        const uint32_t d = ((lhs.template channel<index>() - rhs.template channel<index>())*255)/ch::scale;
+        return d * d + next::diff_sum8(lhs, rhs);
+    }
 };
 template <typename PixelType, int Count>
 struct pixel_diff_impl<PixelType, Count> {
@@ -355,6 +361,9 @@ struct pixel_diff_impl<PixelType, Count> {
         return 0.0;
     }
     constexpr static inline bits::uintx<HTCW_MAX_WORD> diff_sum_fast(PixelType lhs, PixelType rhs) {
+        return 0;
+    }
+    constexpr static inline uint32_t diff_sum8(PixelType lhs, PixelType rhs) {
         return 0;
     }
 };
@@ -394,6 +403,135 @@ struct pixel_blend_impl<PixelType, Count> {
     constexpr static inline void blend_val255(PixelType lhs, PixelType rhs, uint8_t amount, PixelType* out_pixel) {
     }
 };
+template<typename PixelType, bool IsIndexed, typename ...ChannelTraits>
+struct pixel_blend_helper {};
+template<typename PixelType,typename ...ChannelTraits>
+struct pixel_blend_helper<PixelType,false,ChannelTraits...> {
+    // blends two pixels. ratio is between zero and one. larger ratio numbers favor this pixel
+    static constexpr gfx_result blend(const PixelType lhs, const PixelType rhs, double ratio, PixelType* out_pixel) {
+        if (out_pixel == nullptr) {
+            return gfx_result::invalid_argument;
+        }
+        if (ratio == 1.0f) {
+            out_pixel->native_value = lhs.native_value;
+            return gfx_result::success;
+        } else if (ratio == 0.0f) {
+            out_pixel->native_value = rhs.native_value;
+            return gfx_result::success;
+        }
+        if (PixelType::template has_channel_names<channel_name::A>::value) {
+            constexpr const int ai = PixelType::template channel_index_by_name<channel_name::A>::value;
+
+            auto a1 = lhs.template channelr_unchecked<ai>();
+            auto a2 = rhs.template channelr_unchecked<ai>();
+            auto r2 = a1 / a2;
+            ratio = ratio * r2;
+            if (ratio > 1.0f)
+                ratio = 1.0f;
+        }
+
+        helpers::pixel_blend_impl<PixelType, 0, ChannelTraits...>::blend_val(lhs, rhs, ratio, out_pixel);
+        return gfx_result::success;
+    }
+    // blends two pixels. ratio is between zero and 255. larger ratio numbers favor this pixel
+    static constexpr gfx_result blend8(const PixelType lhs,const PixelType rhs, uint8_t ratio, PixelType* out_pixel) {
+        if (out_pixel == nullptr) {
+            return gfx_result::invalid_argument;
+        }
+        if (ratio == 255) {
+            out_pixel->native_value = lhs.native_value;
+            return gfx_result::success;
+        } else if (ratio == 0) {
+            out_pixel->native_value = rhs.native_value;
+            return gfx_result::success;
+        }
+        
+        if (PixelType::template has_channel_names<channel_name::A>::value) {
+            constexpr const int ai = PixelType::template channel_index_by_name<channel_name::A>::value;
+            // raw integer alpha; both are the same channel/scale, so the scale cancels in a1/a2
+            const int a1 = (int)lhs.template channel_unchecked<ai>();
+            const int a2 = (int)rhs.template channel_unchecked<ai>();
+            int rr;
+            if (a2 == 0) {
+                rr = (a1 != 0) ? 255 : ratio;   // a1/a2 -> +inf clamps to full; 0/0 -> leave ratio be
+            } else {
+                rr = (int)ratio * a1 / a2;      // = ratio * (a1/a2); 254*max/1 still fits int
+                if (rr > 255) rr = 255;
+            }
+            ratio = (uint8_t)rr;
+        }
+        helpers::pixel_blend_impl<PixelType, 0, ChannelTraits...>::blend_val255(lhs, rhs, ratio, out_pixel);
+        return gfx_result::success;
+    }
+};
+template<typename PixelType,typename ...ChannelTraits>
+struct pixel_blend_helper<PixelType,true, ChannelTraits...> {
+    // blends two pixels. ratio is between zero and one. larger ratio numbers favor this pixel
+    static constexpr gfx_result blend(const PixelType lhs,const PixelType rhs, double ratio, PixelType* out_pixel) {
+        if (out_pixel == nullptr) {
+            return gfx_result::invalid_argument;
+        }
+        if (ratio >= 0.5f) {
+            out_pixel->native_value = lhs.native_value;
+            return gfx_result::success;
+        } 
+        out_pixel->native_value = rhs.native_value;
+        return gfx_result::success;
+    }
+    // blends two pixels. ratio is between zero and 255. larger ratio numbers favor this pixel
+    static constexpr gfx_result blend8(const PixelType lhs,const PixelType rhs, uint8_t ratio, PixelType* out_pixel) {
+        if (out_pixel == nullptr) {
+            return gfx_result::invalid_argument;
+        }
+        if (ratio > 127) {
+            out_pixel->native_value = lhs.native_value;
+            return gfx_result::success;
+        } 
+        out_pixel->native_value = rhs.native_value;
+        return gfx_result::success;
+    }
+};
+
+template <typename PixelType, int Count, typename... ChannelTraits>
+struct pixel_fs_apply_impl;
+template <typename PixelType, int Count, typename ChannelTrait, typename... ChannelTraits>
+struct pixel_fs_apply_impl<PixelType, Count, ChannelTrait, ChannelTraits...> {
+    using ch = typename PixelType::template channel_by_index<Count>;
+    using next = pixel_fs_apply_impl<PixelType, Count + 1, ChannelTraits...>;
+    constexpr static inline void apply(PixelType src, const int32_t* err, PixelType* out_pixel) {
+        constexpr const size_t index = Count;
+        long v = (long)src.template channel<index>() + (long)err[index];
+        if (v < (long)ch::min)   v = (long)ch::min;
+        if (v > (long)ch::scale) v = (long)ch::scale;
+        out_pixel->template channel<index>((typename ch::int_type)v);
+        next::apply(src, err, out_pixel);
+    }
+};
+template <typename PixelType, int Count>
+struct pixel_fs_apply_impl<PixelType, Count> {
+    constexpr static inline void apply(PixelType, const int32_t*, PixelType*) {}
+};
+
+// --- read side: out_err[Count] = this_channel - chosen_channel ---------------
+// Signed quantization error in native channel units. Both operands are the
+// same pixel type; no palette involved.
+template <typename PixelType, int Count, typename... ChannelTraits>
+struct pixel_fs_error_impl;
+template <typename PixelType, int Count, typename ChannelTrait, typename... ChannelTraits>
+struct pixel_fs_error_impl<PixelType, Count, ChannelTrait, ChannelTraits...> {
+    using next = pixel_fs_error_impl<PixelType, Count + 1, ChannelTraits...>;
+    constexpr static inline void calc(PixelType lhs, PixelType rhs, int32_t* out_err) {
+        constexpr const size_t index = Count;
+        out_err[index] = (int32_t)lhs.template channel<index>()
+                       - (int32_t)rhs.template channel<index>();
+        next::calc(lhs, rhs, out_err);
+    }
+};
+template <typename PixelType, int Count>
+struct pixel_fs_error_impl<PixelType, Count> {
+    constexpr static inline void calc(PixelType, PixelType, int32_t*) {}
+};
+
 
 template <typename PixelType, int Count, typename... ChannelTraits>
 struct pixel_premultiply_impl;
@@ -649,11 +787,30 @@ constexpr inline typename PixelType::template channel_by_index_unchecked<Index>:
 // sets the native_value of a channel without doing compile time checking on the index
 template <typename PixelType, int Index>
 constexpr inline void
-
 set_channel_direct_unchecked(typename PixelType::int_type& pixel_value, typename PixelType::template channel_by_index_unchecked<Index>::int_type value) {
     if (0 > Index || Index >= (int)PixelType::channels) return;
     using ch = typename PixelType::template channel_by_index_unchecked<Index>;
     const typename PixelType::int_type shval = typename PixelType::int_type(typename PixelType::int_type(helpers::clamp(value, ch::min, ch::max)) << ch::total_bits_to_right);
+    pixel_value = typename PixelType::int_type((pixel_value & typename ch::pixel_type::int_type(~ch::channel_mask)) | shval);
+}
+
+// gets the native_value of a channel without doing compile time checking on the index
+template <typename PixelType, int Index>
+constexpr inline uint8_t get_channel_direct_unchecked8(const typename PixelType::int_type& pixel_value) {
+    using ch = typename PixelType::template channel_by_index_unchecked<Index>;
+    if (0 > Index || Index >= (int)PixelType::channels) return 0;
+    const typename PixelType::int_type p = pixel_value >> ch::total_bits_to_right;
+    const typename ch::int_type result = typename ch::int_type(typename PixelType::int_type(p & typename PixelType::int_type(ch::value_mask)));
+    return (result * 255 / ch::scale);
+}
+// sets the native_value of a channel without doing compile time checking on the index
+template <typename PixelType, int Index>
+constexpr inline void
+set_channel_direct_unchecked8(typename PixelType::int_type& pixel_value, uint8_t value) {
+    if (0 > Index || Index >= (int)PixelType::channels) return;
+    using ch = typename PixelType::template channel_by_index_unchecked<Index>;
+    const typename ch::int_type xlate = value * ch::scale / 255;
+    const typename PixelType::int_type shval = typename PixelType::int_type(typename PixelType::int_type(helpers::clamp(xlate, ch::min, ch::max)) << ch::total_bits_to_right);
     pixel_value = typename PixelType::int_type((pixel_value & typename ch::pixel_type::int_type(~ch::channel_mask)) | shval);
 }
 
@@ -782,6 +939,19 @@ struct pixel {
     constexpr inline void channel_unchecked(typename channel_by_index_unchecked<Index>::int_type value) {
         helpers::set_channel_direct_unchecked<type, Index>(native_value, value);
     }
+
+    
+    // retrieves the integer channel value without performing compile time checking on Index
+    template <int Index>
+    constexpr inline uint8_t channel_unchecked8() const {
+        return helpers::get_channel_direct_unchecked8<type, Index>(native_value);
+    }
+    // sets the integer channel value without performing compile time checking on Index
+    template <int Index>
+    constexpr inline void channel_unchecked8(uint8_t value) {
+        helpers::set_channel_direct_unchecked8<type, Index>(native_value, value);
+    }
+
     // retrieves the integer channel value by index
     template <int Index>
     constexpr inline typename channel_by_index<Index>::int_type channel() const {
@@ -808,6 +978,23 @@ struct pixel {
         using ch = channel_by_index<Index>;
         channel<Index>(value * ch::scale + .5);
     }
+
+     // retrieves the 8 bit scaled approximate channel value by index
+    template <int Index>
+    constexpr inline uint8_t channel8() const {
+        using ch = channel_by_index<Index>;
+        return typename ch::int_type(typename ch::pixel_type::int_type(native_value & ch::channel_mask) >> ch::total_bits_to_right) * 255 / ch::scale;
+    }
+    // sets the 8 bit scaled approximate channel value by index
+    template <int Index>
+    constexpr inline void channel8(uint8_t value) {
+        using ch = channel_by_index<Index>;
+        const typename ch::int_type xlate = value * ch::scale / 255;
+        const typename ch::pixel_type::int_type shval = typename ch::pixel_type::int_type(typename ch::pixel_type::int_type(helpers::clamp(xlate, ch::min, ch::max)) << ch::total_bits_to_right);
+        native_value = typename ch::pixel_type::int_type((native_value & typename ch::pixel_type::int_type(~ch::channel_mask)) | shval);
+    }
+
+
     // retrieves the floating point channel value by index
     template <int Index>
     constexpr inline typename channel_by_index_unchecked<Index>::real_type channelr_unchecked() const {
@@ -960,62 +1147,25 @@ struct pixel {
     constexpr bits::uintx<HTCW_MAX_WORD> difference_fast(type rhs) const {
         return helpers::pixel_diff_impl<type, 0, ChannelTraits...>::diff_sum_fast(*this, rhs);
     }
+    constexpr uint32_t difference8(type rhs) const {
+        return helpers::pixel_diff_impl<type, 0, ChannelTraits...>::diff_sum8(*this, rhs);
+    }
+   
     // blends two pixels. ratio is between zero and one. larger ratio numbers favor this pixel
     constexpr gfx_result blend(const type rhs, double ratio, type* out_pixel) const {
         if (out_pixel == nullptr) {
             return gfx_result::invalid_argument;
         }
-        static_assert(!has_channel_names<channel_name::index>::value, "pixel must not be indexed");
-        if (ratio == 1.0f) {
-            out_pixel->native_value = native_value;
-            return gfx_result::success;
-        } else if (ratio == 0.0f) {
-            out_pixel->native_value = rhs.native_value;
-            return gfx_result::success;
-        }
-        if (type::template has_channel_names<channel_name::A>::value) {
-            constexpr const int ai = type::channel_index_by_name<channel_name::A>::value;
-
-            auto a1 = this->template channelr_unchecked<ai>();
-            auto a2 = rhs.template channelr_unchecked<ai>();
-            auto r2 = a1 / a2;
-            ratio = ratio * r2;
-            if (ratio > 1.0f)
-                ratio = 1.0f;
-        }
-
-        helpers::pixel_blend_impl<type, 0, ChannelTraits...>::blend_val(*this, rhs, ratio, out_pixel);
-        return gfx_result::success;
+        constexpr const bool has_indexed = has_channel_names<channel_name::index>::value;
+        return helpers::pixel_blend_helper<type,has_indexed,ChannelTraits...>::blend(*this,rhs,ratio,out_pixel);
     }
     // blends two pixels. ratio is between zero and 255. larger ratio numbers favor this pixel
     constexpr gfx_result blend8(const type rhs, uint8_t ratio, type* out_pixel) const {
         if (out_pixel == nullptr) {
             return gfx_result::invalid_argument;
         }
-        static_assert(!has_channel_names<channel_name::index>::value, "pixel must not be indexed");
-        if (ratio == 255) {
-            out_pixel->native_value = native_value;
-            return gfx_result::success;
-        } else if (ratio == 0) {
-            out_pixel->native_value = rhs.native_value;
-            return gfx_result::success;
-        }
-        if (type::template has_channel_names<channel_name::A>::value) {
-            constexpr const int ai = type::channel_index_by_name<channel_name::A>::value;
-            // raw integer alpha; both are the same channel/scale, so the scale cancels in a1/a2
-            const int a1 = (int)this->template channel_unchecked<ai>();
-            const int a2 = (int)rhs.template channel_unchecked<ai>();
-            int rr;
-            if (a2 == 0) {
-                rr = (a1 != 0) ? 255 : ratio;   // a1/a2 -> +inf clamps to full; 0/0 -> leave ratio be
-            } else {
-                rr = (int)ratio * a1 / a2;      // = ratio * (a1/a2); 254*max/1 still fits int
-                if (rr > 255) rr = 255;
-            }
-            ratio = (uint8_t)rr;
-        }
-        helpers::pixel_blend_impl<type, 0, ChannelTraits...>::blend_val255(*this, rhs, ratio, out_pixel);
-        return gfx_result::success;
+        constexpr const bool has_indexed = has_channel_names<channel_name::index>::value;
+        return helpers::pixel_blend_helper<type,has_indexed,ChannelTraits...>::blend8(*this,rhs,ratio,out_pixel);
     }
    
     // blends two pixels. ratio is between zero and one. larger ratio numbers favor this pixel
@@ -1030,6 +1180,32 @@ struct pixel {
         blend8(rhs, ratio, &result);
         return result;
     }
+     // Applies signed per-channel error (native units), clamping each channel to
+    // its range, writing the result to *out_pixel. err[] is indexed in channel
+    // order (channel 0..channels-1). For Floyd-Steinberg error diffusion.
+    constexpr gfx_result diffuse(const int32_t* err, type* out_pixel) const {
+        if (out_pixel == nullptr || err == nullptr) {
+            return gfx_result::invalid_argument;
+        }
+        static_assert(!has_channel_names<channel_name::index>::value,
+                      "pixel must not be indexed");
+        helpers::pixel_fs_apply_impl<type, 0, ChannelTraits...>::apply(*this, err, out_pixel);
+        return gfx_result::success;
+    }
+
+    // Computes signed per-channel quantization error (*this - chosen) into
+    // out_err[], indexed in channel order. `chosen` is the palette color that
+    // was actually written; *this is the corrected (pre-quantization) color.
+    constexpr gfx_result diffuse_error(const type chosen, int32_t* out_err) const {
+        if (out_err == nullptr) {
+            return gfx_result::invalid_argument;
+        }
+        static_assert(!has_channel_names<channel_name::index>::value,
+                      "pixel must not be indexed");
+        helpers::pixel_fs_error_impl<type, 0, ChannelTraits...>::calc(*this, chosen, out_err);
+        return gfx_result::success;
+    }
+
     // premultiply pixels. amount is between zero and the channel scale.
     constexpr pixel& premultiply(size_t amount) {
         static_assert(!has_channel_names<channel_name::index>::value, "pixel must not be indexed");

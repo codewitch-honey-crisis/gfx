@@ -6,6 +6,7 @@
 #include "gfx_draw_line.hpp"
 #include "gfx_draw_rectangle.hpp"
 #include "gfx_draw_bitmap.hpp"
+#include "gfx_draw_dithered.hpp"
 #include "gfx_draw_icon.hpp"
 #include "gfx_draw_text.hpp"
 #include "gfx_draw_ellipse.hpp"
@@ -30,6 +31,7 @@ struct draw : public helpers::xdraw_point,
             public helpers::xdraw_line, 
             public helpers::xdraw_rectangle,
             public helpers::xdraw_bitmap,
+            public helpers::xdraw_dithered,
             public helpers::xdraw_icon,
             public helpers::xdraw_text,
             public helpers::xdraw_ellipse,

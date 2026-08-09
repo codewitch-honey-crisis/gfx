@@ -9,6 +9,7 @@
         static inline constexpr const char* value() { return #x; } \
     };
 namespace gfx {
+template <typename... ChannelTraits> struct pixel;
 // predefined channel names
 struct channel_name {
     // red
@@ -49,6 +50,7 @@ struct channel_name {
     GFX_CHANNEL_NAME(nop)
     // TODO: add more of these
 };
+
 // defines a channel for a pixel
 template <
     // the channel name, like channel_name::R
@@ -497,19 +499,17 @@ template<typename Target, bool IsIndexed, typename ...ChannelTraits>
 struct pixel_blend_helper_pal {};
 template<typename Target,typename ...ChannelTraits>
 struct pixel_blend_helper_pal<Target,false,ChannelTraits...> {
-    // blends two pixels. ratio is between zero and one. larger ratio numbers favor this pixel
-    static constexpr gfx_result blend(const Target& target, const typename Target::pixel_type lhs, const typename Target::pixel_type rhs, double ratio, typename Target::pixel_type* out_pixel) {
-        return helpers::pixel_blend_helper<typename Target::pixel_type, false,ChannelTraits...>::blend(lhs, rhs, ratio, out_pixel);
+    static constexpr gfx_result blend(const Target& target, pixel<ChannelTraits...> lhs, pixel<ChannelTraits...> rhs, double ratio, pixel<ChannelTraits...>* out_pixel) {
+        return helpers::pixel_blend_helper<pixel<ChannelTraits...>, false, ChannelTraits...>::blend(lhs, rhs, ratio, out_pixel);
     }
-    // blends two pixels. ratio is between zero and 255. larger ratio numbers favor this pixel
-    static constexpr gfx_result blend8(const Target& target, const typename Target::pixel_type lhs,const typename Target::pixel_type rhs, uint8_t ratio, typename Target::pixel_type* out_pixel) {
-        return helpers::pixel_blend_helper<typename Target::pixel_type, false,ChannelTraits...>::blend8(lhs, rhs, ratio, out_pixel);
+    static constexpr gfx_result blend8(const Target& target, pixel<ChannelTraits...> lhs, pixel<ChannelTraits...> rhs, uint8_t ratio, pixel<ChannelTraits...>* out_pixel) {
+        return helpers::pixel_blend_helper<pixel<ChannelTraits...>, false, ChannelTraits...>::blend8(lhs, rhs, ratio, out_pixel);
     }
 };
 template<typename Target,typename ...ChannelTraits>
 struct pixel_blend_helper_pal<Target,true, ChannelTraits...> {
     // blends two pixels. ratio is between zero and one. larger ratio numbers favor this pixel
-    static constexpr gfx_result blend(const Target& target, const typename Target::pixel_type lhs, const typename Target::pixel_type rhs, double ratio, typename Target::pixel_type* out_pixel) {
+    static constexpr gfx_result blend(const Target& target, typename Target::pixel_type lhs, typename Target::pixel_type rhs, double ratio, typename Target::pixel_type* out_pixel) {
         if (out_pixel == nullptr) {
             return gfx_result::invalid_argument;
         }
@@ -535,7 +535,7 @@ struct pixel_blend_helper_pal<Target,true, ChannelTraits...> {
         return pal->nearest(blended,out_pixel);
     }
     // blends two pixels. ratio is between zero and 255. larger ratio numbers favor this pixel
-    static constexpr gfx_result blend8(const Target& target, const typename Target::pixel_type lhs,const typename Target::pixel_type rhs, uint8_t ratio, typename Target::pixel_type* out_pixel) {
+    static constexpr gfx_result blend8(const Target& target, typename Target::pixel_type lhs,typename Target::pixel_type rhs, uint8_t ratio, typename Target::pixel_type* out_pixel) {
         if (out_pixel == nullptr) {
             return gfx_result::invalid_argument;
         }

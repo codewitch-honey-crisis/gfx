@@ -1,4 +1,4 @@
-version: "2.9.0"
+version: "2.9.1"
 description: "A cross platform graphics library for embedded"
 url: "https://codewitch-honey-crisis.github.io/gfx_web/"
 dependencies:

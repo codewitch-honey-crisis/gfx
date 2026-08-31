@@ -7,7 +7,7 @@ namespace gfx {
 namespace helpers {
 class xdraw_filled_rounded_rectangle {
     template <typename Destination, typename PixelType>
-    static gfx_result filled_rounded_rectangle_impl(Destination& destination, const srect16& rect, float ratio, PixelType color, const srect16* clip) {
+    static gfx_result xfilled_rounded_rectangle_impl(Destination& destination, const srect16& rect, float ratio, PixelType color, const srect16* clip) {
         gfx_result r;
         srect16 sr = rect.normalize();
         float fx = .025 > ratio ? .025 : ratio > .5 ? .5
@@ -44,7 +44,7 @@ public:
     // draws a filled rounded rectangle with the specified dimensions and of the specified color, with an optional clipping rectangle
     template <typename Destination, typename PixelType>
     inline static gfx_result filled_rounded_rectangle(Destination& destination, const srect16& rect, float ratio, PixelType color, const srect16* clip = nullptr) {
-        return filled_rounded_rectangle_impl(destination, rect, ratio, color, clip);
+        return xfilled_rounded_rectangle_impl(destination, rect, ratio, color, clip);
     }
     // draws a filled rounded rectangle with the specified dimensions and of the specified color, with an optional clipping rectangle
     template <typename Destination, typename PixelType>

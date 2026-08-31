@@ -7,7 +7,7 @@ namespace gfx {
 namespace helpers {
 class xdraw_rounded_rectangle {
     template <typename Destination, typename PixelType>
-    static gfx_result rounded_rectangle_impl(Destination& destination, const srect16& rect, float ratio, PixelType color, const srect16* clip) {
+    static gfx_result xrounded_rectangle_impl(Destination& destination, const srect16& rect, float ratio, PixelType color, const srect16* clip) {
         // TODO: This can be sped up by copying the ellipse algorithm and modifying it slightly.
         gfx_result r;
         srect16 sr = rect.normalize();
@@ -50,7 +50,7 @@ public:
     // draws a rounded rectangle with the specified dimensions and of the specified color, with an optional clipping rectangle
     template <typename Destination, typename PixelType>
     inline static gfx_result rounded_rectangle(Destination& destination, const srect16& rect, float ratio, PixelType color, const srect16* clip = nullptr) {
-        return rounded_rectangle_impl(destination, rect, ratio, color, clip);
+        return xrounded_rectangle_impl(destination, rect, ratio, color, clip);
     }
     // draws a rounded rectangle with the specified dimensions and of the specified color, with an optional clipping rectangle
     template <typename Destination, typename PixelType>

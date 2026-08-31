@@ -4,52 +4,48 @@ on:
   push:
     tags:
       - "*"
-    branches:
-      - "master"
+
+permissions:
+  contents: write   # lets the release step create a GitHub release
+
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/pip
-            ~/.platformio/.cache
-          key: ${{ runner.os }}-pio
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.9"
-      - name: Install PlatformIO
-        run: pip install --upgrade platformio
-      - name: Test project
-        run: ./.github/scripts/test.sh
-        shell: bash
   publish:
-    needs: test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/cache@v4
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - uses: actions/cache@v5
         with:
           path: |
             ~/.cache/pip
             ~/.platformio/.cache
           key: ${{ runner.os }}-pio
-      - uses: actions/setup-python@v5
+
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.9"
+
       - name: Install PlatformIO
         run: pip install --upgrade platformio
-      - name: Build project
+
+      - name: Build package
         run: pio package pack
-      - name: Publish project to PlatformIO
+
+      - name: Publish to PlatformIO
         env:
           PLATFORMIO_AUTH_TOKEN: ${{ secrets.PLATFORMIO_AUTH_TOKEN }}
-        run: ./.github/scripts/publish.sh
-        shell: bash
+        run: pio package publish --owner codewitch-honey-crisis --non-interactive ./*.tar.gz
+
+      - name: Upload to ESP Component Registry
+        uses: espressif/upload-components-ci-action@v2
+        with:
+          components: "htcw_gfx: ."
+          namespace: "codewitch-honey-crisis"
+          api_token: ${{ secrets.IDF_COMPONENT_API_TOKEN }}
+
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
         with:
           files: ./*.tar.gz

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 if(NOT DEFINED IDF_TARGET)
-    project(htcw_gfx VERSION 2.8.2)
+    project(htcw_gfx VERSION 2.9.0)
     set(CMAKE_CXX_STANDARD 17)
     set(CMAKE_CXX_STANDARD_REQUIRED True)
     set(CMAKE_STATIC_LIBRARY_PREFIX "")
@@ -8,18 +8,18 @@ if(NOT DEFINED IDF_TARGET)
 
     FetchContent_Declare(htcw_data
         GIT_REPOSITORY https://github.com/codewitch-honey-crisis/htcw_data.git
-        GIT_TAG 1.4.5
+        GIT_TAG 1.4.6
         GIT_SHALLOW ON
-        FIND_PACKAGE_ARGS 1.4.5
+        FIND_PACKAGE_ARGS 1.4.6
     )
 
     FetchContent_MakeAvailable(htcw_data)
 
     FetchContent_Declare(htcw_ml
         GIT_REPOSITORY https://github.com/codewitch-honey-crisis/htcw_ml.git
-        GIT_TAG 0.2.9
+        GIT_TAG 0.2.10
         GIT_SHALLOW ON
-        FIND_PACKAGE_ARGS 0.2.9
+        FIND_PACKAGE_ARGS 0.2.10
     )
 
     FetchContent_MakeAvailable(htcw_ml)

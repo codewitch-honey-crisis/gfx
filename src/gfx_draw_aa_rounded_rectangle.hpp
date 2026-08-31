@@ -161,7 +161,10 @@ class xdraw_aa_rounded_rectangle {
             }
 
             // pass 2: blend the covered pixels, each touched exactly once
-            aa_rasterize_row(destination,{(int16_t)minx,(int16_t)py},cov,row_w,fgpx);
+            r_res=aa_rasterize_row(destination,{(int16_t)minx,(int16_t)py},cov,row_w,fgpx);
+            if(gfx_result::success!=r_res) {
+                return r_res;
+            }
         }
         return gfx_result::success;
     }

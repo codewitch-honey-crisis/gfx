@@ -160,7 +160,7 @@ class xdraw_filled_rectangle {
         }
     };
     template <typename Destination, typename PixelType>
-    static gfx_result filled_rectangle_impl(Destination& destination, const srect16& rect, PixelType color, const srect16* clip) {
+    static gfx_result xfilled_rectangle_impl(Destination& destination, const srect16& rect, PixelType color, const srect16* clip) {
         srect16 sr = rect;
         if (nullptr != clip)
             sr = sr.crop(*clip);
@@ -182,7 +182,7 @@ class xdraw_filled_rectangle {
     }
     template <typename Destination, typename PixelType>
     inline static gfx_result filled_rectangle(Destination& destination, const srect16& rect, PixelType color, const srect16* clip = nullptr) {
-        return filled_rectangle_impl(destination, rect, color, clip);
+        return xfilled_rectangle_impl(destination, rect, color, clip);
     }
 
 };

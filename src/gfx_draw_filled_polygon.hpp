@@ -88,7 +88,7 @@ class xdraw_filled_polygon {
     }
 
     template <typename Destination, typename PixelType>
-    static gfx_result aa_filled_polygon_impl(Destination& destination, const spath16& path,
+    static gfx_result xaa_filled_polygon_impl(Destination& destination, const spath16& path,
                                              PixelType color, fill_rule rule,
                                              mask_draw_cache* cache, const srect16* clip) {
         const size_t n = path.size();
@@ -217,7 +217,7 @@ class xdraw_filled_polygon {
     }
 
     template <typename Destination, typename PixelType>
-    static gfx_result filled_polygon_impl(Destination& destination, const spath16& path,
+    static gfx_result xfilled_polygon_impl(Destination& destination, const spath16& path,
                                           PixelType color, fill_rule rule,
                                           const srect16* clip) {
         const size_t n = path.size();
@@ -289,7 +289,7 @@ class xdraw_filled_polygon {
                                             PixelType color,
                                             fill_rule rule = fill_rule::even_odd,
                                             const srect16* clip = nullptr) {
-        return filled_polygon_impl(destination, path, color, rule, clip);
+        return xfilled_polygon_impl(destination, path, color, rule, clip);
     }
 
     // draws an anti-aliased, alpha-blended filled polygon with the specified path
@@ -301,7 +301,7 @@ class xdraw_filled_polygon {
                                                fill_rule rule = fill_rule::even_odd,
                                                mask_draw_cache* cache = nullptr,
                                                const srect16* clip = nullptr) {
-        return aa_filled_polygon_impl(destination, path, color, rule, cache, clip);
+        return xaa_filled_polygon_impl(destination, path, color, rule, cache, clip);
     }
 
      // draws a filled polygon with the specified path and color, with an optional
@@ -311,7 +311,7 @@ class xdraw_filled_polygon {
                                             PixelType color,
                                             fill_rule rule = fill_rule::even_odd,
                                             const srect16* clip = nullptr) {
-        return filled_polygon_impl(destination, (spath16)path, color, rule, clip);
+        return xfilled_polygon_impl(destination, (spath16)path, color, rule, clip);
     }
 
     // draws an anti-aliased, alpha-blended filled polygon with the specified path
@@ -323,7 +323,7 @@ class xdraw_filled_polygon {
                                                fill_rule rule = fill_rule::even_odd,
                                                mask_draw_cache* cache = nullptr,
                                                const srect16* clip = nullptr) {
-        return aa_filled_polygon_impl(destination, (spath16)path, color, rule, cache, clip);
+        return xaa_filled_polygon_impl(destination, (spath16)path, color, rule, cache, clip);
     }
 };
 }  // namespace helpers

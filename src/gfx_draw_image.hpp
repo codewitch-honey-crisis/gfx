@@ -17,7 +17,7 @@ class xdraw_image {
     };
     
     template <typename Destination>
-    static gfx_result image_impl(Destination& destination, const srect16& destination_rect, const ::gfx::image& source_image, const rect16& source_rect, const srect16* clip) {
+    static gfx_result ximage_impl(Destination& destination, const srect16& destination_rect, const ::gfx::image& source_image, const rect16& source_rect, const srect16* clip) {
         if(!source_image.initialized()) {
             return gfx_result::invalid_state;
         }
@@ -61,7 +61,7 @@ public:
     // draws an image from the specified stream to the specified destination rectangle with the an optional clipping rectangle
     template <typename Destination>
     static inline gfx_result image(Destination& destination, const srect16& destination_rect, const ::gfx::image& source_image, const rect16& source_rect = rect16(0, 0, 65535, 65535),const srect16* clip = nullptr) {
-        return image_impl(destination, destination_rect, source_image, source_rect, clip);
+        return ximage_impl(destination, destination_rect, source_image, source_rect, clip);
     }
     // draws an image from the specified stream to the specified destination rectangle with the an optional clipping rectangle
     template <typename Destination>

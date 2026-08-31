@@ -1,7 +1,7 @@
-version: "2.8.2"
+version: "2.9.0"
 description: "A cross platform graphics library for embedded"
 url: "https://codewitch-honey-crisis.github.io/gfx_web/"
 dependencies:
   idf: ">=5.0.0"
-  codewitch-honey-crisis/htcw_data: "^1.4.5"
-  codewitch-honey-crisis/htcw_ml: "^0.2.9"
+  codewitch-honey-crisis/htcw_data: ">=1.4.6,<1.5.0"
+  codewitch-honey-crisis/htcw_ml: ">=0.2.10,<0.3.0"

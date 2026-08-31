@@ -210,7 +210,7 @@ class xdraw_icon {
     };
 
     template <typename Destination, typename Source, typename PixelType>
-    static inline gfx_result icon_impl(Destination& destination, spoint16 location, const Source& source, PixelType forecolor, PixelType backcolor, bool transparent_background, bool invert, const srect16* clip) {
+    static inline gfx_result xicon_impl(Destination& destination, spoint16 location, const Source& source, PixelType forecolor, PixelType backcolor, bool transparent_background, bool invert, const srect16* clip) {
         static_assert(Source::pixel_type::template has_channel_names<channel_name::A>::value, "The source must have an alpha channel");
         return draw_icon_helper<Destination, Source, PixelType>::do_draw(destination, location, source, forecolor, backcolor, transparent_background, invert, clip);
     }
@@ -218,7 +218,7 @@ public:
     // draws an icon to the destination at the location with an optional clipping rectangle
     template <typename Destination, typename Source, typename PixelType>
     static inline gfx_result icon(Destination& destination, spoint16 location, const Source& source, PixelType forecolor, PixelType backcolor = PixelType(0, true), bool transparent_background = true, bool invert = false, const srect16* clip = nullptr) {
-        return icon_impl(destination, location, source, forecolor, backcolor, transparent_background, invert, clip);
+        return xicon_impl(destination, location, source, forecolor, backcolor, transparent_background, invert, clip);
     }
     // draws an icon to the destination at the location with an optional clipping rectangle
     template <typename Destination, typename Source, typename PixelType>

@@ -16,7 +16,7 @@ class xdraw_dithered {
     // spread it 7/16 right, 3/16 down-left, 5/16 down, 1/16 down-right through a
     // two-row int32 carry held in the cache. Size mismatch is a crop (no resample).
     template <typename Destination, typename Source>
-    static gfx_result dither_fs(
+    static gfx_result xdither_fs(
         Destination& destination, const srect16& dst_rect,
         Source& source, const rect16& source_rect,
         dither_cache* cache, const srect16* clip) {
@@ -122,7 +122,7 @@ class xdraw_dithered {
         static_assert(
             Destination::pixel_type::template has_channel_names<channel_name::index>::value,
             "PixelType must be indexed");
-        return dither_fs(
+        return xdither_fs(
             destination, bounds, source, source_bounds, cache, clip);
     }
     // Creates a Floyd-Steinberg dithered bitmap by dithering `source`
@@ -132,7 +132,7 @@ class xdraw_dithered {
         static_assert(
             Destination::pixel_type::template has_channel_names<channel_name::index>::value,
             "PixelType must be indexed");
-        return dither_fs(
+        return xdither_fs(
             destination, (srect16)bounds, source, source_bounds, cache, clip);
     }
 };

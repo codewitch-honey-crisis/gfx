@@ -7,7 +7,7 @@ namespace gfx {
 namespace helpers {
 class xdraw_ellipse {
     template <typename Destination, typename PixelType>
-    static gfx_result ellipse_impl(Destination& destination, const srect16& rect, PixelType color, const srect16* clip, bool filled) {
+    static gfx_result xellipse_impl(Destination& destination, const srect16& rect, PixelType color, const srect16* clip, bool filled) {
         gfx_result rr;
 
         // Draw a single outline pixel.
@@ -91,7 +91,7 @@ public:
     // draws an ellipse with the specified dimensions and of the specified color, with an optional clipping rectangle
     template <typename Destination, typename PixelType>
     inline static gfx_result ellipse(Destination& destination, const srect16& rect, PixelType color, const srect16* clip = nullptr) {
-        return ellipse_impl(destination, rect, color, clip, false);
+        return xellipse_impl(destination, rect, color, clip, false);
     }
     // draws an ellipse with the specified dimensions and of the specified color, with an optional clipping rectangle
     template <typename Destination, typename PixelType>
@@ -101,7 +101,7 @@ public:
     // draws a filled ellipse with the specified dimensions and of the specified color, with an optional clipping rectangle
     template <typename Destination, typename PixelType>
     inline static gfx_result filled_ellipse(Destination& destination, const srect16& rect, PixelType color, const srect16* clip = nullptr) {
-        return ellipse_impl(destination, rect, color, clip, true);
+        return xellipse_impl(destination, rect, color, clip, true);
     }
     // draws a filled ellipse with the specified dimensions and of the specified color, with an optional clipping rectangle
     template <typename Destination, typename PixelType>

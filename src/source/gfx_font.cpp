@@ -520,7 +520,7 @@ gfx_result font::measure(uint16_t max_width,const text_handle text, size_t text_
         y_ext = lineadv;
     }
     font_glyph_info em_gi;
-    uint16_t xo, cw;
+    uint16_t cw;
     bool cached;
     int tail;
     while(1) {
@@ -561,14 +561,12 @@ gfx_result font::measure(uint16_t max_width,const text_handle text, size_t text_
                 break;
             case '\r':
                 x=0;
-                xo=0;
                 break;
             case '\n':
                 y+=lineadv;
                 if(y+lineadv>y_ext) {
                     y_ext = y+lineadv;
                 }
-                xo=0;
                 x=0;
                 break;
             default: {

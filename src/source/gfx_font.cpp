@@ -571,42 +571,39 @@ gfx_result font::measure(uint16_t max_width,const text_handle text, size_t text_
                 xo=0;
                 x=0;
                 break;
-            default:
+            default: {
                 cached = false;
+                const int32_t cp_pair = (cp_next>=0x20)?cp_next:0;
                 if(cache!=nullptr) {
-                    if(gfx_result::success==cache->find(cp,(int)(cp_next>=0x20)?cp_next:0,&gi)) {
+                    if(gfx_result::success==cache->find(cp,cp_pair,&gi)) {
                         cached = true;
                     }
                 }
                 if(!cached) {
-                    res = this->on_measure((int)cp,(int)(cp_next>=0x20)?cp_next:0,&gi);
+                    res = this->on_measure((int)cp,(int)cp_pair,&gi);
                     if(res!=gfx_result::success) {
                         return res;
                     }
                     if(cache!=nullptr) {
-                        cache->add((int)cp,(int)cp_next,gi);
+                        cache->add(cp,cp_pair,gi); // was keyed on raw cp_next, so lookups missed
                     }
                 }
-                xo=x+gi.dimensions.width+gi.offset.x;
-                tail = (gi.dimensions.height+gi.offset.y)>lineadv?(gi.dimensions.height+gi.offset.y):lineadv;
-                if(xo>max_width) {
-                    x=0;
-                    xo = gi.dimensions.width+gi.offset.x;
-                    y+=lineadv;
-                    if(y+tail>y_ext) {
-                        y_ext = y+tail;
-                    }
-                }  else {
-                    x+=gi.advance_width;
+                int right = (int)x + gi.dimensions.width + gi.offset.x;
+                if(x>0 && right>max_width) {
+                    x = 0;
+                    y += lineadv;
+                    right = gi.dimensions.width + gi.offset.x;
                 }
+                x += gi.advance_width;
+                tail = ((gi.dimensions.height+gi.offset.y)>lineadv)?(gi.dimensions.height+gi.offset.y):lineadv;
                 if(y+tail>y_ext) {
                     y_ext = y+tail;
                 }
-                if(xo>x_ext) {
-                    x_ext = xo;
+                if(right>(int)x_ext) {
+                    x_ext = right;
                 }
-                
                 break;
+            }
         }
         cp = cp_next;
         if(!cp) {
@@ -656,7 +653,6 @@ gfx_result font::draw(const gfx::srect16& bounds, const text_handle text, size_t
         return gfx_result::success;
     }
     uint16_t em_width = 0;
-    uint16_t x_ext = 0, y_ext = 0;
     uint16_t x = 0,y=0;
     int32_t cp=0, cp_next=0;
     size_t advlen = len;
@@ -679,7 +675,7 @@ gfx_result font::draw(const gfx::srect16& bounds, const text_handle text, size_t
         len-=advlen_next;
     }
     font_glyph_info em_gi;
-    uint16_t xo, cw;
+    uint16_t cw;
     bool cached;
     while(1) {
         font_glyph_info gi;
@@ -713,9 +709,7 @@ gfx_result font::draw(const gfx::srect16& bounds, const text_handle text, size_t
                     x=0;
                     y+=lineh;
                 }
-                if(x>x_ext) {
-                    x_ext = x;
-                }
+                
                 break;
             case '\r':
                 x=0;
@@ -724,15 +718,16 @@ gfx_result font::draw(const gfx::srect16& bounds, const text_handle text, size_t
                 y+=lineh;
                 x=0;
                 break;
-            default:
+            default: {
                 cached = false;
+                const int32_t cp_pair = (cp_next>=0x20)?cp_next:0;
                 if(measure_cache!=nullptr) {
-                    if(gfx_result::success==measure_cache->find(cp,(cp_next>=0x20)?cp_next:0,&gi)) {
+                    if(gfx_result::success==measure_cache->find(cp,cp_pair,&gi)) {
                         cached = true;
                     }
                 }
                 if(!cached) {
-                    res = this->on_measure((int)cp,(int)(cp_next>=0x20)?cp_next:0,&gi);
+                    res = this->on_measure((int)cp,(int)cp_pair,&gi);
                     if(res!=gfx_result::success) {
                         if(buffer) {
                             free(buffer);
@@ -740,27 +735,34 @@ gfx_result font::draw(const gfx::srect16& bounds, const text_handle text, size_t
                         return res;
                     }
                     if(measure_cache!=nullptr) {
-                        measure_cache->add(cp,(int)(cp_next>=0x20)?cp_next:0,gi);
+                        measure_cache->add(cp,cp_pair,gi);
                     }
                 }
-                
-                if(cp>=0x20) { 
+                // wrap BEFORE drawing
+                int right = (int)x + gi.dimensions.width + gi.offset.x;
+                if(x>0 && right>bounds.width()) {
+                    x = 0;
+                    y += lineh;
+                    if(bounds.y1 + y > bounds.y2) {
+                        if(buffer) {
+                            free(buffer);
+                        }
+                        return gfx_result::success;
+                    }
+                }
+                if(cp>=0x20) {
                     cached = false;
                     if(draw_cache!=nullptr) {
                         size16 d;
                         uint8_t * b;
                         if(gfx_result::success==draw_cache->find(cp,&d,&b)) {
                             const_bmp_t cbmp(d,b);
-                            //printf("gi.offset.y: %d\n",gi.offset.y);
                             spoint16 loc = spoint16(x,y).offset(bounds.point1()).offset(gi.offset);
                             callback(loc,cbmp,callback_state);
                             cached = true;
-                            //printf("(%d,%d)\n",x,y);
-                            //printf("cache hit for %c (%d)\n",(int)cp,(int)cp);
                         }
                     }
                     if(!cached) {
-                        // do draw
                         size_t bsize = gi.dimensions.width*gi.dimensions.height;
                         if(buffer_size==0) {
                             buffer = (uint8_t*)malloc(bsize);
@@ -788,32 +790,18 @@ gfx_result font::draw(const gfx::srect16& bounds, const text_handle text, size_t
                         }
                         if(draw_cache!=nullptr) {
                             draw_cache->add(cp,gi.dimensions,bmp.begin());
-                            // don't care about errors here
                         }
                         spoint16 loc = spoint16(x,y).offset(bounds.point1()).offset(gi.offset);
-                        //printf("loc: (%d,%d)\n",(int)loc.x,(int)loc.y);
                         const_bmp_t cbmp(gi.dimensions,buffer);
                         callback(loc,cbmp,callback_state);
                     }
                 }
-                if(y+lineh>y_ext) {
-                    y_ext = y+lineh;
-                }
-                xo=x+gi.dimensions.width+gi.offset.x;
-                if(xo>bounds.width()) {
-                    x=0;
-                    xo = gi.dimensions.width+gi.offset.x;
-                    y+=lineh;
-                } else {
-                    x+=gi.advance_width;
-                }
-                if(xo>x_ext) {
-                    x_ext = xo;
-                }
+                x += gi.advance_width;
                 break;
+            }
         }
         cp = cp_next;
-        if(!cp || y>bounds.y2) {
+        if(!cp || bounds.y1 + y > bounds.y2) {
             break;
         }
         // advance

@@ -46,10 +46,15 @@ class xdraw_icon {
             }
             bounds = bounds.crop((srect16)destination.bounds());
             rect16 dstr = (rect16)bounds;
+            // clamp the source extent to what's actually visible
+            if (srcr.x2 - srcr.x1 + 1 > dstr.width()) {
+                srcr.x2 = srcr.x1 + dstr.width() - 1;
+            }
+            if (srcr.y2 - srcr.y1 + 1 > dstr.height()) {
+                srcr.y2 = srcr.y1 + dstr.height() - 1;
+            }
             gfx_result r;
             if(opaque) {
-                gfx_result r;
-
                 typename Destination::pixel_type dpx, fgpx, bgpx;
                 r = convert_palette_from(destination, forecolor, &fgpx);
                 if (r != gfx_result::success) {
@@ -160,18 +165,21 @@ class xdraw_icon {
                     return r;
                 }
             }
-            if(Source::pixel_type::bit_depth==8 && Source::caps::blt_spans && Destination::caps::blt_spans) {
-                // fast 8-bit blends
-                for (int y = 0; y < h; ++y) {    
-                    point16 spt(srcr.x1, srcr.y1 + y);
-                    point16 dpt(dstr.x1, dstr.y1 + y);
-                    gfx_cspan sspan = helpers::get_span<Source,Source::caps::blt_spans>::cspan(source,spt);
-                    r= aa_rasterize_row(destination,(spoint16)dpt,sspan.cdata,sspan.length,fgpx,alpha_factor);
-                    if(r!=gfx_result::success) {
-                        return r;
+            if(!invert) {
+                if constexpr(Source::pixel_type::bit_depth==8 && Source::caps::blt_spans && Destination::caps::blt_spans) {
+                    // fast 8-bit blends
+                    for (int y = 0; y < h; ++y) {    
+                        point16 spt(srcr.x1, srcr.y1 + y);
+                        point16 dpt(dstr.x1, dstr.y1 + y);                        
+                        gfx_cspan sspan = helpers::get_span<Source,Source::caps::blt_spans>::cspan(source,spt);
+                        size_t len = (size_t)w < sspan.length ? (size_t)w : sspan.length;
+                        r = aa_rasterize_row(destination,(spoint16)dpt,sspan.cdata,len,fgpx,alpha_factor);
+                        if(r!=gfx_result::success) {
+                            return r;
+                        }
                     }
+                    return gfx_result::success;
                 }
-                return gfx_result::success;
             }
             
             for (int y = 0; y < h; ++y) {    
@@ -190,7 +198,7 @@ class xdraw_icon {
 
                     a = rpx.opacity8();
                     if (invert) {
-                        a = 1.0 - a;
+                        a = 255 - a;
                     }
                     if (a != oa || obgpx.native_value != bgpx.native_value) {
                         dpx = fgpx.blend8(destination,bgpx, a * alpha_factor/255);

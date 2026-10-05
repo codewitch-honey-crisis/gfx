@@ -19,7 +19,7 @@ class xdraw_text {
             st_t st = *(st_t*)state;
             const srect16 sr = srect16(location,(ssize16)glyph_icon.dimensions());
             if(st.clip==nullptr || sr.intersects(*st.clip)) {
-                return xdraw_icon::icon(*st.dst,location,glyph_icon,*st.color);
+                return xdraw_icon::icon(*st.dst,location,glyph_icon,*st.color,PixelType(0,true),true,false,st.clip);
             }
             return gfx_result::success;
         }

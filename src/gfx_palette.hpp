@@ -302,7 +302,116 @@ namespace gfx {
     }
     namespace helpers {
         extern const unsigned char* ega_color_table;
+        static constexpr const rgb_pixel<24> cga_color_table[] = {
+            rgb_pixel<24>(0x00, 0x00, 0x00),
+            rgb_pixel<24>(0x00, 0x00, 0xAA),
+            rgb_pixel<24>(0x00, 0xAA, 0x00),
+            rgb_pixel<24>(0x00, 0xAA, 0xAA),
+            rgb_pixel<24>(0xAA, 0x00, 0x00),
+            rgb_pixel<24>(0xAA, 0x00, 0xAA),
+            rgb_pixel<24>(0xAA, 0x55, 0x00),
+            rgb_pixel<24>(0xAA, 0xAA, 0xAA),
+            rgb_pixel<24>(0x55, 0x55, 0x55),
+            rgb_pixel<24>(0x55, 0x55, 0xFF),
+            rgb_pixel<24>(0x55, 0xFF, 0x55),
+            rgb_pixel<24>(0x55, 0xFF, 0xFF),
+            rgb_pixel<24>(0xFF, 0x55, 0x55),
+            rgb_pixel<24>(0xFF, 0x55, 0xFF),
+            rgb_pixel<24>(0xFF, 0xFF, 0x55),
+            rgb_pixel<24>(0xFF, 0xFF, 0xFF)};
+
     }
+    // IBM PC CGA color palette    
+    template <typename MappedPixelType, uint8_t Mode = 0, bool Intense = false, bool ColorBurst = true, uint8_t BackgroundColorIndex = 0>
+    struct cga_palette {
+        static_assert(!MappedPixelType::template has_channel_names<channel_name::index>::value, "Mapped pixel must not be indexed");
+
+    public:
+        static constexpr const uint8_t mode = Mode & 1;
+        static constexpr const bool intense = Intense;
+        static constexpr const bool color_burst = ColorBurst;
+        static constexpr const uint8_t background_color_index = BackgroundColorIndex & 15;
+
+    private:
+        constexpr static gfx_result index_to_mapped(int idx, MappedPixelType* result) {
+            rgb_pixel<24> px;
+            if (idx == 0) {
+                px = gfx::helpers::cga_color_table[background_color_index];
+                return convert(px, result);
+            }
+            idx &= 3;
+            if (color_burst) {
+                switch (mode) {
+                    case 0:
+                        px = gfx::helpers::cga_color_table[(idx * 2) + 8 * intense];
+                        break;
+                    case 1:
+                        px = gfx::helpers::cga_color_table[1 + (idx * 2) + 8 * intense];
+                        break;
+                }
+            } else {
+                switch (idx) {
+                    case 1:
+                        px = gfx::helpers::cga_color_table[3 + 8 * intense];
+                        break;
+                    case 2:
+                        px = gfx::helpers::cga_color_table[4 + 8 * intense];
+                        break;
+                    default:
+                        px = gfx::helpers::cga_color_table[7 + 8 * intense];
+                        break;
+                }
+            }
+            return convert(px, result);
+        }
+
+    public:
+        using type = cga_palette;
+        using pixel_type = indexed_pixel<2>;
+        using mapped_pixel_type = MappedPixelType;
+        constexpr static const bool writable = false;
+        constexpr static const size_t size = 4;
+
+        gfx_result map(pixel_type pixel, mapped_pixel_type* mapped_pixel) const {
+            return index_to_mapped(pixel.template channel<channel_name::index>(), mapped_pixel);
+        }
+        gfx_result nearest(mapped_pixel_type mapped_pixel, pixel_type* pixel) const {
+            if (nullptr == pixel) {
+                return gfx_result::invalid_argument;
+            }
+            mapped_pixel_type mpx;
+            gfx_result r = index_to_mapped(0, &mpx);
+            if (gfx_result::success != r) {
+                return r;
+            }
+            auto least = mpx.difference_fast(mapped_pixel);
+            if (0.0 == least) {
+                pixel->native_value = 0;
+                return gfx_result::success;
+            }
+            int ii = 0;
+            for (int i = 1; i < size; ++i) {
+                r = index_to_mapped(i, &mpx);
+                if (gfx_result::success != r) {
+                    return r;
+                }
+                auto cmp = mpx.difference_fast(mapped_pixel);
+                if (0.0 == cmp) {
+                    ii = i;
+                    least = 0.0;
+                    break;
+                }
+                if (cmp < least) {
+                    least = cmp;
+                    ii = i;
+                }
+            }
+            pixel->template channel<channel_name::index>(ii);
+            // printf("nearest was %d\r\n",ii);
+            return gfx_result::success;
+        }
+    };
+
     // here's an actual palette for the IBM PC EGA video graphics system (retro)
     template<typename MappedPixelType, bool FullEga=false> 
     struct ega_palette {
@@ -382,7 +491,52 @@ namespace gfx {
         static constexpr const pixel_type yellow = pixel_type(14+(48*FullEga));
         static constexpr const pixel_type white = pixel_type(15+(48*FullEga));
     };
-    
+    // converts grayscale to an indexed color scheme for dithering
+    template <int BitDepth>
+    struct gsc_palette {
+    public:
+        using type = gsc_palette;
+        using pixel_type = gfx::pixel<gfx::channel_traits<gfx::channel_name::index, BitDepth>>;
+        using mapped_pixel_type = gfx::gsc_pixel<BitDepth>;
+        constexpr static const bool writable = false;
+        constexpr static const size_t size = size_t(1) << BitDepth;
+        constexpr static const pixel_type black = pixel_type(0);
+        constexpr static const pixel_type gray = pixel_type(size>>1);
+        constexpr static const pixel_type white = pixel_type(size-1);
+        gfx::gfx_result map(pixel_type pixel, mapped_pixel_type* mapped_pixel) const {
+            mapped_pixel->template channel<0>(pixel.template channel<0>());
+            return gfx::gfx_result::success;
+        }
+        gfx_result nearest(mapped_pixel_type mapped_pixel, pixel_type* pixel) const {
+            if (nullptr == pixel) {
+                return gfx_result::invalid_argument;
+            }
+            mapped_pixel_type mpx;
+            const auto mval = mapped_pixel.template channel<0>();
+            auto least = mval;
+            if (0 == least) {
+                pixel->native_value = 0;
+                return gfx_result::success;
+            }
+            int ii = 0;
+            for (int i = 1; i < size; ++i) {
+                auto cmp = mval-i;
+                if(cmp<0) cmp = -cmp;
+                if (0 == cmp) {
+                    ii = i;
+                    least = 0;
+                    break;
+                }
+                if (cmp < least) {
+                    least = cmp;
+                    ii = i;
+                }
+            }
+            pixel->template channel<channel_name::index>(ii);
+            return gfx_result::success;
+        }
+    };
+
     namespace helpers {
         
         // Not currently used. used to be used by e-ink drivers.

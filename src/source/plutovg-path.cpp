@@ -192,8 +192,9 @@ bool plutovg_path_arc_to(plutovg_path_t* path, float rx, float ry, float angle, 
         rx *= sqrtf(radius);
         ry *= sqrtf(radius);
     }
-    matrix = ::gfx::matrix::create_scale(1.f/rx,1.f/ry);
-    matrix = matrix * ::gfx::matrix::create_rotate(-angle);
+    // FIX: gfx::matrix a * b applies a first. Upstream plutovg rotates by -angle and then
+    // scales; the port had the order reversed, which broke arcs with an x-axis rotation.
+    matrix = ::gfx::matrix::create_rotate(-angle) * ::gfx::matrix::create_scale(1.f/rx,1.f/ry);
     
     float x1, y1;
     float x2, y2;
@@ -221,8 +222,8 @@ bool plutovg_path_arc_to(plutovg_path_t* path, float rx, float ry, float angle, 
         th_arc += PLUTOVG_TWO_PI;
     else if(th_arc > 0 && !sweep_flag)
         th_arc -= PLUTOVG_TWO_PI;
-    matrix=::gfx::matrix::create_rotate(angle);
-    matrix = matrix * ::gfx::matrix::create_scale(rx, ry);
+    // FIX: scale back to the ellipse radii first, then rotate (order was reversed)
+    matrix = ::gfx::matrix::create_scale(rx, ry) * ::gfx::matrix::create_rotate(angle);
     int segments = (int)(ceilf(fabsf(th_arc / (PLUTOVG_HALF_PI + 0.001f))));
     for(int i = 0; i < segments; i++) {
         float th_start = th1 + i * th_arc / segments;
@@ -672,7 +673,8 @@ static bool dash_traverse_func(void* closure, plutovg_path_command_t command, co
 
     dasher->phase += dist0 - dist1;
     dasher->current_point = p1;
-    return false;
+    // FIX: returning false aborts the traversal, so dashed paths stopped after their first segment
+    return true;
 }
 
 bool plutovg_path_traverse_dashed(const plutovg_path_t* path, float offset, const float* dashes, int ndashes, plutovg_path_traverse_func_t traverse_func, void* closure)

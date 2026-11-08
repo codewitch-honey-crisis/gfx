@@ -746,8 +746,12 @@ gfx_result canvas::render(bool preserve,void*(*allocator)(size_t),void*(*realloc
     }
     if(paint_stroke) {
         plutovg_canvas_set_line_width(CHND,m_style->stroke_width);
+        // FIX: always set the dash state. Previously an empty dash left the previous
+        // dash pattern active, so every stroke after a dashed one stayed dashed.
         if(m_style->stroke_dash.values_size>0) {
             plutovg_canvas_set_dash(CHND,m_style->stroke_dash.offset,m_style->stroke_dash.values,m_style->stroke_dash.values_size);
+        } else {
+            plutovg_canvas_set_dash(CHND,0.f,nullptr,0);
         }
         plutovg_canvas_set_line_cap(CHND,(plutovg_line_cap_t)(int)m_style->stroke_line_cap);
         plutovg_canvas_set_line_join(CHND,(plutovg_line_join_t)(int)m_style->stroke_line_join);

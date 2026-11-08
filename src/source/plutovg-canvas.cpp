@@ -76,7 +76,9 @@ static void plutovg_state_copy(plutovg_state_t* state, const plutovg_state_t* so
     state->opacity = source->opacity;
 }
 
-static plutovg_state_t* plutovg_state_create(void*(*allocator)(size_t),void(*deallocator)(void*))
+// FIX: the state's dash array (and clip span buffer) were never given allocator functions,
+// so the first dashed stroke called a garbage/null reallocator and crashed.
+static plutovg_state_t* plutovg_state_create(void*(*allocator)(size_t),void*(*reallocator)(void*,size_t),void(*deallocator)(void*))
 {
     plutovg_state_t* state = (plutovg_state_t*)allocator(sizeof(plutovg_state_t));
     if(state==nullptr) {
@@ -93,9 +95,8 @@ static plutovg_state_t* plutovg_state_create(void*(*allocator)(size_t),void(*dea
     state->clip_spans.spans.data = nullptr;
     state->clip_spans.spans.size = 0;
     state->clip_spans.spans.capacity = 0;
-    state->stroke.dash.array.data = nullptr;
-    state->stroke.dash.array.size = 0;
-    state->stroke.dash.array.capacity = 0;
+    plutovg_array_init(state->stroke.dash.array, allocator, reallocator, deallocator);
+    plutovg_span_buffer_init(&state->clip_spans, allocator, reallocator, deallocator);
     plutovg_state_reset(state,deallocator);
     return state;
 }
@@ -104,7 +105,7 @@ static void plutovg_state_destroy(plutovg_state_t* state,void(*deallocator)(void
 {
     plutovg_paint_destroy(state->paint,deallocator);
     plutovg_array_destroy(state->stroke.dash.array);
-    //plutovg_span_buffer_destroy(&state->clip_spans);
+    plutovg_span_buffer_destroy(&state->clip_spans); // safe now that it is initialized
     deallocator(state);
 }
 
@@ -119,7 +120,7 @@ plutovg_canvas* plutovg_canvas_create(int width, int height, void*(*allocator)(s
     out_result->width = width;
     out_result->height = height;
     out_result->path = plutovg_path_create(allocator,reallocator,deallocator);
-    out_result->state = plutovg_state_create(allocator,deallocator);
+    out_result->state = plutovg_state_create(allocator,reallocator,deallocator);
     out_result->freed_state = NULL;
     out_result->clip_rect = PLUTOVG_MAKE_RECT(0, 0, width, height);
     out_result->read_callback = NULL;
@@ -220,7 +221,7 @@ bool plutovg_canvas_save(plutovg_canvas_t* canvas)
 {
     plutovg_state_t* new_state = canvas->freed_state;
     if(new_state == NULL)
-        new_state = plutovg_state_create(canvas->allocator,canvas->deallocator);
+        new_state = plutovg_state_create(canvas->allocator,canvas->reallocator,canvas->deallocator);
     else
         canvas->freed_state = new_state->next;
     if(new_state==nullptr) {

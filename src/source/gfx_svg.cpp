@@ -1,4 +1,5 @@
 #include <string.h>
+#include <math.h>
 #include <gfx_canvas.hpp>
 #include <gfx_math.hpp>
 #include <ml_reader.hpp>
@@ -187,6 +188,7 @@ static int svg_attributeid(const char* data) {
         {"gradientTransform", ATTR_GRADIENT_TRANSFORM},
         {"gradientUnits", ATTR_GRADIENT_UNITS},
         {"height", ATTR_HEIGHT},
+        {"href", ATTR_XLINK_HREF}, // FIX: SVG 2 allows plain href
         {"id", ATTR_ID},
         {"offset", ATTR_OFFSET},
         {"opacity", ATTR_OPACITY},
@@ -249,9 +251,16 @@ static int svg_attributeid(const char* data) {
 
 #define SVG_RGB(r, g, b) (::gfx::vector_pixel(255,r,g,b))
 #define SVG_RGBA(r, g, b, a) (::gfx::vector_pixel(a,r,g,b))
+// FIX: hue is given in degrees (0-360) but the H channel is 8-bit (0-255)
 #define SVG_HSL(h, s, l)                                           \
     (::gfx::convert<::gfx::hsla_pixel<32>, ::gfx::vector_pixel>( \
-        ::gfx::hsla_pixel<32>(h, s, l,255)))
+        ::gfx::hsla_pixel<32>(svg_hue8(h), svg_clamp8(s), svg_clamp8(l),255)))
+static inline unsigned svg_clamp8(float v) { return v < 0 ? 0 : v > 255 ? 255 : (unsigned)(v + .5f); }
+static inline unsigned svg_hue8(float deg) {
+    deg = fmodf(deg, 360.f);
+    if (deg < 0) deg += 360.f;
+    return svg_clamp8(deg * 255.f / 360.f);
+}
 
 #define SVG_ALIGN_MIN 0
 #define SVG_ALIGN_MID 1
@@ -402,6 +411,14 @@ struct svg_context {
     } css_has;
     svg_css_data* css_head;
     svg_css_data* css_tail;
+    // FIX: an element can match both a .class rule and an #id rule; the id rule wins
+    svg_css_data* css_current_id;
+    // FIX: properties set by the element's style="" attribute; these beat stylesheet rules
+    union {
+        long data;
+        svg_css_has attr;
+    } inline_has;
+    bool in_inline_style;
     svg_attrib attrs[MAX_ATTRS];
     size_t attrs_head;
     char tmp_name[MAX_NAME];
@@ -456,6 +473,9 @@ static void svg_init_context(svg_context& ctx) {
     ctx.grad_head = nullptr;
     ctx.grad_tail = nullptr;
     ctx.css_current = nullptr;
+    ctx.css_current_id = nullptr;
+    memset(&ctx.inline_has, 0, sizeof(ctx.inline_has));
+    ctx.in_inline_style = false;
     ctx.css_head = nullptr;
     ctx.css_tail = nullptr;
     ctx.tmp_name[0] = 0;
@@ -537,10 +557,24 @@ static svg_attrib& svg_get_attr(svg_context& ctx) {
     return ctx.attrs[ctx.attrs_head];
 }
 bool svg_isspace(char ch) { return strchr(" \t\n\v\f\r", ch) != 0; }
+bool svg_isalnum(char ch);
 bool svg_isalpha(char ch) {
     return ((ch) >= 'a' && (ch) <= 'z') || ((ch) >= 'A' && (ch) <= 'Z');
 }
 static int svg_isdigit(char ch) { return ch >= '0' && ch <= '9'; }
+// characters allowed in ids, class names and url(#...) references
+static bool svg_isidchar(char ch) {
+    return svg_isalnum(ch) || ch == '-' || ch == '_';
+}
+static bool svg_streq_nocase(const char* a, const char* b) {
+    while (*a && *b) {
+        char ca = (*a >= 'A' && *a <= 'Z') ? (char)(*a + 32) : *a;
+        char cb = (*b >= 'A' && *b <= 'Z') ? (char)(*b + 32) : *b;
+        if (ca != cb) return false;
+        ++a; ++b;
+    }
+    return *a == *b;
+}
 bool svg_isalnum(char ch) {
     return ((ch) >= 'a' && (ch) <= 'z') || ((ch) >= 'A' && (ch) <= 'Z') ||
            ((ch) >= '0' && ch <= '9');
@@ -695,14 +729,15 @@ static svg_css_data* svg_find_css_data(svg_context& ctx,const char* sel, bool is
 static result_t svg_parse_path_flag(svg_context& ctx, const char** current,
                                     bool* value) {
     result_t res = svg_ensure_current(ctx,current);
-    if(current==nullptr) {
+    if(!SUCCEEDED(res)) return res;
+    if(*current==nullptr) { // FIX: was checking the pointer-to-pointer
         return IO_ERROR;
     }
     *value = false;
     while (true) {
         res=svg_skip_space_or_comma(ctx,current); if(!SUCCEEDED(res)) return res;
         res=svg_ensure_current(ctx,current);if(!SUCCEEDED(res)) return res;
-        if(current==nullptr) {
+        if(*current==nullptr) {
             return IO_ERROR;
         }
     
@@ -788,7 +823,7 @@ static result_t svg_parse_ref(svg_context& ctx, const char** current,
             }
             *current = ctx.rdr.value();
         } else {
-            if(!svg_isalnum(**current)) {
+            if(!svg_isidchar(**current)) { // FIX: allow '-', '_' etc. in ids
                 break;
             }
             if(max_len>1 && max_len--) {
@@ -1107,6 +1142,42 @@ result_t svg_parse_alphanum_str(svg_context& ctx, const char** current,
     *value = 0;
     return SUCCESS;
 }
+// FIX: ids/class names may contain '-' and '_' (e.g. "linearGradient-1", "grad_a")
+result_t svg_parse_id_str(svg_context& ctx, const char** current,
+                                char* value, size_t max_len) {
+    size_t len = 0;
+    if (*current == nullptr) {
+        return SUCCESS;
+    }
+    while (true) {
+        while (**current) {
+            if (!svg_isidchar(**current)) {
+                *value = 0;
+                return SUCCESS;
+            }
+            if (len < max_len - 1) {
+                *(value++) = **current;
+                ++len;
+            }
+            ++(*current);
+        }
+        if (!**current) {
+            if (!ctx.rdr.read()) {
+                return IO_ERROR;
+            }
+            if (!ctx.rdr.has_value()) {
+                *current = nullptr;
+                break;
+            }
+            *current = ctx.rdr.value();
+        } else {
+            break;
+        }
+    }
+
+    *value = 0;
+    return SUCCESS;
+}
 result_t svg_parse_name_str(svg_context& ctx, const char** current, char* value,
                             size_t max_len) {
     size_t len = 0;
@@ -1340,7 +1411,7 @@ result_t svg_parse_gradient_units(svg_context& ctx, const char** current, char* 
 }
 static result_t svg_parse_spread_method(svg_context& ctx,const char** current, spread_method* out_spread_method)
 {
-    char val[10];
+    char val[20]; // FIX: was 10 while 20 was passed as the buffer size
     result_t res=svg_skip_space(ctx,current);
     if(!SUCCEEDED(res)) {
         return res;
@@ -1393,13 +1464,14 @@ result_t svg_parse_color(svg_context& ctx, const char** current, int mode,
                             }
                             break;
                         case 4:
+                            // FIX: alpha is 0-1 (or a percentage). channel<3> was the
+                            // blue channel, and SVG_RGBA took alpha as 0-255.
                             if (hsl) {
                                 *out_color = SVG_HSL(rgb[0], rgb[1], rgb[2]);
-                                out_color->template channel<3>(rgb[3]);
                             } else {
-                                *out_color =
-                                    SVG_RGBA(rgb[0], rgb[1], rgb[2], rgb[3]);
+                                *out_color = SVG_RGB(svg_clamp8(rgb[0]), svg_clamp8(rgb[1]), svg_clamp8(rgb[2]));
                             }
+                            out_color->opacity_inplace(rgb[3] < 0 ? 0.f : rgb[3] > 1 ? 1.f : rgb[3]);
                             break;
                         default:
                             return FMT_ERROR;
@@ -1469,7 +1541,18 @@ result_t svg_parse_color(svg_context& ctx, const char** current, int mode,
                     if (!SUCCEEDED(res)) {
                         return res;
                     }
-                    if (len > 3) {
+                    // FIX: #rgba and #rrggbbaa (4 and 8 digits) were treated as #rrggbb
+                    if (len == 8) {
+                        r = (uvalue >> 24) & 0xFF;
+                        g = (uvalue >> 16) & 0xFF;
+                        b = (uvalue >> 8) & 0xFF;
+                        *out_color = SVG_RGBA(r, g, b, uvalue & 0xFF);
+                    } else if (len == 4) {
+                        *out_color = SVG_RGBA(((uvalue >> 12) & 0x0F) * 17,
+                                              ((uvalue >> 8) & 0x0F) * 17,
+                                              ((uvalue >> 4) & 0x0F) * 17,
+                                              (uvalue & 0x0F) * 17);
+                    } else if (len > 3) {
                         r = (uvalue >> 16) & 0xFF;
                         g = (uvalue >> 8) & 0xFF;
                         b = uvalue & 0xFF;
@@ -1504,7 +1587,7 @@ result_t svg_parse_color(svg_context& ctx, const char** current, int mode,
                     if (!SUCCEEDED(res)) {
                         return res;
                     }
-                    if (0 == strcmp("currentcolor", name)) {
+                    if (svg_streq_nocase("currentcolor", name)) { // FIX: case-insensitive
                         *out_color = svg_get_attr(ctx).color;
                     } else {
                         *out_color = svg_lookup_color(ctx.tmp_value);
@@ -1537,7 +1620,8 @@ result_t svg_parse_color(svg_context& ctx, const char** current, int mode,
                         ++(*current);
                         res=svg_ensure_current(ctx,current);
                         if(!SUCCEEDED(res)) return res;
-                        *rc *= 2.55;
+                        // FIX: a percentage alpha is a 0-1 fraction, not 0-255
+                        if (rc - rgb == 3) *rc /= 100.f; else *rc *= 2.55f;
                     }
                     ++rc;
                     state = 8;
@@ -1574,13 +1658,14 @@ result_t svg_parse_color(svg_context& ctx, const char** current, int mode,
                             }
                             return SUCCESS;
                         case 4:
+                            // FIX: alpha is 0-1 (or a percentage). channel<3> was the
+                            // blue channel, and SVG_RGBA took alpha as 0-255.
                             if (hsl) {
                                 *out_color = SVG_HSL(rgb[0], rgb[1], rgb[2]);
-                                out_color->template channel<3>(rgb[3]);
                             } else {
-                                *out_color =
-                                    SVG_RGBA(rgb[0], rgb[1], rgb[2], rgb[3]);
+                                *out_color = SVG_RGB(svg_clamp8(rgb[0]), svg_clamp8(rgb[1]), svg_clamp8(rgb[2]));
                             }
+                            out_color->opacity_inplace(rgb[3] < 0 ? 0.f : rgb[3] > 1 ? 1.f : rgb[3]);
                             return SUCCESS;
 
                         default:
@@ -1736,8 +1821,10 @@ static result_t svg_parse_coordinate(svg_context& ctx, const char** current,
     }
     return SUCCESS;
 }
-static float svg_actual_orig_x(svg_context& ctx) { return ctx.view_box_min_x; }
-static float svg_actual_orig_y(svg_context& ctx) { return ctx.view_box_min_y; }
+// FIX: percentage coordinates are a fraction of the viewport size; they are not offset
+// by the viewBox origin (and x2/y2 were treated differently from x1/y1)
+static float svg_actual_orig_x(svg_context& ctx) { (void)ctx; return 0.f; }
+static float svg_actual_orig_y(svg_context& ctx) { (void)ctx; return 0.f; }
 
 static float svg_actual_width(svg_context& ctx) { return ctx.view_box_width>0?ctx.view_box_width:ctx.view_width; }
 
@@ -1916,10 +2003,14 @@ static result_t svg_parse_transform(svg_context& ctx, const char** current,
                                 state = -7;
                                 break;
                             } else if (argsc == 3) {
-                                *out_matrix = (::gfx::matrix::create_translate(
+                                // FIX: rotate(a, cx, cy) = translate(cx,cy) rotate(a) translate(-cx,-cy)
+                                // (the translate back to (cx,cy) was missing)
+                                *out_matrix = ((::gfx::matrix::create_translate(
                                                    -args[1], -args[2]) *
                                                ::gfx::matrix::create_rotate(
                                                    SVG_DEG2RAD(args[0]))) *
+                                               ::gfx::matrix::create_translate(
+                                                   args[1], args[2])) *
                                               *out_matrix;
                                 state = -7;
                                 break;
@@ -1927,8 +2018,9 @@ static result_t svg_parse_transform(svg_context& ctx, const char** current,
                             return FMT_ERROR;
                         case TRANS_SCALE:
                             if (argsc == 1) {
+                                // FIX: scale(s) means scale(s, s); args[1] was uninitialized
                                 *out_matrix =
-                                    ::gfx::matrix::create_scale(args[0], args[1]) *
+                                    ::gfx::matrix::create_scale(args[0], args[0]) *
                                     *out_matrix;
                                 state = -7;
                                 break;
@@ -2117,7 +2209,31 @@ result_t svg_parse_view_box(svg_context& ctx, const char** current) {
     if (!SUCCEEDED(res)) return res;
     return svg_parse_view_box_value(ctx, current, &ctx.view_box_height);
 }
+static result_t svg_parse_stroke_dash_array_impl(svg_context& ctx, const char** current,
+                                     size_t* out_values_size,
+                                     float* out_values);
 result_t svg_parse_stroke_dash_array(svg_context& ctx, const char** current,
+                                     size_t* out_values_size,
+                                     float* out_values) {
+    result_t res = svg_parse_stroke_dash_array_impl(ctx, current, out_values_size, out_values);
+    if (!SUCCEEDED(res)) return res;
+    // FIX: per spec an odd number of values is repeated to make it even,
+    // and an all-zero list renders as a solid line
+    bool all_zero = true;
+    for (size_t i = 0; i < *out_values_size; ++i) {
+        if (out_values[i] != 0) { all_zero = false; break; }
+    }
+    if (all_zero) {
+        *out_values_size = 0;
+    } else if ((*out_values_size & 1) && *out_values_size * 2 <= MAX_STROKE_ARRAY) {
+        for (size_t i = 0; i < *out_values_size; ++i) {
+            out_values[*out_values_size + i] = out_values[i];
+        }
+        *out_values_size *= 2;
+    }
+    return SUCCESS;
+}
+static result_t svg_parse_stroke_dash_array_impl(svg_context& ctx, const char** current,
                                      size_t* out_values_size,
                                      float* out_values) {
     result_t result = SUCCESS;
@@ -2165,6 +2281,9 @@ result_t svg_parse_stroke_dash_array(svg_context& ctx, const char** current,
         result = svg_skip_space(ctx, current);
         if (!SUCCEEDED(result)) {
             return result;
+        }
+        if (*current == nullptr) {
+            break;
         }
         if (*current && (**current == ',' || svg_isspace(**current))) {
             ++(*current);
@@ -2579,18 +2698,29 @@ static result_t svg_parse_paint(svg_context& ctx, const char** current,
                 isid = true;
             }
         }
-    } else if (0 == strcmp(ctx.tmp_value, "rgb") && (**current == '(')) {
+    } else if (svg_streq_nocase(ctx.tmp_value, "currentColor")) {
+        // FIX: currentColor was looked up as a named color (black)
+        *out_color = svg_get_attr(ctx).color;
+        *out_visibility = 1;
+        return SUCCESS;
+    } else if ((0 == strcmp(ctx.tmp_value, "rgb") || 0 == strcmp(ctx.tmp_value, "rgba")) && (**current == '(')) {
         ++(*current);
         res = svg_parse_color(ctx,current,COLOR_MODE_RGB,out_color);
         if(!SUCCEEDED(res)) {
             return res;
         }
-    } else if (0 == strcmp(ctx.tmp_value, "hsl") && (**current == '(')) {
+    } else if ((0 == strcmp(ctx.tmp_value, "hsl") || 0 == strcmp(ctx.tmp_value, "hsla")) && (**current == '(')) {
         ++(*current);
         res = svg_parse_color(ctx,current,COLOR_MODE_HSL,out_color);
         if(!SUCCEEDED(res)) {
             return res;
         }
+    }
+    if ((0 == strcmp(ctx.tmp_value, "rgb") || 0 == strcmp(ctx.tmp_value, "rgba") ||
+         0 == strcmp(ctx.tmp_value, "hsl") || 0 == strcmp(ctx.tmp_value, "hsla"))) {
+        // FIX: the parsed color was overwritten by a named color lookup below
+        *out_visibility = 1;
+        return SUCCESS;
     }
     if (!isid) {
         *out_visibility = 1;
@@ -2600,7 +2730,7 @@ static result_t svg_parse_paint(svg_context& ctx, const char** current,
         return SUCCESS;
         
     } else {
-        res = svg_parse_alphanum_str(ctx,current,out_id,MAX_ID-1);
+        res = svg_parse_id_str(ctx,current,out_id,MAX_ID-1); // FIX: ids may contain '-' and '_'
         if(!SUCCEEDED(res)) {
             return res;
         }
@@ -2616,17 +2746,23 @@ static result_t svg_parse_paint(svg_context& ctx, const char** current,
     }
     res = svg_ensure_current(ctx, current);
     if (!SUCCEEDED(res)) return res;
+    *out_visibility = 2;
     if(*current!=nullptr && **current) {
         res=svg_skip_space(ctx,current);
         if(!SUCCEEDED(res)) {
             return res;
         }
-        res = svg_parse_color(ctx, current, COLOR_MODE_UNKNOWN, out_color);
-        if(!SUCCEEDED(res)) {
-            return res;
+        // FIX: remember a fallback color ("url(#g) red") so it is used if #g doesn't exist
+        if (*current != nullptr && (**current == '#' || svg_isalpha(**current))) {
+            res = svg_parse_color(ctx, current, COLOR_MODE_UNKNOWN, out_color);
+            if(!SUCCEEDED(res)) {
+                return res;
+            }
+            if (0 != strcmp(ctx.tmp_value, "none")) {
+                *out_visibility = 3;
+            }
         }
     }
-    *out_visibility = 2;
     return SUCCESS;
 }
 static result_t svg_parse_display(svg_context& ctx, const char** current,
@@ -2684,7 +2820,15 @@ static result_t svg_parse_linejoin(svg_context& ctx, const char** current,
     return SUCCESS;
 }
 
+static result_t svg_parse_style_impl(svg_context& ctx, const char** current,bool is_css);
 static result_t svg_parse_style(svg_context& ctx, const char** current,bool is_css) {
+    bool old = ctx.in_inline_style;
+    ctx.in_inline_style = !is_css;
+    result_t res = svg_parse_style_impl(ctx, current, is_css);
+    ctx.in_inline_style = old;
+    return res;
+}
+static result_t svg_parse_style_impl(svg_context& ctx, const char** current,bool is_css) {
     result_t res = SUCCESS;
     int state = 0;
     int id = 0;
@@ -2764,6 +2908,9 @@ static result_t svg_parse_style(svg_context& ctx, const char** current,bool is_c
     return res;
 }
 
+// records which properties a stylesheet rule (is_css) or a style="" attribute set
+#define SVG_MARK_HAS(field) do { if (is_css) ctx.css_has.attr.field = 1; \
+    else if (ctx.in_inline_style) ctx.inline_has.attr.field = 1; } while (0)
 static result_t svg_parse_attribute_id(svg_context& ctx, const char** current,
                                        int id, bool is_css) {
     svg_attrib& attr = svg_get_attr(ctx);
@@ -2778,7 +2925,7 @@ static result_t svg_parse_attribute_id(svg_context& ctx, const char** current,
             if (!SUCCEEDED(r)) {
                 return r;
             }
-            if(is_css) ctx.css_has.attr.color = 1;
+            SVG_MARK_HAS(color);
             break;
         case ATTR_DISPLAY:
             r = svg_parse_display(ctx, current, &none_flag);
@@ -2788,17 +2935,15 @@ static result_t svg_parse_attribute_id(svg_context& ctx, const char** current,
             if (none_flag) {
                 attr.visible = 0;
             }
-            if(is_css) ctx.css_has.attr.visible = 1;
+            SVG_MARK_HAS(visible);
             break;
         case ATTR_ID:
             r = svg_parse_name_str(ctx, current, attr.id, MAX_ID);
             if (!SUCCEEDED(r)) {
                 return r;
             }
-            if(is_css) ctx.css_has.attr.id = 1;
-            if(ctx.css_current==nullptr) {
-                ctx.css_current = svg_find_css_data(ctx,attr.id,true);
-            }
+            SVG_MARK_HAS(id);
+            ctx.css_current_id = svg_find_css_data(ctx,attr.id,true);
             
             break;
         case ATTR_FILL:
@@ -2807,47 +2952,51 @@ static result_t svg_parse_attribute_id(svg_context& ctx, const char** current,
             if (!SUCCEEDED(r)) {
                 return r;
             }
-            if(is_css) {
-                ctx.css_has.attr.hasFill = 1;
-                ctx.css_has.attr.fillColor = 1;
-                ctx.css_has.attr.fillGradient = 1;
-            }
+            SVG_MARK_HAS(hasFill);
+                SVG_MARK_HAS(fillColor);
+                SVG_MARK_HAS(fillGradient);
             break;
         case ATTR_FILL_OPACITY:
             r = svg_parse_float(ctx, current, true, &attr.fillOpacity);
             if (!SUCCEEDED(r)) {
                 return r;
             }
-            if(is_css) ctx.css_has.attr.fillOpacity = 1;
+            SVG_MARK_HAS(fillOpacity);
             break;
         case ATTR_FILL_RULE:
             r = svg_parse_fill_rule(ctx, current, &attr.fillRule);
             if (!SUCCEEDED(r)) {
                 return r;
             }
-            if(is_css) ctx.css_has.attr.fillRule = 1;
+            SVG_MARK_HAS(fillRule);
             break;
-        case ATTR_OPACITY:
-            r = svg_parse_float(ctx, current, true, &attr.opacity);
+        case ATTR_OPACITY: {
+            // FIX: opacity on a group used to be replaced by a child's opacity.
+            // Multiplying approximates group opacity without an offscreen buffer.
+            float o;
+            r = svg_parse_float(ctx, current, true, &o);
             if (!SUCCEEDED(r)) {
                 return r;
             }
-            if(is_css) ctx.css_has.attr.opacity = 1;
+            if (o < 0) o = 0; else if (o > 1) o = 1;
+            attr.opacity = is_css ? o : attr.opacity * o;
+            SVG_MARK_HAS(opacity);
             break;
+        }
             
         case ATTR_STOP_COLOR:
             r = svg_parse_color(ctx, current, COLOR_MODE_UNKNOWN,&attr.stopColor);
             if (!SUCCEEDED(r)) {
                 return r;
             }
-            if(is_css) ctx.css_has.attr.stopColor = 1;
+            SVG_MARK_HAS(stopColor);
             break;
         case ATTR_STOP_OPACITY:
             r = svg_parse_float(ctx, current, true, &attr.stopOpacity);
             if (!SUCCEEDED(r)) {
                 return r;
             }
-            if(is_css) ctx.css_has.attr.stopOpacity = 1;
+            SVG_MARK_HAS(stopOpacity);
             break;
         case ATTR_STROKE:
             r = svg_parse_paint(ctx, current, &attr.hasStroke,
@@ -2855,11 +3004,9 @@ static result_t svg_parse_attribute_id(svg_context& ctx, const char** current,
             if (!SUCCEEDED(r)) {
                 return r;
             }
-            if(is_css) {
-                ctx.css_has.attr.hasStroke = 1;
-                ctx.css_has.attr.strokeColor = 1;
-                ctx.css_has.attr.strokeGradient = 1;
-            }
+            SVG_MARK_HAS(hasStroke);
+                SVG_MARK_HAS(strokeColor);
+                SVG_MARK_HAS(strokeGradient);
             break;
         case ATTR_STROKE_WIDTH:
             r = svg_parse_coordinate(ctx, current, &coord);
@@ -2868,7 +3015,7 @@ static result_t svg_parse_attribute_id(svg_context& ctx, const char** current,
             }
             attr.strokeWidth =
                 svg_convert_to_pixels(ctx, coord, 0.0f, svg_actual_length(ctx));
-            if(is_css) ctx.css_has.attr.strokeWidth = 1;
+            SVG_MARK_HAS(strokeWidth);
             break;
         case ATTR_STROKE_DASHARRAY:
             r = svg_parse_stroke_dash_array(ctx, current, &attr.strokeDashCount,
@@ -2876,7 +3023,7 @@ static result_t svg_parse_attribute_id(svg_context& ctx, const char** current,
             if (!SUCCEEDED(r)) {
                 return r;
             }
-            if(is_css) ctx.css_has.attr.strokeDashArray = 1;
+            SVG_MARK_HAS(strokeDashArray);
             break;
         case ATTR_STROKE_DASHOFFSET:
             r = svg_parse_coordinate(ctx, current, &coord);
@@ -2885,42 +3032,42 @@ static result_t svg_parse_attribute_id(svg_context& ctx, const char** current,
             }
             attr.strokeDashOffset =
                 svg_convert_to_pixels(ctx, coord, 0.0f, svg_actual_length(ctx));
-            if(is_css) ctx.css_has.attr.strokeDashOffset = 1;
+            SVG_MARK_HAS(strokeDashOffset);
             break;
         case ATTR_STROKE_LINECAP:
             r = svg_parse_linecap(ctx, current, &attr.strokeLineCap);
             if (!SUCCEEDED(r)) {
                 return r;
             }
-            if(is_css) ctx.css_has.attr.strokeLineCap = 1;
+            SVG_MARK_HAS(strokeLineCap);
             break;
         case ATTR_STROKE_LINEJOIN:
             r = svg_parse_linejoin(ctx, current, &attr.strokeLineJoin);
             if (!SUCCEEDED(r)) {
                 return r;
             }
-            if(is_css) ctx.css_has.attr.strokeLineJoin = 1;
+            SVG_MARK_HAS(strokeLineJoin);
             break;
         case ATTR_STROKE_MITERLIMIT:
             r = svg_parse_float(ctx, current, true, &attr.miterLimit);
             if (!SUCCEEDED(r)) {
                 return r;
             }
-            if(is_css) ctx.css_has.attr.miterLimit = 1;
+            SVG_MARK_HAS(miterLimit);
             break;
         case ATTR_OFFSET:
             r = svg_parse_coordinate(ctx, current, &attr.stopOffset);
             if (!SUCCEEDED(r)) {
                 return r;
             }
-            if(is_css) ctx.css_has.attr.stopOffset = 1;
+            SVG_MARK_HAS(stopOffset);
             break;
         case ATTR_STROKE_OPACITY:
             r = svg_parse_float(ctx, current, true, &attr.strokeOpacity);
             if (!SUCCEEDED(r)) {
                 return r;
             }
-            if(is_css) ctx.css_has.attr.strokeOpacity = 1;
+            SVG_MARK_HAS(strokeOpacity);
             break;
         case ATTR_TRANSFORM:
             r = svg_parse_transform(ctx, current, &m);
@@ -2936,7 +3083,7 @@ static result_t svg_parse_attribute_id(svg_context& ctx, const char** current,
             }
             attr.fontSize =
                 svg_convert_to_pixels(ctx, coord, 0.0f, svg_actual_length(ctx));
-            if(is_css) ctx.css_has.attr.fontSize = 1;
+            SVG_MARK_HAS(fontSize);
             break;
         case ATTR_STYLE:
             r = svg_parse_style(ctx, current,false);
@@ -2945,11 +3092,20 @@ static result_t svg_parse_attribute_id(svg_context& ctx, const char** current,
             }
             break;
         case ATTR_CLASS:
-            r=svg_parse_alphanum_str(ctx,current,ctx.tmp_name,MAX_NAME);
-            if (!SUCCEEDED(r)) {
-                return r;
+            // FIX: class names may contain '-'/'_', and class="a b" lists several
+            while (*current && **current) {
+                r = svg_skip_space(ctx, current);
+                if (!SUCCEEDED(r)) return r;
+                if (!*current || !**current) break;
+                r = svg_parse_id_str(ctx, current, ctx.tmp_name, MAX_NAME);
+                if (!SUCCEEDED(r)) return r;
+                if (ctx.tmp_name[0] == 0) {
+                    if (*current && **current) ++(*current); // skip junk
+                    continue;
+                }
+                svg_css_data* css = svg_find_css_data(ctx, ctx.tmp_name, false);
+                if (css != nullptr) ctx.css_current = css;
             }
-            ctx.css_current = svg_find_css_data(ctx,ctx.tmp_name,false);
             break;
         default:
             r = svg_skip_to(ctx, current, ';', false);
@@ -3022,9 +3178,15 @@ static float svg_resolve_gradient_length(svg_context& ctx, const svg_coord& leng
     return svg_convert_length(length, 1.f);
 }
 
+// gradient stop offsets are always fractions: numbers as-is, percentages / 100, clamped to 0-1
+static float svg_resolve_stop_offset(const svg_coord& offset) {
+    float v = offset.units == UNITS_PERCENT ? offset.value / 100.f : offset.value;
+    return v < 0.f ? 0.f : v > 1.f ? 1.f : v;
+}
 static result_t svg_build_gradient(svg_context& ctx, const rectf& local_bounds, const matrix& transform, svg_grad_data* data, gradient* out_grad) {
     out_grad->type = data->type;
     out_grad->stops_size = 0;
+    out_grad->stops = nullptr;
     svg_grad_data* ref_data = nullptr;
     if(data->ref[0]!=0) {
         ref_data = svg_find_gradient(ctx,data->ref);
@@ -3045,18 +3207,23 @@ static result_t svg_build_gradient(svg_context& ctx, const rectf& local_bounds, 
             }    
             out_grad->spread = ref_data->spread;
             out_grad->transform = ref_data->transform;
-            if(ref_data->stops_size>0) {
+            // FIX: a gradient's own stops replace the referenced ones (they used to be appended)
+            if(ref_data->stops_size>0 && data->stops_size==0) {
                 size_t sz = sizeof(gradient_stop)*ref_data->stops_size;
                 out_grad->stops = (gradient_stop*)ctx.allocator(sz);
                 if(out_grad->stops==nullptr) {
                     return OUT_OF_MEMORY;
                 }
+                float last = 0.f;
                 for(size_t i = 0;i<ref_data->stops_size;++i) {
                     out_grad->stops[i].color = ref_data->stops[i].color;
                     float alpha = out_grad->stops[i].color.opacity();
                     float opacity = ref_data->stops[i].opacity;
-                    out_grad->stops[i].color.opacity(alpha*opacity);
-                    out_grad->stops[i].offset = svg_resolve_gradient_length(ctx, ref_data->stops[i].offset,ref_data->units, 'o');
+                    // FIX: opacity() returns a copy; opacity_inplace() modifies the stop
+                    out_grad->stops[i].color.opacity_inplace(alpha*opacity);
+                    float off = svg_resolve_stop_offset(ref_data->stops[i].offset);
+                    if (off < last) off = last;
+                    out_grad->stops[i].offset = last = off;
                 }
                 out_grad->stops_size = ref_data->stops_size;
             }
@@ -3065,8 +3232,12 @@ static result_t svg_build_gradient(svg_context& ctx, const rectf& local_bounds, 
 
     out_grad->transform = data->transform;
     if(data->units == OBJECT_SPACE) {
+        // FIX: rectf::width() is abs(x2-x1)+1, which is wrong for boxes narrower than 1 unit
+        // (common with viewBox="0 0 1 1" icons). bounds() returned x2 = x + w - 1.
+        float bw = local_bounds.x2 - local_bounds.x1 + 1.f;
+        float bh = local_bounds.y2 - local_bounds.y1 + 1.f;
         matrix m= matrix::create_translate(local_bounds.x1,local_bounds.y1);
-        m.scale_inplace(local_bounds.width(),local_bounds.height());
+        m.scale_inplace(bw,bh);
         out_grad->transform = out_grad->transform * m;
     }
     
@@ -3091,118 +3262,132 @@ static result_t svg_build_gradient(svg_context& ctx, const rectf& local_bounds, 
         if(out_grad->stops==nullptr) {
             return OUT_OF_MEMORY;
         }
-        //int st = ref_data!=nullptr?ref_data->stops_size:0;
+        float last = 0.f;
         for(size_t i = 0;i<data->stops_size;++i) {
             size_t j = out_grad->stops_size+i;
             out_grad->stops[j].color = data->stops[i].color;
-            float alpha = out_grad->stops[i].color.opacity();
+            // FIX: read the alpha of the stop being written (index j, not i) and modify it in place
+            float alpha = out_grad->stops[j].color.opacity();
             float opacity = data->stops[i].opacity;
-            out_grad->stops[j].color.opacity(alpha*opacity);
-            out_grad->stops[j].offset = svg_resolve_gradient_length(ctx, data->stops[i].offset,data->units, 'o');
+            out_grad->stops[j].color.opacity_inplace(alpha*opacity);
+            // FIX: offsets are fractions regardless of gradientUnits
+            float off = svg_resolve_stop_offset(data->stops[i].offset);
+            if (off < last) off = last;
+            out_grad->stops[j].offset = last = off;
         }
         out_grad->stops_size += data->stops_size;
     }
     return SUCCESS;
 }
-static void svg_apply_css(svg_attrib* attr,svg_css_data* css ) {
+static void svg_apply_css(svg_attrib* attr,svg_css_data* css, const svg_css_has* skip ) {
     if(attr==nullptr||css==nullptr) {return;}
-    if(css->has.color) {
+    if(css->has.color && !(skip && skip->color)) {
         attr->color = css->data.color;
     }
-    if(css->has.fillColor) {
+    if(css->has.fillColor && !(skip && skip->fillColor)) {
         attr->fillColor = css->data.fillColor;
     }
-    if(css->has.fillGradient) {
+    if(css->has.fillGradient && !(skip && skip->fillGradient)) {
         strcpy(attr->fillGradient,css->data.fillGradient);
     }
-    if(css->has.fillOpacity) {
+    if(css->has.fillOpacity && !(skip && skip->fillOpacity)) {
         attr->fillOpacity = css->data.fillOpacity;
     }
-    if(css->has.fillRule) {
+    if(css->has.fillRule && !(skip && skip->fillRule)) {
         attr->fillRule = css->data.fillRule;
     }
-    if(css->has.fontSize) {
+    if(css->has.fontSize && !(skip && skip->fontSize)) {
         attr->fontSize= css->data.fontSize;
     }
-    if(css->has.hasFill) {
+    if(css->has.hasFill && !(skip && skip->hasFill)) {
         attr->hasFill= css->data.hasFill;
     }
-    if(css->has.hasStroke) {
+    if(css->has.hasStroke && !(skip && skip->hasStroke)) {
         attr->hasStroke= css->data.hasStroke;
     }
-    //if(css->has.id) {
+    //if(css->has.id && !(skip && skip->id)) {
     //    strcpy(attr->id,css->data.id);
     //}
-    if(css->has.miterLimit) {
+    if(css->has.miterLimit && !(skip && skip->miterLimit)) {
         attr->miterLimit= css->data.miterLimit;
     }
-    if(css->has.opacity) {
+    if(css->has.opacity && !(skip && skip->opacity)) {
         attr->opacity = css->data.opacity;
     }
-    if(css->has.stopColor) {
+    if(css->has.stopColor && !(skip && skip->stopColor)) {
         attr->stopColor= css->data.stopColor;
     }
-    if(css->has.stopOffset) {
+    if(css->has.stopOffset && !(skip && skip->stopOffset)) {
         attr->stopOffset= css->data.stopOffset;
     }
-    if(css->has.stopOpacity) {
+    if(css->has.stopOpacity && !(skip && skip->stopOpacity)) {
         attr->stopOpacity= css->data.stopOpacity;
     }
-    if(css->has.strokeColor) {
+    if(css->has.strokeColor && !(skip && skip->strokeColor)) {
         attr->strokeColor= css->data.strokeColor;
     }
-    if(css->has.strokeDashArray) {
+    if(css->has.strokeDashArray && !(skip && skip->strokeDashArray)) {
         memcpy(attr->strokeDashArray, css->data.strokeDashArray,sizeof(float)*css->data.strokeDashCount);
         attr->strokeDashCount = css->data.strokeDashCount;
     }
-    if(css->has.strokeDashOffset) {
+    if(css->has.strokeDashOffset && !(skip && skip->strokeDashOffset)) {
         attr->strokeDashOffset = css->data.strokeDashOffset;
     }
-    if(css->has.strokeGradient) {
+    if(css->has.strokeGradient && !(skip && skip->strokeGradient)) {
         strcpy(attr->strokeGradient,css->data.strokeGradient);
     }
-    if(css->has.strokeLineCap) {
+    if(css->has.strokeLineCap && !(skip && skip->strokeLineCap)) {
         attr->strokeLineCap=css->data.strokeLineCap;
     }
-    if(css->has.strokeLineJoin) {
+    if(css->has.strokeLineJoin && !(skip && skip->strokeLineJoin)) {
         attr->strokeLineJoin=css->data.strokeLineJoin;
     }
-    if(css->has.strokeOpacity) {
+    if(css->has.strokeOpacity && !(skip && skip->strokeOpacity)) {
         attr->strokeOpacity=css->data.strokeOpacity;
     }
-    if(css->has.strokeWidth) {
+    if(css->has.strokeWidth && !(skip && skip->strokeWidth)) {
         attr->strokeWidth=css->data.strokeWidth;
     }
-    if(css->has.visible) {
+    if(css->has.visible && !(skip && skip->visible)) {
         attr->visible=css->data.visible;
     }
-    if(css->has.xform) {
+    if(css->has.xform && !(skip && skip->xform)) {
         attr->xform=css->data.xform;
     }
+}
+// applies the element's .class rule, then its #id rule, skipping properties set inline
+static void svg_apply_element_css(svg_context& ctx, svg_attrib* attr) {
+    svg_apply_css(attr, ctx.css_current, &ctx.inline_has.attr);
+    svg_apply_css(attr, ctx.css_current_id, &ctx.inline_has.attr);
+}
+static void svg_reset_element_css(svg_context& ctx) {
+    ctx.css_current = nullptr;
+    ctx.css_current_id = nullptr;
+    memset(&ctx.inline_has, 0, sizeof(ctx.inline_has));
 }
 static result_t svg_apply_attribute(svg_context& ctx, const rectf& local_bounds, canvas_style* out_style) {
     result_t res = SUCCESS;
     svg_attrib& a = svg_get_attr(ctx);
-    svg_apply_css(&a,ctx.css_current);
+    svg_apply_element_css(ctx, &a);
     out_style->fill_color =  a.fillColor;
     out_style->fill_gradient.stops = nullptr;
     out_style->fill_gradient.stops_size = 0;
     out_style->stroke_gradient.stops = nullptr;
     out_style->stroke_gradient.stops_size = 0;
     
-    if(a.hasFill==2 && a.fillGradient[0]!=0) {
-        svg_grad_data* gd = svg_find_gradient(ctx,a.fillGradient);
+    if(a.hasFill>=2) {
+        svg_grad_data* gd = a.fillGradient[0]!=0 ? svg_find_gradient(ctx,a.fillGradient) : nullptr;
         if(gd!=nullptr) {
             res = svg_build_gradient(ctx,local_bounds,a.xform,gd,&out_style->fill_gradient);
             if(!SUCCEEDED(res)) {
                 return res;
             }
         } else {
-            a.hasFill = 0;
+            a.hasFill = a.hasFill == 3 ? 1 : 0; // FIX: use the fallback color when there is one
         }
     }
-    if(a.hasStroke==2 && a.strokeGradient[0]!=0) {
-        svg_grad_data* gd = svg_find_gradient(ctx,a.strokeGradient);
+    if(a.hasStroke>=2) {
+        svg_grad_data* gd = a.strokeGradient[0]!=0 ? svg_find_gradient(ctx,a.strokeGradient) : nullptr;
         if(gd!=nullptr) {
             res = svg_build_gradient(ctx,local_bounds,a.xform,gd,&out_style->stroke_gradient);
             if(!SUCCEEDED(res)) {
@@ -3214,7 +3399,7 @@ static result_t svg_apply_attribute(svg_context& ctx, const rectf& local_bounds,
                 return res;
             }
         } else {
-            a.hasStroke = 0;
+            a.hasStroke = a.hasStroke == 3 ? 1 : 0; // FIX: use the fallback color when there is one
         }
     }
     out_style->fill_opacity = a.fillOpacity*a.opacity;
@@ -3226,6 +3411,7 @@ static result_t svg_apply_attribute(svg_context& ctx, const rectf& local_bounds,
             out_style->fill_paint_type = paint_type::solid;
             break;
         case 2:
+        case 3:
             out_style->fill_paint_type = paint_type::gradient;
             break;
     }
@@ -3240,6 +3426,7 @@ static result_t svg_apply_attribute(svg_context& ctx, const rectf& local_bounds,
             out_style->stroke_paint_type = paint_type::solid;
             break;
         case 2:
+        case 3:
             out_style->stroke_paint_type = paint_type::gradient;
             break;
     }
@@ -3262,7 +3449,7 @@ static result_t svg_parse_path_elem(svg_context& ctx) {
     if (!ctx.rdr.read() || ctx.rdr.node_type() != ml_node_type::attribute) {
         return FMT_ERROR;
     }
-    ctx.css_current = nullptr;
+    svg_reset_element_css(ctx);
     int id = 0;
     result_t res = SUCCESS;
     canvas_path path;
@@ -3329,9 +3516,10 @@ static void svg_apply_view_transform(svg_context& ctx, float width,
     float scale_x = width / ctx.view_box_width;
     float scale_y = height / ctx.view_box_height;
     if (ctx.align_type == view_align_none) {
-        ctx.xform = ctx.xform * matrix::create_scale(scale_x, scale_y);
-        ctx.xform = ctx.xform *
-                    matrix::create_translate(-ctx.view_box_min_x, -ctx.view_box_min_y);
+        // FIX: the viewBox translate/scale must happen before the caller's transform
+        // (gfx::matrix is row-vector: a * b applies a first)
+        ctx.xform = (matrix::create_translate(-ctx.view_box_min_x, -ctx.view_box_min_y) *
+                     matrix::create_scale(scale_x, scale_y)) * ctx.xform;
     } else {
         float scale = (ctx.align_scale == view_scale_meet)
                           ? math::min_(scale_x, scale_y)
@@ -3381,7 +3569,7 @@ static result_t svg_parse_gradient_stop_elem(svg_context& ctx) {
     if (!ctx.rdr.read() || ctx.rdr.node_type() != ml_node_type::attribute) {
         return FMT_ERROR;
     }
-    ctx.css_current = nullptr;
+    svg_reset_element_css(ctx);
     int id = 0;
     result_t res = SUCCESS;
     svg_attrib& a = svg_get_attr(ctx);
@@ -3406,7 +3594,7 @@ static result_t svg_parse_gradient_stop_elem(svg_context& ctx) {
             }
         }
     }
-    svg_apply_css(&a,ctx.css_current);
+    svg_apply_element_css(ctx, &a);
     a.stopOpacity = fabsf(a.stopOpacity);
     if(a.stopOpacity>1.0f) {
         a.stopOpacity=1.0f;
@@ -3435,11 +3623,33 @@ static result_t svg_parse_gradient_stop_elem(svg_context& ctx) {
     }
     return SUCCESS;
 }
+static result_t svg_add_rect(canvas_path& path, float x, float y, float w, float h, float rx, float ry) {
+    result_t res;
+    if (rx < 0.00001f || ry < 0.00001f) {
+        if (!SUCCEEDED(res = path.move_to({x, y}))) return res;
+        if (!SUCCEEDED(res = path.line_to({x + w, y}))) return res;
+        if (!SUCCEEDED(res = path.line_to({x + w, y + h}))) return res;
+        if (!SUCCEEDED(res = path.line_to({x, y + h}))) return res;
+        return path.close();
+    }
+    const float kx = rx * SVG_KAPPA, ky = ry * SVG_KAPPA;
+    const float r = x + w, b = y + h;
+    if (!SUCCEEDED(res = path.move_to({x + rx, y}))) return res;
+    if (!SUCCEEDED(res = path.line_to({r - rx, y}))) return res;
+    if (!SUCCEEDED(res = path.cubic_to({r - rx + kx, y}, {r, y + ry - ky}, {r, y + ry}))) return res;
+    if (!SUCCEEDED(res = path.line_to({r, b - ry}))) return res;
+    if (!SUCCEEDED(res = path.cubic_to({r, b - ry + ky}, {r - rx + kx, b}, {r - rx, b}))) return res;
+    if (!SUCCEEDED(res = path.line_to({x + rx, b}))) return res;
+    if (!SUCCEEDED(res = path.cubic_to({x + rx - kx, b}, {x, b - ry + ky}, {x, b - ry}))) return res;
+    if (!SUCCEEDED(res = path.line_to({x, y + ry}))) return res;
+    if (!SUCCEEDED(res = path.cubic_to({x, y + ry - ky}, {x + rx - kx, y}, {x + rx, y}))) return res;
+    return path.close();
+}
 static result_t svg_parse_rect_elem(svg_context& ctx) {
     if (!ctx.rdr.read() || ctx.rdr.node_type() != ml_node_type::attribute) {
         return FMT_ERROR;
     }
-    ctx.css_current = nullptr;
+    svg_reset_element_css(ctx);
     int id = 0;
     result_t res = SUCCESS;
     canvas_path path;
@@ -3533,25 +3743,23 @@ static result_t svg_parse_rect_elem(svg_context& ctx) {
     if (ry < 0.0f) ry = 0.0f;
     if (rx > width / 2.0f) rx = width / 2.0f;
     if (ry > height / 2.0f) ry = height / 2.0f;
-    if (rx < 0.00001f || ry < 0.0001f) {
-        res= path.rectangle(rectf(pointf(x,y),sizef(width,height)));
-        if(!SUCCEEDED(res)) {
-            return res;
-        }
-    } else {
-        res= path.rounded_rectangle(rectf(pointf(x,y),sizef(width,height)),{rx,ry});
-        if(!SUCCEEDED(res)) {
-            return res;
-        }
+    // FIX: a width or height of zero (or less) disables rendering of the element
+    if (width <= 0.f || height <= 0.f) {
+        return SUCCESS;
     }
-    
+    // FIX: rectf(point, size) is inclusive (x2 = x + w - 1), so rects narrower than one
+    // unit came out wrong (e.g. viewBox="0 0 1 1"). Build the outline directly instead.
+    res = svg_add_rect(path, x, y, width, height, rx, ry);
+    if(!SUCCEEDED(res)) {
+        return res;
+    }
     return svg_draw_path(ctx,path);
 }
 static result_t svg_parse_line_elem(svg_context& ctx) {
     if (!ctx.rdr.read() || ctx.rdr.node_type() != ml_node_type::attribute) {
         return FMT_ERROR;
     }
-    ctx.css_current = nullptr;
+    svg_reset_element_css(ctx);
     int id = 0;
     result_t res = SUCCESS;
     canvas_path path;
@@ -3587,14 +3795,14 @@ static result_t svg_parse_line_elem(svg_context& ctx) {
                 if(!SUCCEEDED(res)) {
                     return res;
                 }
-                x2=svg_convert_to_pixels(ctx,coord,0.0f,svg_actual_width(ctx));
+                x2=svg_convert_to_pixels(ctx,coord,svg_actual_orig_x(ctx),svg_actual_width(ctx));
                 break;
             case ATTR_Y2:
                 res = svg_parse_coordinate(ctx,&sz,&coord);
                 if(!SUCCEEDED(res)) {
                     return res;
                 }
-                y2=svg_convert_to_pixels(ctx,coord,0.0f,svg_actual_height(ctx));
+                y2=svg_convert_to_pixels(ctx,coord,svg_actual_orig_y(ctx),svg_actual_height(ctx));
                 break;
             case ATTR_STYLE:
                 res = svg_parse_style(ctx, &sz,false);
@@ -3640,7 +3848,7 @@ static result_t svg_parse_poly_elem(svg_context& ctx) {
     if (!ctx.rdr.read() || ctx.rdr.node_type() != ml_node_type::attribute) {
         return FMT_ERROR;
     }
-    ctx.css_current = nullptr;
+    svg_reset_element_css(ctx);
     int id = 0;
     result_t res = SUCCESS;
     canvas_path path;
@@ -3702,7 +3910,7 @@ static result_t svg_parse_ellipse_or_circle_elem(svg_context& ctx) {
     if (!ctx.rdr.read() || ctx.rdr.node_type() != ml_node_type::attribute) {
         return FMT_ERROR;
     }
-    ctx.css_current = nullptr;
+    svg_reset_element_css(ctx);
     int id = 0;
     result_t res = SUCCESS;
     canvas_path path;
@@ -3787,6 +3995,10 @@ static result_t svg_parse_ellipse_or_circle_elem(svg_context& ctx) {
     if (ry < 0.0f && rx > 0.0f) ry = rx;
     if (rx < 0.0f) rx = 0.0f;
     if (ry < 0.0f) ry = 0.0f;
+    // FIX: a zero radius disables rendering of the element
+    if (ctx.tag_id == TAG_ELLIPSE ? (rx <= 0.f || ry <= 0.f) : (r <= 0.f)) {
+        return SUCCESS;
+    }
     res= ctx.tag_id==TAG_ELLIPSE?path.ellipse(pointf(cx,cy),{rx,ry}):path.circle(pointf(cx,cy),r);
     if(!SUCCEEDED(res)) {
         return res;
@@ -3842,7 +4054,7 @@ static result_t svg_parse_svg_elem(svg_context& ctx) {
                 } else {
                     // Parse X align
                     if (strstr(ctx.tmp_value, "xMinYMin") != 0)
-                        ctx.align_type = view_align_x_mid_y_min;
+                        ctx.align_type = view_align_x_min_y_min; // FIX: was x_mid_y_min
                     else if (strstr(ctx.tmp_value, "xMidYMin") != 0)
                         ctx.align_type = view_align_x_mid_y_min;
                     else if (strstr(ctx.tmp_value, "xMaxYMin") != 0)
@@ -3945,79 +4157,142 @@ static result_t svg_parse_svg_elem(svg_context& ctx) {
         ctx.view_width = image_width;
     }
     if(ctx.view_height==0) {
-        ctx.view_width = image_height;
+        ctx.view_height = image_height; // FIX: was assigning view_width
     }
     return SUCCESS;
 }
+// skips the rest of a CSS rule through its matching '}' (handles nested blocks such as @media)
+static result_t svg_skip_css_rule(svg_context& ctx, const char** current, int depth) {
+    result_t res;
+    while (*current != nullptr) {
+        res = svg_ensure_current(ctx, current);
+        if (!SUCCEEDED(res)) return res;
+        if (*current == nullptr) break;
+        char ch = **current;
+        ++(*current);
+        if (ch == '{') {
+            ++depth;
+        } else if (ch == '}') {
+            if (--depth <= 0) return SUCCESS;
+        }
+    }
+    return SUCCESS;
+}
+#define SVG_MAX_CSS_SELECTORS 8
+// FIX: parses one rule. Comma-separated selector lists (".a, .b {...}") are supported.
+// Rules using selectors this parser doesn't support (tag, compound, descendant, @rules)
+// are skipped instead of failing the whole document with invalid_format.
 static result_t svg_parse_css_data(svg_context& ctx, const char** current) {
     result_t res = svg_ensure_current(ctx,current);
-    
     if(!SUCCEEDED(res)) {return res;}
     res=svg_skip_space(ctx,current);
-    if(!ctx.rdr.has_content()) {
+    if(!SUCCEEDED(res)) {return res;}
+    if(*current==nullptr || !ctx.rdr.has_content()) {
         return SUCCESS;
     }
-    if(!SUCCEEDED(res)) {return res;}
-    res = svg_ensure_current(ctx,current);
-    if(!SUCCEEDED(res)) {return res;}
-    bool isid = false;
-    switch(**current) {
-        case '#':
-            isid=true;
+    char selectors[SVG_MAX_CSS_SELECTORS][MAX_NAME];
+    bool is_id[SVG_MAX_CSS_SELECTORS];
+    size_t count = 0;
+    bool supported = true;
+    while (true) {
+        res = svg_ensure_current(ctx,current);
+        if(!SUCCEEDED(res)) {return res;}
+        if (*current == nullptr) return SUCCESS;
+        char ch = **current;
+        if (ch == '/') {
+            // possible /* comment */
+            ++(*current);
+            res = svg_ensure_current(ctx,current);
+            if(!SUCCEEDED(res)) {return res;}
+            if (*current == nullptr) return SUCCESS;
+            if (**current != '*') { supported = false; continue; }
+            ++(*current);
+            char prev = 0;
+            while (true) {
+                res = svg_ensure_current(ctx,current);
+                if(!SUCCEEDED(res)) {return res;}
+                if (*current == nullptr) return SUCCESS;
+                char c = *((*current)++);
+                if (prev == '*' && c == '/') break;
+                prev = c;
+            }
+            res = svg_skip_space(ctx,current);
+            if(!SUCCEEDED(res)) {return res;}
+            if (*current == nullptr || !ctx.rdr.has_content()) return SUCCESS;
+            continue;
+        }
+        if ((ch == '#' || ch == '.') && supported) {
+            ++(*current);
+            res = svg_ensure_current(ctx,current);
+            if(!SUCCEEDED(res)) {return res;}
+            char sel[MAX_NAME];
+            res = svg_parse_id_str(ctx,current,sel,MAX_NAME);
+            if(!SUCCEEDED(res)) {return res;}
+            res = svg_skip_space(ctx,current);
+            if(!SUCCEEDED(res)) {return res;}
+            res = svg_ensure_current(ctx,current);
+            if(!SUCCEEDED(res)) {return res;}
+            if (*current == nullptr) return SUCCESS;
+            if (sel[0] == 0 || (**current != ',' && **current != '{')) {
+                supported = false; // compound/descendant selector
+                continue;
+            }
+            if (count < SVG_MAX_CSS_SELECTORS) {
+                strcpy(selectors[count], sel);
+                is_id[count] = ch == '#';
+                ++count;
+            }
+            if (**current == ',') {
+                ++(*current);
+                res = svg_skip_space(ctx,current);
+                if(!SUCCEEDED(res)) {return res;}
+                continue;
+            }
+            // '{'
             break;
-        case '.':
-            break;
-        default:
-            return FMT_ERROR;
+        }
+        if (ch == '{') break;
+        // anything else: unsupported selector; consume up to the opening brace
+        supported = false;
+        ++(*current);
     }
-    ++(*current);
-    res = svg_ensure_current(ctx,current);
-    if(!SUCCEEDED(res)) {return res;}
-    svg_css_data* data = (svg_css_data*)ctx.allocator(sizeof(svg_css_data));
-    if(data==nullptr) {
-        return OUT_OF_MEMORY;
+    ++(*current); // '{'
+    if (!supported || count == 0) {
+        return svg_skip_css_rule(ctx, current, 1);
     }
-    
-    data->is_id=isid;
-    data->next = nullptr;
-    res=svg_parse_alphanum_str(ctx,current,data->selector,MAX_NAME);
-    if(!SUCCEEDED(res)) {return res;}
-    res=svg_skip_space(ctx,current);
-    if(!SUCCEEDED(res)) {return res;}
     res = svg_ensure_current(ctx,current);
-    if(!SUCCEEDED(res)) {return res;}
-    if(!*current || **current!='{') { res= FMT_ERROR; goto error;}
-    ++(*current);
-    res = svg_ensure_current(ctx,current);
-    if(!SUCCEEDED(res)) { goto error;}
+    if(!SUCCEEDED(res)) { return res; }
+    memset(&ctx.css_has,0,sizeof(ctx.css_has));
     res=svg_parse_style(ctx,current,true);
-    if(!SUCCEEDED(res)) { goto error;}
+    if(!SUCCEEDED(res)) { return res; }
     res=svg_skip_space(ctx,current);
-    if(!SUCCEEDED(res)) { goto error;}
+    if(!SUCCEEDED(res)) { return res; }
     res = svg_ensure_current(ctx,current);
-    if(!SUCCEEDED(res)) { goto error;}
-    data->has= ctx.css_has.attr;
-    memset(&ctx.css_has,0,sizeof(svg_css_has));
-    data->data=svg_get_attr(ctx);
-    if(ctx.css_head==nullptr) {
-        ctx.css_head = data;
-        ctx.css_tail = data;
-    } else {
-        ctx.css_tail->next = data;
-        ctx.css_tail = data;
-    }
+    if(!SUCCEEDED(res)) { return res; }
     if(*current==nullptr || **current!='}') {
-        res = FMT_ERROR;
-        goto error;
+        return FMT_ERROR;
     }
     ++(*current);
-    data = nullptr;
-
-error:
-    if(data!=nullptr) {
-        ctx.deallocator(data);
+    for (size_t i = 0; i < count; ++i) {
+        svg_css_data* data = (svg_css_data*)ctx.allocator(sizeof(svg_css_data));
+        if(data==nullptr) {
+            return OUT_OF_MEMORY;
+        }
+        data->is_id = is_id[i];
+        data->next = nullptr;
+        strcpy(data->selector, selectors[i]);
+        data->has = ctx.css_has.attr;
+        data->data = svg_get_attr(ctx);
+        if(ctx.css_head==nullptr) {
+            ctx.css_head = data;
+            ctx.css_tail = data;
+        } else {
+            ctx.css_tail->next = data;
+            ctx.css_tail = data;
+        }
     }
-    return res;
+    memset(&ctx.css_has,0,sizeof(ctx.css_has));
+    return SUCCESS;
 }
 static result_t svg_parse_style_elem(svg_context& ctx) {
     if(ctx.rdr.node_type()!=ml_node_type::element) {
@@ -4051,7 +4326,7 @@ static result_t svg_parse_gradient_elem(svg_context& ctx) {
     if (!ctx.rdr.read() || ctx.rdr.node_type() != ml_node_type::attribute) {
         return FMT_ERROR;
     }
-    ctx.css_current = nullptr;
+    svg_reset_element_css(ctx);
     result_t res = SUCCESS;
     svg_coord x1,y1,x2,y2,fx,fy,cx,cy,r;
     svg_grad_data* data = (svg_grad_data*)ctx.allocator(sizeof(svg_grad_data));
@@ -4076,7 +4351,7 @@ static result_t svg_parse_gradient_elem(svg_context& ctx) {
     cy = {50,UNITS_PERCENT};
     fx = {50,UNITS_PERCENT};
     fy = {50,UNITS_PERCENT};
-    r = {100,UNITS_PERCENT};
+    r = {50,UNITS_PERCENT}; // FIX: the SVG default radius is 50%
     while (ctx.rdr.node_type() == ml_node_type::attribute) {
         attr_id = svg_attributeid(ctx.rdr.value());
         if (!ctx.rdr.read()) {
@@ -4326,10 +4601,14 @@ static result_t svg_parse_start_element(svg_context& ctx) {
             if (!SUCCEEDED(res)) {
                 return res;
             }
+            svg_reset_element_css(ctx);
             res = svg_parse_attributes(ctx);
             if (!SUCCEEDED(res)) {
                 return res;
             }
+            // FIX: class/id rules on a <g> were never applied, so children didn't inherit them
+            svg_apply_element_css(ctx, &svg_get_attr(ctx));
+            svg_reset_element_css(ctx);
             break;
         case TAG_PATH:
             if (ctx.in_path) {

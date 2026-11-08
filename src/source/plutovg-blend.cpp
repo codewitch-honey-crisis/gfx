@@ -1681,8 +1681,11 @@ static void plutovg_blend_texture(plutovg_canvas_t* canvas,
 
 bool plutovg_blend(plutovg_canvas_t* canvas,
                    const plutovg_span_buffer_t* span_buffer) {
-    if(span_buffer->spans.data==nullptr) return false;
+    // FIX: an empty span buffer is valid even if it was never allocated. The size check has to
+    // come first, or render() fails with out_of_memory when the first shape drawn on a canvas
+    // rasterizes to nothing (a filled <line>, a shape outside the canvas, a zero-area path).
     if (span_buffer->spans.size == 0) return true;
+    if(span_buffer->spans.data==nullptr) return false;
     if (canvas->state->paint == NULL) {
         plutovg_blend_color(canvas, &canvas->state->color, span_buffer);
         return true;

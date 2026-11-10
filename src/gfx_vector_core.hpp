@@ -47,6 +47,7 @@ struct matrix {
     static matrix create_skew_y(float angle);
     static matrix create_rotate(float angle);
     static matrix create_fit_to(sizef dimensions,const rectf& bounds);
+    static matrix create_fit_preserve(sizef dimensions, const rectf& bounds);
 private:
     void copy_from(const matrix& rhs);
 };

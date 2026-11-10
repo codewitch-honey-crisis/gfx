@@ -143,6 +143,17 @@ matrix matrix::create_fit_to(sizef dimensions,const rectf& bounds) {
     matrix result = create_translate(bounds.x1, bounds.y1);
     return create_scale(scale_x, scale_y) * result;
 }
+matrix matrix::create_fit_preserve(sizef dimensions, const rectf& bounds) {
+    float dst_width = bounds.width();
+    float dst_height = bounds.height();
+    float scale_x = dst_width / dimensions.width;
+    float scale_y = dst_height / dimensions.height;
+    // use the smaller scale so the whole drawing fits, then center it on the other axis
+    float scale = scale_x < scale_y ? scale_x : scale_y;
+    float offset_x = bounds.x1 + (dst_width - dimensions.width * scale) * 0.5f;
+    float offset_y = bounds.y1 + (dst_height - dimensions.height * scale) * 0.5f;
+    return create_scale(scale, scale) * create_translate(offset_x, offset_y);
+}
 bool matrix::invert(const matrix& rhs, matrix* out_inverted) {
     float det = (rhs.a * rhs.d - rhs.b * rhs.c);
     if(det == 0.f)

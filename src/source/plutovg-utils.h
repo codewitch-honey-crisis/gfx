@@ -53,10 +53,12 @@ bool plutovg_array_ensure(T& array, size_t count) {
         size_t capacity = (array).size + (count); 
         size_t newcapacity = (array).capacity == 0 ? 8 : (array).capacity; 
         while(newcapacity < capacity) { newcapacity *= 2; } 
-        (array).data = (p_t)(array).reallocator((array).data, newcapacity * sizeof(e_t)); 
-        if((array).data==nullptr) {
+        // keep the old buffer if the reallocation fails, so the array stays valid (and isn't leaked)
+        p_t newdata = (p_t)(array).reallocator((array).data, newcapacity * sizeof(e_t)); 
+        if(newdata==nullptr) {
             return false;
         }
+        (array).data = newdata;
         (array).capacity = newcapacity; 
     } 
     return true;

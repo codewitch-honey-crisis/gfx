@@ -326,8 +326,9 @@ bool plutovg_path_add_round_rect(plutovg_path_t* path, float x, float y, float w
         return false;
     }
     // already reserved, no need to check
-    plutovg_path_move_to(path, x, y+ry);
-    plutovg_path_cubic_to(path, x, y+ry-cpy, x+rx-cpx, y, x+rx, y);
+    // SVG compliance: per the SVG 2 spec (rect element), a rounded rect starts at
+    // (x+rx, y) and proceeds clockwise, so dash patterns begin at the same spot as SVG.
+    plutovg_path_move_to(path, x+rx, y);
     plutovg_path_line_to(path, right-rx, y);
     plutovg_path_cubic_to(path, right-rx+cpx, y, right, y+ry-cpy, right, y+ry);
     plutovg_path_line_to(path, right, bottom-ry);
@@ -335,6 +336,7 @@ bool plutovg_path_add_round_rect(plutovg_path_t* path, float x, float y, float w
     plutovg_path_line_to(path, x+rx, bottom);
     plutovg_path_cubic_to(path, x+rx-cpx, bottom, x, bottom-ry+cpy, x, bottom-ry);
     plutovg_path_line_to(path, x, y+ry);
+    plutovg_path_cubic_to(path, x, y+ry-cpy, x+rx-cpx, y, x+rx, y);
     plutovg_path_close(path);
     return true;
 }
@@ -353,11 +355,14 @@ bool plutovg_path_add_ellipse(plutovg_path_t* path, float cx, float cy, float rx
         return false;
     }
     // can skip checks
-    plutovg_path_move_to(path, cx, top);
-    plutovg_path_cubic_to(path, cx+cpx, top, right, cy-cpy, right, cy);
+    // SVG compliance: per the SVG 2 spec (circle/ellipse elements), the outline starts
+    // at (cx+rx, cy) and proceeds clockwise (down first, in y-down space), so dash
+    // patterns begin at the same spot as SVG.
+    plutovg_path_move_to(path, right, cy);
     plutovg_path_cubic_to(path, right, cy+cpy, cx+cpx, bottom, cx, bottom);
     plutovg_path_cubic_to(path, cx-cpx, bottom, left, cy+cpy, left, cy);
     plutovg_path_cubic_to(path, left, cy-cpy, cx-cpx, top, cx, top);
+    plutovg_path_cubic_to(path, cx+cpx, top, right, cy-cpy, right, cy);
     plutovg_path_close(path);
     return true;
 }
